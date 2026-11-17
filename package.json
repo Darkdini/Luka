@@ -1,0 +1,21 @@
+{
+  "name": "crowns-and-keeps",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Браузерная средневековая стратегия: замок, армия, общий мир, сражения",
+  "type": "module",
+  "scripts": {
+    "start": "node --no-warnings server/index.js",
+    "dev": "DEV_PURCHASES=1 node --no-warnings --watch server/index.js",
+    "test": "DATA_DIR=data/test node --no-warnings --test test/*.test.js",
+    "assets": "python3 tools/slice_sheets.py"
+  },
+  "engines": {
+    "node": ">=22.5"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "express": "^4.22.3",
+    "ws": "^8.23.0"
+  }
+}

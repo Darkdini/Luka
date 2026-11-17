@@ -1,0 +1,179 @@
+import http from 'node:http';
+import path from 'node:path';
+import express from 'express';
+import { WebSocketServer } from 'ws';
+import { RACES, DONATE_PACKS } from '../shared/config.js';
+import { db, getPlayer, getPlayerByName, savePlayer } from './db.js';
+import { hashPassword, checkPassword, makeToken, readToken, rateLimit } from './auth.js';
+import { newPlayerState, tick, actions, view, GameError } from './game.js';
+import { freePlot, worldView, startAttack, finishAttack, leaderboard } from './world.js';
+
+const PORT = Number(process.env.PORT || 3000);
+const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+const DEV_PURCHASES = process.env.DEV_PURCHASES === '1';
+
+const app = express();
+app.disable('x-powered-by');
+app.use(express.json({ limit: '256kb' }));
+app.use('/shared', express.static(path.join(ROOT, 'shared')));
+app.use(express.static(path.join(ROOT, 'client')));
+
+const wrap = (fn) => (req, res) => {
+  try {
+    const out = fn(req, res);
+    if (out !== undefined) res.json(out);
+  } catch (e) {
+    if (e instanceof GameError) return res.status(400).json({ error: e.message });
+    console.error(e);
+    res.status(500).json({ error: 'Ошибка сервера' });
+  }
+};
+
+function auth(req) {
+  const h = req.headers.authorization || '';
+  const id = readToken(h.replace(/^Bearer /, ''));
+  if (!id) throw new GameError('Требуется вход');
+  const p = getPlayer(id);
+  if (!p) throw new GameError('Игрок не найден');
+  tick(p.state);
+  return p;
+}
+
+// --- Регистрация и вход ---------------------------------------------------------
+app.post('/api/register', wrap((req) => {
+  if (!rateLimit('reg:' + req.ip, 5, 3600e3)) throw new GameError('Слишком много регистраций, попробуйте позже');
+  const { username, password, castleName, race } = req.body || {};
+  if (typeof username !== 'string' || !/^[A-Za-zА-Яа-яЁё0-9_]{3,16}$/.test(username)) throw new GameError('Имя: 3–16 букв, цифр или _');
+  if (typeof password !== 'string' || password.length < 6 || password.length > 72) throw new GameError('Пароль: от 6 символов');
+  const cname = String(castleName || '').trim().slice(0, 24);
+  if (cname.length < 3) throw new GameError('Название замка: от 3 символов');
+  if (!RACES[race]) throw new GameError('Выберите расу');
+  if (getPlayerByName(username)) throw new GameError('Имя уже занято');
+  const { realm, plot } = freePlot();
+  const now = Date.now();
+  const state = newPlayerState(race, (now ^ username.length * 7919) >>> 0);
+  const r = db.prepare(`INSERT INTO players (username, pass, castle_name, race, realm, plot, trophies, state, created_at, seen_at)
+    VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`).run(username, hashPassword(password), cname, race, realm, plot, JSON.stringify(state), now, now);
+  const id = Number(r.lastInsertRowid);
+  return { token: makeToken(id) };
+}));
+
+app.post('/api/login', wrap((req) => {
+  if (!rateLimit('login:' + req.ip, 20, 600e3)) throw new GameError('Слишком много попыток, подождите');
+  const { username, password } = req.body || {};
+  const p = typeof username === 'string' && getPlayerByName(username);
+  if (!p || !checkPassword(String(password || ''), p.pass)) throw new GameError('Неверное имя или пароль');
+  return { token: makeToken(p.id) };
+}));
+
+// --- Состояние и действия -------------------------------------------------------
+app.get('/api/me', wrap((req) => {
+  const p = auth(req);
+  savePlayer(p);
+  return view(p);
+}));
+
+app.post('/api/action', wrap((req) => {
+  const p = auth(req);
+  const { action, ...args } = req.body || {};
+  const fn = Object.hasOwn(actions, action) ? actions[action] : null;
+  if (typeof fn !== 'function') throw new GameError('Неизвестное действие');
+  const extra = fn(p.state, args) || {};
+  tick(p.state);
+  savePlayer(p);
+  return { ...extra, me: view(p) };
+}));
+
+// --- Мир, атаки, рейтинг ----------------------------------------------------------
+app.get('/api/world', wrap((req) => {
+  const p = auth(req);
+  const realm = Math.max(1, Number(req.query.realm) || p.realm);
+  return worldView(realm, p);
+}));
+
+app.get('/api/player/:id', wrap((req) => {
+  auth(req);
+  const d = getPlayer(Number(req.params.id));
+  if (!d) throw new GameError('Игрок не найден');
+  return { id: d.id, name: d.castle_name, owner: d.username, race: d.race, trophies: d.trophies, buildings: d.state.buildings.filter((b) => !b.type.startsWith('trap_')), decor: d.state.decor };
+}));
+
+app.post('/api/attack/start', wrap((req) => {
+  const p = auth(req);
+  const t = req.body?.target || {};
+  const out = startAttack(p, { kind: t.kind === 'player' ? 'player' : 'npc', id: t.kind === 'player' ? Number(t.id) : String(t.id) });
+  savePlayer(p);
+  return out;
+}));
+
+app.post('/api/attack/finish', wrap((req) => {
+  const p = auth(req);
+  const out = finishAttack(p, String(req.body?.battleId || ''), req.body?.log || [], notify);
+  savePlayer(p);
+  return { result: out, me: view(p) };
+}));
+
+app.get('/api/top', wrap((req) => { auth(req); return leaderboard(); }));
+
+// --- Донат (витрина; платёжный шлюз подключается позже) ---------------------------
+app.get('/api/shop', wrap(() => ({ packs: DONATE_PACKS, paymentsEnabled: DEV_PURCHASES })));
+app.post('/api/shop/buy', wrap((req) => {
+  const p = auth(req);
+  const pack = DONATE_PACKS.find((x) => x.id === req.body?.pack);
+  if (!pack) throw new GameError('Пакет не найден');
+  if (!DEV_PURCHASES) throw new GameError('Оплата скоро появится');
+  const s = p.state;
+  s.purchased = s.purchased || {};
+  if (pack.id === 'starter' && s.purchased.starter) throw new GameError('Набор уже куплен');
+  s.res.gems += pack.gems;
+  if (pack.bonus) { s.res.gold += pack.bonus.gold || 0; s.res.food += pack.bonus.food || 0; }
+  s.purchased[pack.id] = (s.purchased[pack.id] || 0) + 1;
+  db.prepare('INSERT INTO purchases (player, pack, gems, price, status, ts) VALUES (?, ?, ?, ?, ?, ?)').run(p.id, pack.id, pack.gems, pack.price, 'dev', Date.now());
+  tick(s);
+  savePlayer(p);
+  return { me: view(p) };
+}));
+
+// --- WebSocket: чат и уведомления -------------------------------------------------
+const server = http.createServer(app);
+const wss = new WebSocketServer({ server, path: '/ws' });
+const sockets = new Map(); // playerId -> Set<ws>
+
+function notify(playerId, msg) {
+  for (const ws of sockets.get(playerId) || []) ws.send(JSON.stringify(msg));
+}
+function broadcast(msg) {
+  const data = JSON.stringify(msg);
+  for (const set of sockets.values()) for (const ws of set) ws.send(data);
+}
+
+wss.on('connection', (ws, req) => {
+  const url = new URL(req.url, 'http://x');
+  const id = readToken(url.searchParams.get('token'));
+  const p = id && getPlayer(id);
+  if (!p) return ws.close();
+  if (!sockets.has(id)) sockets.set(id, new Set());
+  sockets.get(id).add(ws);
+  const history = db.prepare('SELECT name, text, ts, player FROM chat ORDER BY id DESC LIMIT 40').all().reverse();
+  ws.send(JSON.stringify({ type: 'history', messages: history, online: sockets.size }));
+  broadcast({ type: 'online', online: sockets.size });
+  let last = 0;
+  ws.on('message', (raw) => {
+    let m;
+    try { m = JSON.parse(raw); } catch { return; }
+    if (m.type !== 'chat') return;
+    const text = String(m.text || '').trim().slice(0, 200);
+    const now = Date.now();
+    if (!text || now - last < 1000) return;
+    last = now;
+    db.prepare('INSERT INTO chat (player, name, text, ts) VALUES (?, ?, ?, ?)').run(id, p.username, text, now);
+    broadcast({ type: 'chat', name: p.username, player: id, text, ts: now });
+  });
+  ws.on('close', () => {
+    sockets.get(id)?.delete(ws);
+    if (!sockets.get(id)?.size) sockets.delete(id);
+    broadcast({ type: 'online', online: sockets.size });
+  });
+});
+
+server.listen(PORT, () => console.log(`Сервер запущен: http://localhost:${PORT}`));

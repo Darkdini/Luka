@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="theme-color" content="#14213d">
+  <title>Короны и Крепости</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;600;800;900&display=swap">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body data-mode="village">
+  <!-- Загрузка -->
+  <div id="loading">
+    <div class="logo"><span>Короны</span><small>и</small><span>Крепости</span></div>
+    <div class="load-bar"><div id="load-fill"></div></div>
+    <p>Готовим королевство…</p>
+  </div>
+
+  <!-- Вход / регистрация -->
+  <div id="auth" data-mode="login">
+    <div class="auth-box">
+      <div class="logo small"><span>Короны</span><small>и</small><span>Крепости</span></div>
+      <div class="auth-tabs">
+        <button class="auth-tab on" data-mode="login">Вход</button>
+        <button class="auth-tab" data-mode="register">Регистрация</button>
+      </div>
+      <form id="auth-form" autocomplete="on">
+        <label>Имя правителя<input name="username" required minlength="3" maxlength="16" autocomplete="username"></label>
+        <label>Пароль<input name="password" type="password" required minlength="6" autocomplete="current-password"></label>
+        <div class="reg-only">
+          <label>Название замка<input name="castle" maxlength="24" placeholder="Например, Северный Оплот"></label>
+          <div class="race-title">Выберите расу</div>
+          <div id="race-list"></div>
+        </div>
+        <div id="auth-err"></div>
+        <button class="btn green big" type="submit"><span class="login-only">Войти</span><span class="reg-only">Основать королевство</span></button>
+      </form>
+    </div>
+  </div>
+
+  <canvas id="cv"></canvas>
+
+  <!-- HUD поселения -->
+  <div id="hud">
+    <div id="hud-player">
+      <div class="lvl-badge"><span id="p-level">1</span></div>
+      <div class="p-info">
+        <div id="p-name">—</div>
+        <div class="p-sub"><span id="p-race" class="race-chip"></span> <span class="tro">🏆 <b id="p-trophies">0</b></span></div>
+      </div>
+    </div>
+    <div id="shield" class="hidden">🛡 <span></span></div>
+    <div id="hud-res">
+      <div class="rbar" id="r-gold"><img src="/assets/ui/icon_gold.png" alt=""><div class="track"><div class="fill"></div></div><b class="v">0</b><i class="cap"></i></div>
+      <div class="rbar" id="r-food"><img src="/assets/ui/icon_food.png" alt=""><div class="track"><div class="fill"></div></div><b class="v">0</b><i class="cap"></i></div>
+      <div class="rbar gems" id="r-gems"><img src="/assets/ui/icon_gem.png" alt=""><b class="v">0</b><button id="btn-gems" class="plus" aria-label="Купить кристаллы">+</button></div>
+    </div>
+    <div id="builders" title="Свободные строители"></div>
+    <div id="hud-side">
+      <button class="rbtn" id="btn-chat" title="Чат"><img src="/assets/ui/btn_mail.png" alt="Чат"><span class="badge hidden"></span></button>
+      <button class="rbtn" id="btn-top" title="Рейтинг"><img src="/assets/ui/btn_trophy.png" alt="Рейтинг"></button>
+      <button class="rbtn" id="btn-reports" title="Отчёты"><img src="/assets/ui/btn_stats.png" alt="Отчёты"><span class="badge hidden"></span></button>
+      <button class="rbtn" id="btn-settings" title="Настройки"><img src="/assets/ui/btn_settings.png" alt="Настройки"></button>
+      <button class="rbtn daily hidden" id="btn-daily" title="Ежедневная награда">🎁</button>
+    </div>
+    <button id="btn-attack" class="big-action"><span class="ba-ico">⚔</span><span>В бой!</span></button>
+    <div id="hud-br">
+      <button id="btn-army" class="sq-action"><span class="ba-ico">🛡</span><span>Армия</span><small id="army-count"></small><small id="army-timer"></small></button>
+      <button id="btn-shop" class="sq-action shop"><span class="ba-ico">🏪</span><span>Магазин</span></button>
+    </div>
+    <div id="selbar"></div>
+    <div id="placebar"><button id="place-cancel" class="round red" aria-label="Отмена">✖</button><button id="place-ok" class="round green" aria-label="Построить">✔</button></div>
+  </div>
+
+  <!-- HUD боя -->
+  <div id="battle-hud">
+    <div class="bt-top">
+      <div class="bt-target"><b id="bt-name"></b><span id="bt-sub"></span>
+        <div class="bt-loot-row">Доступно: <span id="bt-loot-max"></span></div>
+        <div class="bt-loot-row">Добыто: <span id="bt-loot"></span></div>
+      </div>
+      <div class="bt-center"><div id="bt-timer"></div><div id="bt-stars"></div><div id="bt-pct">0%</div></div>
+      <button id="bt-end" class="btn red sm">Отступить</button>
+    </div>
+    <div id="bt-cards"></div>
+  </div>
+
+  <!-- Карта мира -->
+  <div id="world">
+    <div id="world-map"><img src="/assets/bg/world_map.jpg" alt="Карта мира" draggable="false"></div>
+    <div class="world-top">
+      <button id="world-back" class="btn sm">⟵ Домой</button>
+      <div class="realm"><button id="realm-prev" class="btn xs">◀</button><b id="realm-name"></b><button id="realm-next" class="btn xs">▶</button></div>
+      <div class="online">В сети: <b id="online">0</b></div>
+    </div>
+    <div class="world-hint">Выберите цель: замки игроков, захваченные разбойниками крепости и логова NPC</div>
+  </div>
+
+  <!-- Чат -->
+  <div id="chat">
+    <div class="chat-head"><b>Чат королевства</b><button id="chat-close" class="x" aria-label="Закрыть"></button></div>
+    <div id="chat-log"></div>
+    <form id="chat-form"><input id="chat-input" maxlength="200" placeholder="Сообщение…" autocomplete="off"><button class="btn sm green">➤</button></form>
+  </div>
+
+  <div id="modal-bg"><div id="modal" class="modal"></div></div>
+  <div id="toasts"></div>
+
+  <script type="module" src="/js/main.js"></script>
+</body>
+</html>

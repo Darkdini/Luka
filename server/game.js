@@ -7,6 +7,8 @@ import {
   storageCap, armyCapacity, armyUsed, spellCapacity, barracksLevel, collectorCap,
   heroMaxLevel, heroUpgradeCost, heroUpgradeTime, forgeCost, forgeTime,
 } from '../shared/config.js';
+import { achievementStatus } from '../shared/achievements.js';
+import { chapterById } from '../shared/story.js';
 
 export class GameError extends Error {}
 const fail = (msg) => { throw new GameError(msg); };
@@ -39,8 +41,11 @@ export function newPlayerState(race, seed) {
     lastDaily: 0,
     npc: {},
     reports: [],
-    stats: { attacks: 0, wins: 0, defenses: 0, defWins: 0, starsTotal: 0 },
+    stats: {},
+    achievements: {},
+    story: {},
   };
+  migrate(s);
   const add = (type, x, y, level = 1) => {
     const b = { id: s.nextId++, type, level, x, y, up: null };
     if (BUILDINGS[type].produces) { b.store = 0; b.last = now; }
@@ -71,8 +76,20 @@ export function newPlayerState(race, seed) {
   return s;
 }
 
+// Старые сохранения дополняются новыми полями
+const STAT_KEYS = ['attacks', 'wins', 'defenses', 'defWins', 'starsTotal', 'goldLooted', 'foodLooted', 'destroyed', 'npcWins', 'trained', 'cleared', 'trophiesMax'];
+export function migrate(s) {
+  s.stats = s.stats || {};
+  for (const k of STAT_KEYS) s.stats[k] = s.stats[k] || 0;
+  s.achievements = s.achievements || {};
+  s.story = s.story || {};
+  s.npc = s.npc || {};
+  return s;
+}
+
 // --- Течение времени ------------------------------------------------------------
 export function tick(s, now = Date.now()) {
+  migrate(s);
   const raceGold = RACES[s.race]?.bonus.goldRate || 0;
   for (const b of s.buildings) {
     const def = BUILDINGS[b.type];
@@ -220,6 +237,7 @@ export const actions = {
     pay(s, 'gold', DECOR_REMOVE_COST);
     const d = s.decor[i];
     s.decor.splice(i, 1);
+    s.stats.cleared++;
     const r = rng(d.id * 7919 + d.x * 31 + d.y);
     const gems = GEMS_FREE.obstacleMin + Math.floor(r() * (GEMS_FREE.obstacleMax - GEMS_FREE.obstacleMin + 1));
     s.res.gems += gems;
@@ -233,6 +251,7 @@ export const actions = {
     const queued = s.training.reduce((a, q) => a + TROOPS[q.k].space, 0);
     if (armyUsed(s.army) + queued + t.space * n > armyCapacity(s)) fail('Лагерь переполнен');
     pay(s, 'food', t.cost * n);
+    s.stats.trained += n;
     const nb = Math.max(1, s.buildings.filter((b) => b.type === 'barracks' && b.level > 0).length);
     let end = Math.max(Date.now(), s.training.length ? s.training[s.training.length - 1].end : 0);
     for (let i = 0; i < n; i++) {
@@ -325,6 +344,28 @@ export const actions = {
     s.res[res] += amount;
   },
 
+  claimAchievement(s, { id }) {
+    const a = achievementStatus(s).find((v) => v.id === id) || fail('Достижение не найдено');
+    if (a.claimed >= a.reached) fail('Награда пока недоступна');
+    const gems = a.gems[a.claimed];
+    s.achievements[id] = a.claimed + 1;
+    s.res.gems += gems;
+    return { gems, tier: a.claimed + 1 };
+  },
+
+  storyChoice(s, { id, option }) {
+    const ch = chapterById(id) || fail('Глава не найдена');
+    const st = s.story[ch.id];
+    if (!ch.choice || !st?.stars) fail('Выбор недоступен');
+    if (st.choice != null) fail('Выбор уже сделан');
+    const opt = ch.choice.options[option | 0] || fail('Неверный вариант');
+    st.choice = option | 0;
+    const r = opt.reward || {};
+    s.res.gems += r.gems || 0;
+    for (const k of ['gold', 'food']) if (r[k]) addRes(s, k, r[k]);
+    return { reward: r };
+  },
+
   daily(s) {
     const day = Math.floor(Date.now() / 86400e3);
     if (s.lastDaily === day) fail('Награда уже получена сегодня');
@@ -379,6 +420,10 @@ export function view(p) {
     dailyReady: s.lastDaily !== Math.floor(Date.now() / 86400e3),
     reports: s.reports.slice(0, 20),
     stats: s.stats,
+    story: s.story,
+    npc: s.npc,
+    achievements: achievementStatus(s).map((a) => ({ id: a.id, value: a.value, reached: a.reached, claimed: a.claimed })),
+    x: p.wx, y: p.wy, motto: p.motto, avatar: p.avatar, title: p.title,
     now: Date.now(),
   };
 }

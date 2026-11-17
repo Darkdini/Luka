@@ -43,11 +43,11 @@
 
   <!-- HUD поселения -->
   <div id="hud">
-    <div id="hud-player">
-      <div class="lvl-badge"><span id="p-level">1</span></div>
+    <div id="hud-player" title="Мой профиль">
+      <div class="ava-wrap"><img id="p-ava" alt=""><div class="lvl-badge"><span id="p-level">1</span></div></div>
       <div class="p-info">
         <div id="p-name">—</div>
-        <div class="p-sub"><span id="p-race" class="race-chip"></span> <span class="tro">🏆 <b id="p-trophies">0</b></span></div>
+        <div class="p-sub"><span id="p-race" class="race-chip"></span> <span class="tro"><span id="p-league"></span> 🏆 <b id="p-trophies">0</b></span></div>
       </div>
     </div>
     <div id="shield" class="hidden">🛡 <span></span></div>
@@ -61,10 +61,12 @@
       <button class="rbtn" id="btn-chat" title="Чат"><img src="/assets/ui/btn_mail.png" alt="Чат"><span class="badge hidden"></span></button>
       <button class="rbtn" id="btn-top" title="Рейтинг"><img src="/assets/ui/btn_trophy.png" alt="Рейтинг"></button>
       <button class="rbtn" id="btn-reports" title="Отчёты"><img src="/assets/ui/btn_stats.png" alt="Отчёты"><span class="badge hidden"></span></button>
+      <button class="rbtn emo" id="btn-ach" title="Достижения">🏅<span class="badge hidden"></span></button>
       <button class="rbtn" id="btn-settings" title="Настройки"><img src="/assets/ui/btn_settings.png" alt="Настройки"></button>
       <button class="rbtn daily hidden" id="btn-daily" title="Ежедневная награда">🎁</button>
     </div>
-    <button id="btn-attack" class="big-action"><span class="ba-ico">⚔</span><span>В бой!</span></button>
+    <button id="btn-attack" class="big-action"><span class="ba-ico">🗺</span><span>Карта мира</span></button>
+    <button id="btn-story" class="story-action"><span class="ba-ico">📜</span><span>Сюжет</span></button>
     <div id="hud-br">
       <button id="btn-army" class="sq-action"><span class="ba-ico">🛡</span><span>Армия</span><small id="army-count"></small><small id="army-timer"></small></button>
       <button id="btn-shop" class="sq-action shop"><span class="ba-ico">🏪</span><span>Магазин</span></button>
@@ -86,15 +88,52 @@
     <div id="bt-cards"></div>
   </div>
 
-  <!-- Карта мира -->
+  <!-- Карта мира (континент) -->
   <div id="world">
-    <div id="world-map"><img src="/assets/bg/world_map.jpg" alt="Карта мира" draggable="false"></div>
+    <canvas id="wcv"></canvas>
     <div class="world-top">
       <button id="world-back" class="btn sm">⟵ Домой</button>
-      <div class="realm"><button id="realm-prev" class="btn xs">◀</button><b id="realm-name"></b><button id="realm-next" class="btn xs">▶</button></div>
-      <div class="online">В сети: <b id="online">0</b></div>
+      <form id="w-search"><input id="w-q" placeholder="Найти игрока или замок…" autocomplete="off"><button class="btn sm blue">🔍</button></form>
+      <div class="w-right">
+        <button id="w-home" class="btn sm">🏰 Мой замок</button>
+        <button id="w-story" class="btn sm gem">📜 Сюжет</button>
+        <div class="online">В сети: <b id="online">0</b></div>
+      </div>
     </div>
-    <div class="world-hint">Выберите цель: замки игроков, захваченные разбойниками крепости и логова NPC</div>
+    <div id="w-results"></div>
+    <canvas id="mini" title="Миникарта: нажмите, чтобы перейти"></canvas>
+    <div id="w-panel"></div>
+  </div>
+
+  <!-- Сюжетная кампания -->
+  <div id="campaign">
+    <div id="camp-map"><img src="/assets/bg/world_map.jpg" alt="Карта Валории" draggable="false"></div>
+    <div class="camp-top">
+      <button id="camp-back" class="btn sm">⟵ Назад</button>
+      <div class="camp-title"><b>Пепел Короны</b><span>Книга первая · <span id="camp-progress"></span></span></div>
+    </div>
+  </div>
+
+  <!-- Диалоги -->
+  <div id="dialog">
+    <img id="dlg-portrait" alt="">
+    <div class="dlg-box">
+      <div id="dlg-name"></div>
+      <div id="dlg-text"></div>
+      <div id="dlg-choices"></div>
+      <div class="dlg-hint">нажмите, чтобы продолжить ▸</div>
+    </div>
+    <button id="dlg-skip" class="btn xs">Пропустить ⏭</button>
+  </div>
+
+  <!-- Осмотр чужого замка -->
+  <div id="visit-hud">
+    <div class="visit-info"><b id="visit-name"></b><span id="visit-sub"></span></div>
+    <div class="visit-btns">
+      <button id="visit-back" class="btn sm">⟵ Домой</button>
+      <button id="visit-profile" class="btn sm blue">👤 Профиль</button>
+      <button id="visit-attack" class="btn sm red">⚔ Атаковать</button>
+    </div>
   </div>
 
   <!-- Чат -->

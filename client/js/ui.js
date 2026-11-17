@@ -5,7 +5,8 @@ import {
   armyUsed, heroMaxLevel, heroUpgradeCost, heroUpgradeTime, heroLevelMul, troopLevelMul, forgeCost, forgeTime,
 } from '/shared/config.js';
 import { url } from './assets.js';
-import { esc } from './world.js';
+import { esc, avatarUrl } from './world.js';
+import { ACHIEVEMENTS, AVATARS, leagueOf, avatarUnlocked, titlesOf } from '/shared/achievements.js';
 
 const $ = (s) => document.querySelector(s);
 const RES_ICON = { gold: 'ui/icon_gold', food: 'ui/icon_food', gems: 'ui/icon_gem' };
@@ -35,11 +36,15 @@ export class UI {
     $('#btn-daily').onclick = () => app.daily();
     $('#btn-gems').onclick = () => this.openShop('gems');
     $('#btn-settings').onclick = () => this.openSettings();
+    $('#hud-player').onclick = () => this.openProfile(app.me.id);
+    $('#btn-ach').onclick = () => this.openAchievements();
+    $('#btn-story').onclick = () => app.story.open();
+    $('#w-story').onclick = () => app.story.open();
+    $('#visit-back').onclick = () => app.goHome();
+    $('#chat-log').addEventListener('click', (e) => { const n = e.target.closest('[data-pid]'); if (n) this.openProfile(+n.dataset.pid); });
     $('#place-ok').onclick = () => app.village.confirmPlacing();
     $('#place-cancel').onclick = () => app.village.cancelPlacing();
-    $('#world-back').onclick = () => app.world.close();
-    $('#realm-prev').onclick = () => app.world.open(app.world.realm - 1);
-    $('#realm-next').onclick = () => app.world.open(app.world.realm + 1);
+    $('#world-back').onclick = () => app.goHome();
     $('#chat-close').onclick = () => this.toggleChat(false);
     $('#chat-form').onsubmit = (e) => {
       e.preventDefault();
@@ -85,6 +90,15 @@ export class UI {
     $('#p-name').textContent = me.name;
     $('#p-level').textContent = castleLevel(me);
     $('#p-trophies').textContent = fmt(me.trophies);
+    $('#p-ava').src = avatarUrl(me.avatar);
+    const lg = leagueOf(me.trophies);
+    $('#p-league').textContent = lg.icon;
+    $('#p-league').title = lg.name;
+    const claim = (me.achievements || []).reduce((a, x) => a + Math.max(0, x.reached - x.claimed), 0);
+    $('#btn-ach .badge').textContent = claim || '';
+    $('#btn-ach .badge').classList.toggle('hidden', !claim);
+    const nextCh = (this.app.storyNext?.() || null);
+    $('#btn-story').classList.toggle('glow', !!nextCh);
     $('#p-race').textContent = RACES[me.race]?.name || '';
     $('#p-race').style.setProperty('--c', RACES[me.race]?.color || '#888');
     for (const r of ['gold', 'food']) {
@@ -428,11 +442,117 @@ export class UI {
   // --- Рейтинг, отчёты, настройки ---------------------------------------------------
   async openTop() {
     try {
-      const list = await this.app.api.top();
-      const rows = list.map((p, i) => `<tr class="${p.id === this.app.me.id ? 'me' : ''}"><td>${i + 1}</td><td>${esc(p.name)}<div class="muted">${esc(p.username)}</div></td>
-        <td><span class="race-chip" style="--c:${RACES[p.race]?.color}">${RACES[p.race]?.name}</span></td><td>${p.level}</td><td>🏆 ${p.trophies}</td></tr>`).join('');
-      this.modal('Рейтинг королевств', `<table class="top"><tr><th>#</th><th>Замок</th><th>Раса</th><th>Ур.</th><th>Кубки</th></tr>${rows}</table>`, [], 'wide');
+      const { top, rank, total } = await this.app.api.top();
+      const rows = top.map((p, i) => {
+        const lg = leagueOf(p.trophies);
+        return `<tr class="${p.id === this.app.me.id ? 'me' : ''}" data-pid="${p.id}"><td>${i + 1}</td>
+        <td class="pl"><img class="mini-ava" src="${avatarUrl(p.avatar)}" alt=""><div>${esc(p.name)}<div class="muted">${esc(p.username)}${p.title ? ' · ' + esc(p.title) : ''}</div></div></td>
+        <td><span class="race-chip" style="--c:${RACES[p.race]?.color}">${RACES[p.race]?.name}</span></td><td title="${lg.name}">${lg.icon}</td><td>${p.level}</td><td>🏆 ${p.trophies}</td></tr>`;
+      }).join('');
+      const box = this.modal('Рейтинг королевств', `<p class="center">Ваше место: <b>${rank}</b> из ${fmt(total)}</p>
+        <table class="top"><tr><th>#</th><th>Замок</th><th>Раса</th><th>Лига</th><th>Ур.</th><th>Кубки</th></tr>${rows}</table>`, [], 'wide');
+      box.querySelectorAll('tr[data-pid]').forEach((tr) => { tr.onclick = () => this.openProfile(+tr.dataset.pid); });
     } catch (e) { this.toast(e.message); }
+  }
+
+  // --- Профиль ---------------------------------------------------------------------
+  async openProfile(id) {
+    let p;
+    try { p = await this.app.api.profile(id); } catch (e) { this.toast(e.message); return; }
+    const me = this.app.me;
+    const mine = p.id === me.id;
+    const race = RACES[p.race];
+    const seen = p.online ? '<span class="dot-on"></span> в сети' : `был(а) ${ago(p.seen)}`;
+    const s = p.stats;
+    const stat = (k, v) => `<div class="pf-stat"><b>${v}</b><span>${k}</span></div>`;
+    const medals = p.achievements.map((a) => {
+      const def = ACHIEVEMENTS.find((x) => x.id === a.id);
+      const tier = a.claimed;
+      return `<div class="medal t${tier}" title="${esc(def.name)}: ${['не получено', 'бронза', 'серебро', 'золото'][tier]}">${['▫', '🥉', '🥈', '🥇'][tier]}<span>${esc(def.name)}</span></div>`;
+    }).join('');
+    const heroes = Object.entries(p.heroes).map(([k, l]) => `<div class="pf-hero"><img src="${url('heroes/' + k + '_portrait')}" alt=""><span>${HEROES[k].name} · ${l}</span></div>`).join('') || '<span class="muted">Герои ещё не призваны</span>';
+    const box = this.modal(mine ? 'Мой профиль' : 'Профиль правителя', `
+      <div class="pf-head" style="--c:${race?.color}">
+        <img class="pf-ava" src="${avatarUrl(p.avatar)}" alt="">
+        <div class="pf-main">
+          <h3>${esc(p.name)}</h3>
+          <div>${esc(p.username)}${p.title ? ` · <i class="pf-title">${esc(p.title)}</i>` : ''}</div>
+          <div class="pf-chips"><span class="race-chip" style="--c:${race?.color}">${race?.name}</span>
+            <span class="race-chip" style="--c:${p.league.color}">${p.league.icon} ${p.league.name}</span>
+            <span>🏆 ${fmt(p.trophies)}</span><span>#${p.rank}</span></div>
+          <div class="muted">${seen} · в игре с ${new Date(p.created).toLocaleDateString('ru-RU')} · ${p.x}:${p.y}</div>
+          ${p.motto ? `<div class="pf-motto">«${esc(p.motto)}»</div>` : ''}
+        </div>
+      </div>
+      <div class="pf-stats">
+        ${stat('Цитадель', p.level)}${stat('Побед в атаках', fmt(s.wins))}${stat('Звёзд', fmt(s.starsTotal))}
+        ${stat('Отбито атак', fmt(s.defWins))}${stat('Разрушено', fmt(s.destroyed || 0))}${stat('Лагерей NPC', fmt(s.npcWins || 0))}
+        ${stat('Награблено золота', fmt(s.goldLooted || 0))}${stat('Глав сюжета', `${p.story}/10`)}
+      </div>
+      <h4>Герои</h4><div class="pf-heroes">${heroes}</div>
+      <h4>Достижения</h4><div class="medals">${medals}</div>`, [
+      ...(mine ? [
+        { label: '✏ Изменить', cls: 'blue', onClick: () => this.editProfile() },
+        { label: '🏅 Достижения', cls: 'green', onClick: () => this.openAchievements() },
+      ] : [
+        { label: '🗺 На карте', onClick: () => { this.closeModal(); this.app.openWorld(p.x, p.y); } },
+        { label: '👁 Осмотреть замок', cls: 'blue', onClick: () => { this.closeModal(); this.app.visit(p.id); } },
+        { label: p.shield ? '🛡 Под щитом' : '⚔ Атаковать', cls: 'red', disabled: !!p.shield, onClick: () => this.app.attack({ kind: 'player', id: p.id }) },
+      ]),
+    ], 'wide');
+    return box;
+  }
+
+  editProfile() {
+    const me = this.app.me;
+    const st = { heroes: me.heroes, achievements: Object.fromEntries((me.achievements || []).map((a) => [a.id, a.claimed])) };
+    const avs = AVATARS.map((a) => {
+      const ok = avatarUnlocked(st, a);
+      return `<button class="ava-opt ${a.id === me.avatar ? 'on' : ''} ${ok ? '' : 'locked'}" data-av="${a.id}" ${ok ? '' : 'disabled'} title="${ok ? '' : 'Откроется с героем или достижением'}"><img src="${url(a.img)}" alt=""></button>`;
+    }).join('');
+    const titles = titlesOf({ achievements: st.achievements });
+    const box = this.modal('Изменить профиль', `
+      <label class="field">Девиз<input id="pf-motto" maxlength="80" value="${esc(me.motto || '')}" placeholder="Сталь и честь!"></label>
+      <div class="field">Аватар</div><div class="ava-grid">${avs}</div>
+      <label class="field">Титул<select id="pf-title"><option value="">— без титула —</option>${titles.map((t) => `<option ${t === me.title ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
+      ${titles.length ? '' : '<p class="muted">Титулы дают золотые ступени достижений.</p>'}`, [
+      { label: 'Сохранить', cls: 'green', onClick: async () => {
+        try {
+          const r = await this.app.api.saveProfile({ motto: $('#pf-motto').value, avatar: box.querySelector('.ava-opt.on')?.dataset.av, title: $('#pf-title').value });
+          this.app.setMe(r.me);
+          this.openProfile(me.id);
+        } catch (e) { this.toast(e.message, 'bad'); }
+      } },
+    ]);
+    box.querySelectorAll('.ava-opt:not(.locked)').forEach((b) => {
+      b.onclick = () => { box.querySelectorAll('.ava-opt').forEach((x) => x.classList.remove('on')); b.classList.add('on'); };
+    });
+  }
+
+  openAchievements() {
+    const me = this.app.me;
+    this.modalKind = 'ach';
+    this.modalRefresh = () => this.openAchievements();
+    const byId = Object.fromEntries((me.achievements || []).map((a) => [a.id, a]));
+    const rows = ACHIEVEMENTS.map((a) => {
+      const s = byId[a.id] || { value: 0, reached: 0, claimed: 0 };
+      const tier = Math.min(2, s.claimed);
+      const goal = a.tiers[tier];
+      const done = s.claimed >= 3;
+      const can = s.reached > s.claimed;
+      const pct = done ? 100 : Math.min(100, s.value / goal * 100);
+      return `<div class="ach ${done ? 'done' : ''}">
+        <div class="ach-medal t${s.claimed}">${['🎖', '🥉', '🥈', '🥇'][s.claimed]}</div>
+        <div class="ach-body"><b>${esc(a.name)}</b> <span class="muted">${'★'.repeat(s.claimed)}${'☆'.repeat(3 - s.claimed)}</span>
+          <div class="muted">${done ? `Титул: «${esc(a.title)}»` : a.desc.replace('{n}', fmt(goal))}</div>
+          <div class="ach-bar"><div style="width:${pct}%"></div><span>${fmt(Math.min(s.value, goal))} / ${fmt(goal)}</span></div></div>
+        ${can ? `<button class="btn sm green" data-claim="${a.id}">Забрать 💎 ${a.gems[s.claimed]}</button>` : done ? '<span class="ach-ok">✔</span>' : `<span class="muted">💎 ${a.gems[tier]}</span>`}
+      </div>`;
+    }).join('');
+    const box = this.modal('Достижения', rows, [], 'wide');
+    box.querySelectorAll('[data-claim]').forEach((b) => {
+      b.onclick = () => this.app.act('claimAchievement', { id: b.dataset.claim }).then((r) => { this.toast(`+${r.gems} 💎`, 'good'); this.app.sfx('coin'); });
+    });
   }
 
   openReports() {
@@ -471,7 +591,7 @@ export class UI {
     const box = $('#chat-log');
     const d = document.createElement('div');
     d.className = 'msg' + (m.player === this.app.me?.id ? ' mine' : '');
-    d.innerHTML = `<b>${esc(m.name)}</b> <span class="muted">${new Date(m.ts).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span><div>${esc(m.text)}</div>`;
+    d.innerHTML = `<b class="link" data-pid="${m.player}">${esc(m.name)}</b> <span class="muted">${new Date(m.ts).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span><div>${esc(m.text)}</div>`;
     box.appendChild(d);
     while (box.children.length > 80) box.firstChild.remove();
     box.scrollTop = box.scrollHeight;
@@ -548,11 +668,19 @@ export class UI {
         <div class="r-pct">Разрушено: <b>${r.pct}%</b></div>
         <div class="r-loot">${ico('gold', 'ri big')} +${fmt(r.got?.gold || 0)} &nbsp; ${ico('food', 'ri big')} +${fmt(r.got?.food || 0)}</div>
         ${r.trophies ? `<div class="r-tro">🏆 ${r.trophies > 0 ? '+' : ''}${r.trophies}</div>` : ''}
-      </div>`, [{ label: 'Домой', cls: 'green', onClick: () => { this.closeModal(); this.app.goHome(); } }], 'result-modal');
+        ${r.storyReward ? `<div class="r-tro">Награда главы: 💎 +${r.storyReward.gems}</div>` : ''}
+      </div>`, [{ label: 'Домой', cls: 'green', onClick: () => { this.closeModal(); this.app.goHome(); this.app.story.afterBattle(r); } }], 'result-modal');
     this.app.sfx(win ? 'win' : 'lose');
   }
 }
 
 export function spellIcon(k) {
   return ['fireball', 'lightning', 'heal', 'rage'].includes(k) ? 'spells/' + k : 'spells/fx_' + k;
+}
+
+function ago(ts) {
+  const s = (Date.now() - ts) / 1000;
+  if (s < 3600) return `${Math.max(1, Math.round(s / 60))} мин назад`;
+  if (s < 86400) return `${Math.round(s / 3600)} ч назад`;
+  return `${Math.round(s / 86400)} дн назад`;
 }

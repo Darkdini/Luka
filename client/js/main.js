@@ -6,6 +6,8 @@ import { Village } from './village.js';
 import { Battle } from './battle.js';
 import { WorldMap } from './world.js';
 import { UI } from './ui.js';
+import { Story } from './story.js';
+import { CHAPTERS, chapterOpen } from '/shared/story.js';
 
 const $ = (s) => document.querySelector(s);
 
@@ -27,6 +29,7 @@ class App {
     this.battle = new Battle(this.scene, this);
     this.world = new WorldMap(this);
     this.ui = new UI(this);
+    this.story = new Story(this);
     $('#loading').classList.add('hide');
     if (token) {
       try { await this.refresh(); this.enterGame(); return; } catch { setToken(null); }
@@ -77,14 +80,15 @@ class App {
   welcome() {
     this.ui.modal('Добро пожаловать, правитель!', `
       <div class="welcome">
-        <p>Ваш замок <b>${this.me.name}</b> основан в Королевстве ${this.me.realm}.</p>
+        <p>Ваш замок <b>${this.me.name}</b> основан на землях Валории (${this.me.x}:${this.me.y}).</p>
         <ul>
           <li>💰 Собирайте золото и зерно с рудников и мельниц — нажмите на значок над зданием.</li>
           <li>🏗 Улучшайте <b>Цитадель</b>, чтобы открыть новые здания, войска и героев.</li>
           <li>⚔ Обучайте армию в Казармах и атакуйте лагеря разбойников на карте мира.</li>
+          <li>📜 Сюжет «Пепел Короны» раскроет тайну вашей крови — и щедро наградит.</li>
           <li>🛡 У вас 24 часа защитного щита новичка — успейте отстроить оборону!</li>
         </ul>
-      </div>`, [{ label: 'В путь!', cls: 'green', onClick: () => this.ui.closeModal() }]);
+      </div>`, [{ label: 'Начать историю', cls: 'green', onClick: () => { this.ui.closeModal(); this.story.start(CHAPTERS[0]); } }]);
   }
 
   logout() {
@@ -102,7 +106,7 @@ class App {
     const loop = (t) => {
       const dt = Math.min(0.1, (t - last) / 1000);
       last = t;
-      if (this.mode === 'battle') this.battle.frame(dt);
+      if (this.world.open) { /* у карты мира свой цикл */ } else if (this.mode === 'battle') this.battle.frame(dt);
       else this.village.frame(dt);
       requestAnimationFrame(loop);
     };
@@ -114,6 +118,8 @@ class App {
     this.mode = 'village';
     document.body.dataset.mode = 'village';
     this.world.close();
+    this.story.close();
+    this.village.visit = null;
     this.village.enter();
     this.scene.cam = { x: 0, y: 22 * 32, z: Math.max(this.scene.minZ, 0.62) };
     this.scene.clampCam();
@@ -181,9 +187,34 @@ class App {
   }
 
   // --- Мир и бой -----------------------------------------------------------------------
-  openWorld() {
+  openWorld(x, y) {
     this.village.cancelPlacing();
-    this.world.open();
+    this.ui.closeModal();
+    this.world.show(x, y);
+  }
+
+  // Осмотр чужого замка
+  async visit(id) {
+    try {
+      const d = await api.player(id);
+      this.ui.closeModal();
+      this.world.close();
+      this.mode = 'visit';
+      document.body.dataset.mode = 'visit';
+      this.village.visit = d;
+      this.village.setMe(this.me);
+      $('#visit-name').textContent = d.name;
+      $('#visit-sub').textContent = `${d.owner} · 🏆 ${d.trophies}`;
+      $('#visit-attack').onclick = () => this.attack({ kind: 'player', id: d.id });
+      $('#visit-profile').onclick = () => this.ui.openProfile(d.id);
+      this.scene.cam = { x: 0, y: 22 * 32, z: Math.max(this.scene.minZ, 0.62) };
+    } catch (e) { this.ui.toast(e.message, 'bad'); }
+  }
+
+  storyNext() {
+    if (!this.me) return null;
+    const st = { buildings: this.me.buildings, story: this.me.story || {} };
+    return CHAPTERS.find((c) => !(st.story[c.id]?.stars > 0) && chapterOpen(st, c).open) || null;
   }
 
   async attack(target) {
@@ -191,6 +222,8 @@ class App {
     try {
       const data = await api.attackStart(target);
       this.world.close();
+      this.story.close();
+      if (target.kind !== 'story') this.story.pending = null;
       this.mode = 'battle';
       document.body.dataset.mode = 'battle';
       this.ui.cardsKey = null;

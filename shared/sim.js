@@ -521,7 +521,7 @@ function finish(S) {
   if (pct >= 50) stars++;
   if (S.castleDown) stars++;
   if (pct >= 100) stars++;
-  S.result = { pct, stars, loot: { gold: Math.floor(S.loot.gold), food: Math.floor(S.loot.food) }, used: S.used, ticks: S.tick };
+  S.result = { pct, stars, destroyed: S.destroyed, loot: { gold: Math.floor(S.loot.gold), food: Math.floor(S.loot.food) }, used: S.used, ticks: S.tick };
 }
 
 // Прогон целиком по журналу команд (сервер).

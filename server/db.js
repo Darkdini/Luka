@@ -26,7 +26,6 @@ db.exec(`
     created_at INTEGER NOT NULL,
     seen_at INTEGER NOT NULL
   );
-  CREATE UNIQUE INDEX IF NOT EXISTS players_plot ON players(realm, plot);
   CREATE INDEX IF NOT EXISTS players_trophies ON players(trophies DESC);
   CREATE TABLE IF NOT EXISTS battles (
     id TEXT PRIMARY KEY,
@@ -45,6 +44,17 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     player INTEGER, pack TEXT, gems INTEGER, price INTEGER, status TEXT, ts INTEGER
   );
+`);
+
+// --- Миграции ------------------------------------------------------------------
+const cols = new Set(db.prepare('PRAGMA table_info(players)').all().map((c) => c.name));
+for (const [name, def] of [['wx', 'INTEGER'], ['wy', 'INTEGER'], ['motto', "TEXT NOT NULL DEFAULT ''"], ['avatar', "TEXT NOT NULL DEFAULT 'knight'"], ['title', "TEXT NOT NULL DEFAULT ''"]]) {
+  if (!cols.has(name)) db.exec(`ALTER TABLE players ADD COLUMN ${name} ${def}`);
+}
+db.exec(`
+  DROP INDEX IF EXISTS players_plot;
+  CREATE INDEX IF NOT EXISTS players_pos ON players(wx, wy);
+  CREATE INDEX IF NOT EXISTS players_seen ON players(seen_at DESC);
 `);
 
 export function secret() {

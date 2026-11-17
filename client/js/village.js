@@ -17,7 +17,8 @@ export class Village {
   setMe(me) {
     this.me = me;
     this.offset = me.now - Date.now();
-    this.walls = new Set(me.buildings.filter((b) => b.type === 'wall').map((b) => b.x * 100 + b.y));
+    const base = this.visit || me;
+    this.walls = new Set(base.buildings.filter((b) => b.type === 'wall').map((b) => b.x * 100 + b.y));
     if (this.sel && !this.findSel()) this.sel = null;
   }
 
@@ -59,6 +60,7 @@ export class Village {
   }
 
   tap(p, g) {
+    if (this.visit) return;
     if (this.ghost && !this.ghost.move) { this.moveGhost(g); return; }
     const h = this.hitTest(p);
     if (h?.bubble) { this.app.collect(h.b.id); return; }
@@ -73,6 +75,7 @@ export class Village {
   }
 
   down(p, g) {
+    if (this.visit) return false;
     if (this.ghost) {
       const size = BUILDINGS[this.ghost.type].size;
       if (g.gx >= this.ghost.x - 1 && g.gx < this.ghost.x + size + 1 && g.gy >= this.ghost.y - 1 && g.gy < this.ghost.y + size + 1) {
@@ -159,7 +162,8 @@ export class Village {
 
   // --- Кадр ----------------------------------------------------------------------
   frame(dt) {
-    const s = this.scene, c = s.ctx, me = this.me;
+    const s = this.scene, c = s.ctx;
+    const me = this.visit || this.me;
     if (!me) return;
     this.t += dt;
     const now = this.now();
@@ -178,7 +182,7 @@ export class Village {
     items.sort((a, b) => a.d - b.d);
 
     this.hits = [];
-    const selObj = this.findSel();
+    const selObj = this.visit ? null : this.findSel();
     for (const it of items) {
       if (it.b) this.drawB(it.b, now, selObj === it.b);
       else if (it.dec) {
@@ -199,9 +203,9 @@ export class Village {
       }
     }
     // пузыри сбора и подписи поверх
-    for (const b of me.buildings) this.drawOverlay(b, now);
+    if (!this.visit) for (const b of me.buildings) this.drawOverlay(b, now);
     s.drawParticles(dt);
-    this.app.ui.tick(now);
+    if (!this.visit) this.app.ui.tick(now);
   }
 
   drawB(b, now, selected) {

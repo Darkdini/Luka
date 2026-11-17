@@ -30,6 +30,31 @@ chunky stylized 3D cartoon render, bold exaggerated proportions, bright saturate
 
 ## 🎨 Нужно сгенерировать (по приоритету)
 
+### 0а. Тайлы карты мира (4×4) — сейчас рисуются кодом
+```
+Sprite sheet grid 4x4, isometric diamond-shaped (2:1) world map terrain tiles, top-down 3/4 view, seamless edges: lush grass, flower meadow, light forest, dense pine forest, rocky hills, tall snowy mountain, snow field, snowy pines, lake water, river straight, sandy desert, desert dunes, swamp, farmland fields, cobblestone road straight, road crossing
+```
+
+### 0б. Объекты карты мира (4×2)
+```
+Sprite sheet grid 4x2, isometric fantasy world map points of interest: bandit camp with tents and palisade, monster lair cave entrance, ancient ruins with glowing runes, gold vein in rocks, blue crystal deposit, haunted graveyard, dark necromancer fortress with purple fire, glowing magic portal
+```
+
+### 0в. Сюжетные портреты (3×2) — сейчас заглушки из войск с фильтрами
+```
+Portrait sheet grid 3x2, fantasy character bust portraits, dramatic rim lighting, chunky stylized painted style: Morvain the dark lord necromancer with cracked iron crown and purple fire eyes; bandit chieftain "Crooked Fang" with scarred face; ghost of old King Aurel, translucent blue, sad and noble; young heir lord in simple blue cloak; young heir lady in simple blue cloak; Isolde the sorceress corrupted by dark magic, purple veins
+```
+
+### 0г. Лиги и медали (4×3)
+```
+Icon sheet grid 4x3, glossy fantasy game badges: row 1 league shields bronze, silver, gold, platinum; row 2 diamond league shield, legend league shield with crown, bronze medal, silver medal; row 3 gold medal, crossed swords medal, castle tower medal, treasure chest medal
+```
+
+### 0д. Фоны сюжетных сцен (по одной, --ar 16:9)
+```
+Painted fantasy scene, chunky stylized: (a) burning frontier village at night, (b) ruined royal throne room with shattered crown on the floor, (c) dark necromancer citadel under a purple storm sky
+```
+
 ### 1. Уровни 2–3 для армейских зданий (3×3)
 Сейчас у казарм, кузницы, алтаря и башни алхимика один вид на все уровни.
 ```

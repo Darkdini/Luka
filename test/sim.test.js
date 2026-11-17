@@ -42,3 +42,33 @@ test('экономика: стройка, сбор, обучение', () => {
   assert.equal(s.res.gems, 50);
   assert.ok(lootableBase(s).some((b) => b.loot.gold > 0));
 });
+
+import { findSpot, region, profile, startAttack, finishAttack } from '../server/world.js';
+import { db } from '../server/db.js';
+import { CHAPTERS } from '../shared/story.js';
+import { campAt, buildable } from '../shared/worldgen.js';
+
+test('мир: свободное место на суше, не на лагере', () => {
+  const s = findSpot(42);
+  assert.ok(buildable(s.x, s.y));
+  assert.equal(campAt(s.x, s.y), null);
+});
+
+test('сюжет: глава 1 проходится и даёт награду один раз', () => {
+  const st = newPlayerState('elves', 9);
+  st.army = { swordsman: 20, crossbowman: 10 };
+  const now = Date.now();
+  const r = db.prepare(`INSERT INTO players (username, pass, castle_name, race, realm, plot, wx, wy, state, created_at, seen_at) VALUES (?, 'x', 'Тест', 'elves', 1, 0, 5, 5, ?, ?, ?)`)
+    .run('story' + now, JSON.stringify(st), now, now);
+  const me = { id: Number(r.lastInsertRowid), castle_name: 'Тест', state: st };
+  const b = startAttack(me, { kind: 'story', id: 1 });
+  const log = [];
+  for (let i = 0; i < 20; i++) log.push({ t: i, c: 'troop', k: 'swordsman', x: 1.5, y: 12 + i * 0.6 });
+  for (let i = 0; i < 10; i++) log.push({ t: 30 + i, c: 'troop', k: 'crossbowman', x: 1.5, y: 20 + i * 0.4 });
+  const gems = st.res.gems;
+  const res = finishAttack(me, b.battleId, log);
+  assert.ok(res.stars > 0, 'глава 1 должна проходиться стартовой армией');
+  assert.equal(st.res.gems - gems, CHAPTERS[0].reward.gems + (res.stars === 3 ? CHAPTERS[0].starGems : 0));
+  assert.throws(() => startAttack(me, { kind: 'story', id: 3 }));
+  assert.ok(Array.isArray(region(0, 0, 50, 50, () => false)));
+});

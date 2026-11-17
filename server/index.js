@@ -6,7 +6,8 @@ import { RACES, DONATE_PACKS } from '../shared/config.js';
 import { db, getPlayer, getPlayerByName, savePlayer } from './db.js';
 import { hashPassword, checkPassword, makeToken, readToken, rateLimit } from './auth.js';
 import { newPlayerState, tick, actions, view, GameError } from './game.js';
-import { freePlot, worldView, startAttack, finishAttack, leaderboard } from './world.js';
+import { findSpot, placeUnplaced, region, findPlayer, startAttack, finishAttack, leaderboard, profile } from './world.js';
+import { AVATARS, avatarUnlocked, titlesOf } from '../shared/achievements.js';
 
 const PORT = Number(process.env.PORT || 3000);
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
@@ -49,11 +50,11 @@ app.post('/api/register', wrap((req) => {
   if (cname.length < 3) throw new GameError('Название замка: от 3 символов');
   if (!RACES[race]) throw new GameError('Выберите расу');
   if (getPlayerByName(username)) throw new GameError('Имя уже занято');
-  const { realm, plot } = freePlot();
   const now = Date.now();
+  const spot = findSpot(now);
   const state = newPlayerState(race, (now ^ username.length * 7919) >>> 0);
-  const r = db.prepare(`INSERT INTO players (username, pass, castle_name, race, realm, plot, trophies, state, created_at, seen_at)
-    VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`).run(username, hashPassword(password), cname, race, realm, plot, JSON.stringify(state), now, now);
+  const r = db.prepare(`INSERT INTO players (username, pass, castle_name, race, realm, plot, wx, wy, trophies, state, created_at, seen_at)
+    VALUES (?, ?, ?, ?, 1, 0, ?, ?, 0, ?, ?, ?)`).run(username, hashPassword(password), cname, race, spot.x, spot.y, JSON.stringify(state), now, now);
   const id = Number(r.lastInsertRowid);
   return { token: makeToken(id) };
 }));
@@ -85,12 +86,15 @@ app.post('/api/action', wrap((req) => {
 }));
 
 // --- Мир, атаки, рейтинг ----------------------------------------------------------
-app.get('/api/world', wrap((req) => {
-  const p = auth(req);
-  const realm = Math.max(1, Number(req.query.realm) || p.realm);
-  return worldView(realm, p);
+app.get('/api/world/region', wrap((req) => {
+  auth(req);
+  const { x0, y0, x1, y1 } = req.query;
+  return { players: region(+x0, +y0, +x1, +y1, isOnline) };
 }));
 
+app.get('/api/world/find', wrap((req) => { auth(req); return findPlayer(req.query.q); }));
+
+// Осмотр чужого замка (без ловушек)
 app.get('/api/player/:id', wrap((req) => {
   auth(req);
   const d = getPlayer(Number(req.params.id));
@@ -98,10 +102,30 @@ app.get('/api/player/:id', wrap((req) => {
   return { id: d.id, name: d.castle_name, owner: d.username, race: d.race, trophies: d.trophies, buildings: d.state.buildings.filter((b) => !b.type.startsWith('trap_')), decor: d.state.decor };
 }));
 
+app.get('/api/profile/:id', wrap((req) => { auth(req); return profile(req.params.id, isOnline); }));
+
+app.post('/api/profile', wrap((req) => {
+  const p = auth(req);
+  const { motto, avatar, title } = req.body || {};
+  if (motto != null) p.motto = String(motto).replace(/\s+/g, ' ').trim().slice(0, 80);
+  if (avatar != null) {
+    const av = AVATARS.find((a) => a.id === avatar);
+    if (!av || !avatarUnlocked(p.state, av)) throw new GameError('Аватар ещё не открыт');
+    p.avatar = av.id;
+  }
+  if (title != null) {
+    if (title && !titlesOf(p.state).includes(title)) throw new GameError('Титул ещё не получен');
+    p.title = title;
+  }
+  db.prepare('UPDATE players SET motto = ?, avatar = ?, title = ? WHERE id = ?').run(p.motto, p.avatar, p.title, p.id);
+  return { me: view(p) };
+}));
+
 app.post('/api/attack/start', wrap((req) => {
   const p = auth(req);
   const t = req.body?.target || {};
-  const out = startAttack(p, { kind: t.kind === 'player' ? 'player' : 'npc', id: t.kind === 'player' ? Number(t.id) : String(t.id) });
+  const kind = ['player', 'camp', 'story'].includes(t.kind) ? t.kind : 'camp';
+  const out = startAttack(p, { kind, id: t.id });
   savePlayer(p);
   return out;
 }));
@@ -113,7 +137,7 @@ app.post('/api/attack/finish', wrap((req) => {
   return { result: out, me: view(p) };
 }));
 
-app.get('/api/top', wrap((req) => { auth(req); return leaderboard(); }));
+app.get('/api/top', wrap((req) => { const p = auth(req); return leaderboard(p.id); }));
 
 // --- Донат (витрина; платёжный шлюз подключается позже) ---------------------------
 app.get('/api/shop', wrap(() => ({ packs: DONATE_PACKS, paymentsEnabled: DEV_PURCHASES })));
@@ -138,6 +162,7 @@ app.post('/api/shop/buy', wrap((req) => {
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: '/ws' });
 const sockets = new Map(); // playerId -> Set<ws>
+const isOnline = (id) => sockets.has(id);
 
 function notify(playerId, msg) {
   for (const ws of sockets.get(playerId) || []) ws.send(JSON.stringify(msg));
@@ -176,4 +201,5 @@ wss.on('connection', (ws, req) => {
   });
 });
 
+placeUnplaced();
 server.listen(PORT, () => console.log(`Сервер запущен: http://localhost:${PORT}`));

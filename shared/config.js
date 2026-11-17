@@ -250,23 +250,8 @@ export function trophyOffer(attT, defT) {
 }
 
 // --- Мир --------------------------------------------------------------------
-// Координаты — доли размеров картинки карты мира (1672×941).
-const P = (x, y) => [+(x / 1672).toFixed(4), +(y / 941).toFixed(4)];
-export const WORLD_PLOTS = [
-  P(470, 115), P(755, 205), P(1135, 120), P(280, 330), P(1365, 300), P(530, 435), P(725, 550),
-  P(1205, 490), P(610, 705), P(1060, 630), P(1385, 650), P(170, 710), P(1350, 790),
-];
-export const WORLD_NPC = [
-  { id: 'watch', name: 'Сторожевая башня', pos: P(400, 560), level: 1 },
-  { id: 'mill', name: 'Лесной хутор', pos: P(650, 260), level: 2 },
-  { id: 'crystal', name: 'Кристальная пещера', pos: P(170, 420), level: 3 },
-  { id: 'ruins', name: 'Древние руины', pos: P(1100, 265), level: 4 },
-  { id: 'goldmine', name: 'Заброшенный рудник', pos: P(1460, 500), level: 5 },
-  { id: 'capital', name: 'Мятежная столица', pos: P(850, 330), level: 7 },
-  { id: 'darklord', name: 'Цитадель Тёмного лорда', pos: P(1460, 95), level: 9 },
-];
+// Рельеф и лагеря NPC — в shared/worldgen.js, сюжет — в shared/story.js
 export const NPC_RESPAWN_SEC = 20 * 60;
-export const PLOTS_PER_REALM = WORLD_PLOTS.length;
 
 // --- Вспомогательное ---------------------------------------------------------
 export function castleLevelOf(state) {

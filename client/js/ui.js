@@ -63,6 +63,10 @@ export class UI {
   }
 
   modal(title, html, buttons = [], cls = '') {
+    // каждое окно само решает, обновляться ли ему при изменении состояния
+    this.modalKind = this.pendingKind || null;
+    this.modalRefresh = this.pendingRefresh || null;
+    this.pendingKind = this.pendingRefresh = null;
     const bg = $('#modal-bg');
     bg.className = 'show';
     const box = $('#modal');
@@ -81,7 +85,7 @@ export class UI {
     if (!buttons.length) foot.remove();
     return box;
   }
-  closeModal() { $('#modal-bg').className = ''; this.modalKind = null; }
+  closeModal() { $('#modal-bg').className = ''; this.modalKind = null; this.modalRefresh = null; }
 
   // --- HUD --------------------------------------------------------------------------
   updateHud(me) {
@@ -271,7 +275,7 @@ export class UI {
   openShop(tab, plot) {
     const me = this.app.me;
     this.shopPlot = plot || null;
-    this.modalKind = 'shop';
+    this.pendingKind = 'shop';
     const cl = castleLevel(me);
     // с выбранной ячейкой показываем только то, что на неё ставится
     const tabList = plot ? SHOP_TABS.filter((t) => t.id !== 'walls' && t.id !== 'gems') : SHOP_TABS;
@@ -305,7 +309,9 @@ export class UI {
             : `<div class="c-cost">${ico(res)} ${fmt(cost)}</div><div class="c-time">⏱ ${time ? fmtTime(time) : 'сразу'}</div>`}
         </div>`;
       }).join('');
-      body = `<div class="cards">${cards}</div>`;
+      const hint = plot && !SHOP_TABS.filter((t) => !['walls', 'gems'].includes(t.id)).some((t) => t.types.some((type) => type !== 'builderhut' && countOf(me, type) < BUILDINGS[type].countByCastle[cl - 1]))
+        ? `<div class="shop-hint">Все доступные здания уже построены. Улучшите Цитадель — откроются новые!<button class="btn sm green" id="go-castle">⬆ Цитадель</button></div>` : '';
+      body = `${hint}<div class="cards">${cards}</div>`;
     }
     const box = this.modal(plot ? 'Построить на ячейке' : 'Магазин', `<div class="tabs">${tabs}</div>${body}`, [], 'wide');
     box.querySelectorAll('.tab').forEach((b) => { b.onclick = () => this.openShop(b.dataset.tab, this.shopPlot); });
@@ -323,6 +329,8 @@ export class UI {
         this.app.act('wallUpgrade').then((r) => { this.toast(r.wallLevel === 1 ? '🧱 Крепостная стена возведена!' : `🧱 Стена укреплена до ${r.wallLevel} ур.!`, 'good'); this.app.sfx('levelup'); });
       };
     });
+    const gc = box.querySelector('#go-castle');
+    if (gc) gc.onclick = () => { const c = me.buildings.find((b) => b.type === 'castle'); this.openUpgrade(c); };
     box.querySelectorAll('[data-pack]').forEach((b) => { b.onclick = () => this.app.buyPack(b.dataset.pack); });
     box.querySelectorAll('[data-buyres]').forEach((b) => {
       b.onclick = () => {
@@ -332,7 +340,6 @@ export class UI {
         this.confirmGems(gemsForResources(amount), () => this.app.act('buyResources', { res, amount }));
       };
     });
-    this.modalRefresh = null;
   }
 
   gemShop() {
@@ -357,8 +364,8 @@ export class UI {
   // --- Армия: войска, зелья, кузница -----------------------------------------------
   openArmy(tab) {
     const me = this.app.me;
-    this.modalKind = 'army';
-    this.modalRefresh = () => this.openArmy(tab);
+    this.pendingKind = 'army';
+    this.pendingRefresh = () => this.openArmy(tab);
     const tabs = [['troops', 'Войска'], ['spells', 'Зелья'], ['forge', 'Кузница']]
       .map(([id, n]) => `<button class="tab ${id === tab ? 'on' : ''}" data-tab="${id}">${n}</button>`).join('');
     const barracks = Math.max(0, ...me.buildings.filter((b) => b.type === 'barracks').map((b) => b.level));
@@ -424,8 +431,8 @@ export class UI {
   // --- Герои ---------------------------------------------------------------------------
   openHeroes() {
     const me = this.app.me;
-    this.modalKind = 'heroes';
-    this.modalRefresh = () => this.openHeroes();
+    this.pendingKind = 'heroes';
+    this.pendingRefresh = () => this.openHeroes();
     const cl = castleLevel(me);
     const altar = me.buildings.some((b) => b.type === 'heroaltar' && b.level > 0);
     const cards = Object.entries(HEROES).map(([k, h]) => {
@@ -449,7 +456,7 @@ export class UI {
           <p class="muted">❤ ${fmt(h.hp * m)} · ⚔ ${fmt(h.dmg * m / h.interval)}/с · ✨ ${h.ability.name}</p>
           <div class="hero-act">${action}</div></div></div>`;
     }).join('');
-    const box = this.modal('Алтарь героев', `${altar ? '' : '<p class="tc-warn">Постройте Алтарь героев (Армия → Алтарь героев).</p>'}<div class="heroes">${cards}</div>`, [], 'wide');
+    const box = this.modal('Алтарь героев', `${altar ? '' : '<p class="tc-warn">Постройте Алтарь героев: Магазин → Армия → Алтарь героев (нужна Цитадель 2 ур.).</p>'}<div class="heroes">${cards}</div>`, [], 'wide');
     box.querySelectorAll('[data-unlock]').forEach((b) => { b.onclick = () => this.app.act('heroUnlock', { k: b.dataset.unlock }).then(() => this.toast('Герой призван!', 'good')); });
     box.querySelectorAll('[data-hup]').forEach((b) => { b.onclick = () => this.app.act('heroUpgrade', { k: b.dataset.hup }); });
     box.querySelectorAll('[data-hspeed]').forEach((b) => {
@@ -549,8 +556,8 @@ export class UI {
 
   openAchievements() {
     const me = this.app.me;
-    this.modalKind = 'ach';
-    this.modalRefresh = () => this.openAchievements();
+    this.pendingKind = 'ach';
+    this.pendingRefresh = () => this.openAchievements();
     const byId = Object.fromEntries((me.achievements || []).map((a) => [a.id, a]));
     const rows = ACHIEVEMENTS.map((a) => {
       const s = byId[a.id] || { value: 0, reached: 0, claimed: 0 };

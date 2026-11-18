@@ -111,7 +111,7 @@ export class Engage {
     const p = $('#pointer');
     const app = this.app;
     const t = this.target;
-    const modalOpen = $('#modal-bg').classList.contains('show') || $('#dialog').classList.contains('show');
+    const modalOpen = $('#modal-bg').classList.contains('show') || $('#dialog').classList.contains('show') || $('#chat').classList.contains('show') || $('#campaign').classList.contains('show');
     if (!t || !this.me || app.mode !== 'village' || app.world?.open || modalOpen || app.village?.ghost) { p.classList.remove('show'); return; }
     let x, y;
     if (t.ui) {
@@ -138,8 +138,8 @@ export class Engage {
   openDaily() {
     const me = this.app.me;
     const ui = this.app.ui;
-    ui.modalKind = 'daily';
-    ui.modalRefresh = () => this.openDaily();
+    ui.pendingKind = 'daily';
+    ui.pendingRefresh = () => this.openDaily();
     const d = today();
     const next = me.dailyReady ? (me.streak.last === d - 1 ? me.streak.count % 7 + 1 : 1) : 0;
     const cl = castleLevelOf(me);

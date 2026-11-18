@@ -2,7 +2,7 @@
 // удобно пальцем на телефоне: ячейка → здание, «Переместить» → ячейка.
 import { BUILDINGS, collectorCap, RACES } from '/shared/config.js';
 import { PLOTS, PLOT, CASTLE_POS, ringOpen, inPlot, isRoad, wallTiles, isPlotType, RING_UNLOCK, cityRect, X0, PITCH } from '/shared/city.js';
-import { iso, TW, TH, panoramaOn, PANO_K } from './scene.js';
+import { iso, TW, TH, panoramaOn, PANO_K, panoSpot } from './scene.js';
 import { PANO } from '/shared/city.js';
 import { img } from './assets.js';
 
@@ -246,10 +246,11 @@ export class Village {
       c.save();
       const g = c.createRadialGradient(o.x, o.y, 10, o.x, o.y, TW * 1.8);
       g.addColorStop(0, 'rgba(235,240,250,0.7)'); g.addColorStop(1, 'rgba(235,240,250,0)');
-      c.fillStyle = g; c.beginPath(); c.ellipse(o.x, o.y, TW * 1.9, TH * 1.9, 0, 0, Math.PI * 2); c.fill();
-      if (lock) { const w = TW * 2.4, h = lock.height * w / lock.width; c.globalAlpha = 0.9; c.drawImage(lock, o.x - w / 2, o.y - h * 0.55, w, h); }
+      c.fillStyle = g; c.beginPath(); c.ellipse(o.x, o.y, TW * 1.5, TH * 1.5, 0, 0, Math.PI * 2); c.fill();
+      const pw = panoSpot(p)?.w || TW * 2.4;
+      if (lock) { const w = pw * 0.95, h = lock.height * w / lock.width; c.globalAlpha = 0.9; c.drawImage(lock, o.x - w / 2, o.y - h * 0.55, w, h); }
       c.restore();
-      s.label(`Цитадель ${RING_UNLOCK[p.ring]}`, o.x, o.y + TH * 1.9, { size: 12 });
+      s.label(`Ц${RING_UNLOCK[p.ring]}`, o.x, o.y + pw * 0.42, { size: 11 });
     }
   }
 
@@ -471,8 +472,9 @@ export class Village {
       noPad: true,
     });
     const im = img(s.spriteFor(b, this.walls).name);
-    const bot = iso(b.x + size, b.y + size);
-    const w = size * TW, h = im ? im.height * w / im.width : TH * 2;
+    const at = panoSpot(b);
+    const bot = at || iso(b.x + size, b.y + size);
+    const w = at ? at.w : size * TW, h = im ? im.height * w / im.width : TH * 2;
     this.hits.push({ b, x: bot.x - w / 2, y: bot.y - h, w, h: h + 4 });
     // дымок у кузницы
     if (b.type === 'forge' && Math.random() < 0.05) s.emit(bot.x + 10, bot.y - h * 0.9, 1, 'smoke');
@@ -482,8 +484,9 @@ export class Village {
     const s = this.scene, def = BUILDINGS[b.type], size = def.size;
     const top = iso(b.x + size / 2, b.y + size / 2);
     const im = img(s.spriteFor(b, this.walls).name);
-    const h = im ? im.height * size * TW / im.width : TH * 2;
-    const headY = iso(b.x + size, b.y + size).y - h;
+    const at = panoSpot(b);
+    const h = im ? im.height * (at ? at.w : size * TW) / im.width : TH * 2;
+    const headY = (at ? at.y : iso(b.x + size, b.y + size).y) - h;
     if (b.up) {
       const left = (b.up.end - now) / 1000;
       const frac = 1 - left / b.up.total;

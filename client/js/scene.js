@@ -12,9 +12,16 @@ export const PANO_K = 1.2;                       // масштаб картин�
 const PANO_ANCH = [];
 for (const p of PLOTS) {
   const pad = PANO.pads[p.i];
-  if (pad) PANO_ANCH.push({ x0: p.x, y0: p.y, size: PLOT, cx: pad[0] * PANO_K, cy: pad[1] * PANO_K });
+  if (pad) PANO_ANCH.push({ x0: p.x, y0: p.y, size: PLOT, cx: pad[0] * PANO_K, cy: pad[1] * PANO_K, w: pad[2] * PANO_K });
 }
-PANO_ANCH.push({ x0: CASTLE_POS.x, y0: CASTLE_POS.y, size: CASTLE_POS.size, cx: PANO.plaza[0] * PANO_K, cy: PANO.plaza[1] * PANO_K });
+PANO_ANCH.push({ x0: CASTLE_POS.x, y0: CASTLE_POS.y, size: CASTLE_POS.size, cx: PANO.plaza[0] * PANO_K, cy: PANO.plaza[1] * PANO_K, w: PANO.plaza[2] * PANO_K });
+// Куда ставить здание на панораме: низ спрайта — у переднего угла площадки, ширина — по площадке
+export function panoSpot(b) {
+  if (!PANO_ON) return null;
+  const a = PANO_ANCH.find((q) => q.x0 === b.x && q.y0 === b.y);
+  if (!a) return null;
+  return { x: a.cx, y: a.cy + a.w * 0.3, w: a.w * 1.18 };
+}
 let PANO_ON = false;
 export function setPanorama(on) { PANO_ON = on; }
 export const panoramaOn = () => PANO_ON;
@@ -347,7 +354,8 @@ export class Scene {
     const c = this.ctx;
     const def = BUILDINGS[b.type];
     const size = def.size;
-    const bot = iso(b.x + size, b.y + size);
+    const at = o.dead ? null : panoSpot(b);
+    const bot = at || iso(b.x + size, b.y + size);
     const midX = bot.x, botY = bot.y;
     if (o.dead) {
       const rn = size >= 4 ? 'rubble_3' : size >= 3 ? 'rubble_2' : 'rubble_1';
@@ -367,8 +375,8 @@ export class Scene {
     if (o.flash) c.filter = 'brightness(1.6)';
     if (o.frozen) c.filter = 'hue-rotate(160deg) saturate(1.6) brightness(1.15)';
     if (im) {
-      const w = size * TW * scale, h = im.height * w / im.width;
-      const y = botY - h + size * TH * (def.cat === 'wall' ? 0.22 : 0.1) + (o.lift || 0);
+      const w = (at ? at.w : size * TW) * scale, h = im.height * w / im.width;
+      const y = botY - h + (at ? 0 : size * TH * (def.cat === 'wall' ? 0.22 : 0.1)) + (o.lift || 0);
       if (sp.flip) { c.translate(midX, 0); c.scale(-1, 1); c.drawImage(im, -w / 2, y, w, h); }
       else c.drawImage(im, midX - w / 2, y, w, h);
     } else {

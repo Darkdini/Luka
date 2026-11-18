@@ -20,7 +20,8 @@ export function panoSpot(b) {
   if (!PANO_ON) return null;
   const a = PANO_ANCH.find((q) => q.x0 === b.x && q.y0 === b.y);
   if (!a) return null;
-  return { x: a.cx, y: a.cy + a.w * 0.3, w: a.w * 1.18 };
+  // спрайты уже с собственным основанием: вписываем чуть меньше верхней грани площадки
+  return { x: a.cx, y: a.cy + a.w * 0.24, w: a.w * 0.9 };
 }
 let PANO_ON = false;
 export function setPanorama(on) { PANO_ON = on; }

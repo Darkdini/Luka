@@ -88,7 +88,7 @@ export function npcBase(level, seed) {
   for (const t of ['goldmine', 'farm']) for (let i = 0; i < Math.min(3, counts(t)); i++) want.push(t);
   want.push('barracks', 'armycamp', 'builderhut');
   want.slice(0, order.length).forEach((t, i) => blds.push({ id: id++, type: t, level: lv(t), x: order[i].x, y: order[i].y }));
-  if (cl >= 2) {
+  {
     const wl = Math.max(1, Math.min(BUILDINGS.wall.maxByCastle[cl - 1], Math.ceil(level / 1.5)));
     for (const [x, y] of wallTiles(cl)) blds.push({ id: id++, type: 'wall', level: wl, x, y });
   }

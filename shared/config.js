@@ -133,7 +133,7 @@ export const BUILDINGS = {
     def: { range: 5.5, interval: 1.6, dmg: 26, splash: 1.1, air: true, ground: true },
     desc: 'Магические заряды поражают группы врагов — и на земле, и в небе.' }),
   wall: D({ name: 'Крепостная стена', cat: 'wall', size: 1, tiers: 4, hp: 350, costMul: 0.35, timeMul: 0,
-    maxByCastle: [0, 2, 3, 4, 6, 8], countByCastle: [0, 1, 1, 1, 1, 1],
+    maxByCastle: [1, 2, 3, 4, 6, 8], countByCastle: [1, 1, 1, 1, 1, 1],
     desc: 'Опоясывает город и растёт вместе с ним. Улучшается целиком и мгновенно.' }),
   trap_spikes: D({ name: 'Шипы', cat: 'trap', size: 1, tiers: 1, hp: 1, costMul: 0.3, timeMul: 0.2, sprite: 'trap_spikes',
     maxByCastle: [0, 1, 2, 2, 3, 3], countByCastle: [0, 2, 2, 3, 4, 4],

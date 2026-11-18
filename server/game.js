@@ -60,7 +60,7 @@ export function newPlayerState(race, seed) {
   const start = ['barracks', 'goldmine', 'farm', 'archertower', 'treasury', 'granary', 'armycamp', 'builderhut', 'builderhut'];
   start.forEach((t, i) => add(t, PLOTS[i].x, PLOTS[i].y));
   s.army = { swordsman: 10, crossbowman: 6 };
-  s.wallLevel = 0;
+  s.wallLevel = 1; // деревянный частокол с первого дня
   s.city = 1;
   s.decor = cityDecor(seed, s);
   return s;
@@ -118,7 +118,7 @@ export function migrate(s) {
   s.story = s.story || {};
   s.npc = s.npc || {};
   s.tutorial = s.tutorial || 0;
-  s.wallLevel = s.wallLevel || 0;
+  s.wallLevel = Math.max(1, s.wallLevel || 0);
   migrateCity(s);
   s.streak = s.streak || { count: 0, last: 0 };
   ensureDaily(s);

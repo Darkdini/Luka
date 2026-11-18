@@ -99,10 +99,11 @@ test('город: ячейки, обмен местами, стена', () => {
   const [ax, ay] = [a.x, a.y];
   actions.move(s, { id: a.id, x: b.x, y: b.y });   // поменялись местами
   assert.deepEqual([b.x, b.y], [ax, ay]);
-  assert.throws(() => actions.wallUpgrade(s), /Цитадели 2/);
-  s.buildings.find((v) => v.type === 'castle').level = 2;
+  assert.equal(s.wallLevel, 1, 'частокол с первого дня');
   s.res.gold = 100000;
+  assert.throws(() => actions.wallUpgrade(s), /Цитадель/);
+  s.buildings.find((v) => v.type === 'castle').level = 2;
   actions.wallUpgrade(s);
-  assert.equal(s.wallLevel, 1);
+  assert.equal(s.wallLevel, 2);
   assert.ok(lootableBase(s).filter((v) => v.type === 'wall').length > 60);
 });

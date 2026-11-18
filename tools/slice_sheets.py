@@ -268,7 +268,6 @@ def backgrounds():
         ("base_bg.png", "bg/base.jpg", 2400),
         ("splash_vertical.png", "bg/splash.jpg", 1400),
         ("campaign_vertical.png", "bg/campaign.jpg", 1800),
-        ("town_panorama.png", "bg/town.jpg", 2400),
     ]:
         img = Image.open(os.path.join(SRC, src)).convert("RGB")
         path = os.path.join(OUT, dst)
@@ -280,6 +279,23 @@ def backgrounds():
     g = Image.open(os.path.join(SRC, "grass.png")).convert("RGB").resize((768, 512), Image.LANCZOS)
     g.save(os.path.join(OUT, "bg/grass.jpg"), quality=88)
     print("фоны: 3")
+
+
+def town_panorama(overlap=140):
+    """Склейка двух панорам города слева направо с плавным переходом на стыке."""
+    a = np.array(Image.open(os.path.join(SRC, "town_panorama.png")).convert("RGB")).astype(np.float32)
+    b = np.array(Image.open(os.path.join(SRC, "town_panorama2.png")).convert("RGB")).astype(np.float32)
+    h = min(a.shape[0], b.shape[0]); a, b = a[:h], b[:h]
+    w = a.shape[1] + b.shape[1] - overlap
+    out = np.zeros((h, w, 3), np.float32)
+    out[:, :a.shape[1]] = a
+    t = np.linspace(0, 1, overlap)[None, :, None]
+    t = t * t * (3 - 2 * t)
+    x0 = a.shape[1] - overlap
+    out[:, x0:a.shape[1]] = a[:, x0:] * (1 - t) + b[:, :overlap] * t
+    out[:, a.shape[1]:] = b[:, overlap:]
+    Image.fromarray(out.clip(0, 255).astype(np.uint8)).save(os.path.join(OUT, "bg/town.jpg"), quality=86, optimize=True)
+    print(f"панорама города: {w}×{h}")
 
 
 def main():
@@ -359,6 +375,7 @@ def main():
     ui_kit()
     army_camp_gif()
     backgrounds()
+    town_panorama()
     with open(os.path.join(OUT, "manifest.json"), "w") as f:
         json.dump({k: list(v) for k, v in manifest.items()}, f, indent=1, sort_keys=True)
 

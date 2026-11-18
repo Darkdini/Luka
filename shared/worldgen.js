@@ -47,7 +47,7 @@ export const BIOMES = {
 
 const cache = new Map();
 export function terrainAt(x, y) {
-  if (x < 0 || y < 0 || x >= WORLD || y >= WORLD) return 'deep';
+  if (x < 0 || y < 0 || x >= WORLD || y >= WORLD) return 'pines';
   const k = x * WORLD + y;
   const c = cache.get(k);
   if (c) return c;
@@ -60,12 +60,11 @@ export function terrainAt(x, y) {
 function computeTerrain(x, y) {
   const nx = x / WORLD, ny = y / WORLD;
   const dc = Math.hypot(nx - 0.5, ny - 0.5) * 2;           // 0 в центре, ~1 у края
-  let e = fbm(x / 34, y / 34, 11) * 1.05 - Math.max(0, dc - 0.78) * 2.2; // к краям — море
-  e += Math.max(0, 0.16 - dc) * 1.2;                         // центр всегда суша
+  // сплошная суша: без морей, озёр и гор
+  const e = fbm(x / 34, y / 34, 11) * 1.05;
+  void dc;
   const m = fbm(x / 24, y / 24, 77);
   const temp = ny + (fbm(x / 50, y / 50, 300) - 0.5) * 0.25; // север холодный, юг жаркий
-  if (e < 0.3) return e < 0.22 ? 'deep' : 'water';
-  if (e > 0.7) return 'mountain';
   if (temp < 0.16) return m > 0.55 ? 'pines' : 'snow';
   if (temp > 0.86 && m < 0.55) return 'desert';
   if (e > 0.62) return 'hills';

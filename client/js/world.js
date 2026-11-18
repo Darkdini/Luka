@@ -204,7 +204,7 @@ export class WorldMap {
     }
     const c = this.ctx, z = this.cam.z;
     c.setTransform(1, 0, 0, 1, 0, 0);
-    c.fillStyle = '#1b4f86';
+    c.fillStyle = '#2f5a24'; // за краем мира — тёмный лес
     c.fillRect(0, 0, this.cv.width, this.cv.height);
     c.setTransform(this.dpr * z, 0, 0, this.dpr * z, this.dpr * (this.w / 2 - this.cam.x * z), this.dpr * (this.h / 2 - this.cam.y * z));
     // видимые клетки -> видимые чанки

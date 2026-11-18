@@ -33,7 +33,6 @@ export class UI {
     $('#btn-top').onclick = () => this.openTop();
     $('#btn-reports').onclick = () => this.openReports();
     $('#btn-chat').onclick = () => this.toggleChat();
-    $('#btn-daily').onclick = () => app.daily();
     $('#btn-gems').onclick = () => this.openShop('gems');
     $('#btn-settings').onclick = () => this.openSettings();
     $('#hud-player').onclick = () => this.openProfile(app.me.id);
@@ -89,7 +88,7 @@ export class UI {
   updateHud(me) {
     $('#p-name').textContent = me.name;
     $('#p-level').textContent = castleLevel(me);
-    $('#p-trophies').textContent = fmt(me.trophies);
+    this.app.engage.count($('#p-trophies'), me.trophies);
     $('#p-ava').src = avatarUrl(me.avatar);
     const lg = leagueOf(me.trophies);
     $('#p-league').textContent = lg.icon;
@@ -102,14 +101,13 @@ export class UI {
     $('#p-race').textContent = RACES[me.race]?.name || '';
     $('#p-race').style.setProperty('--c', RACES[me.race]?.color || '#888');
     for (const r of ['gold', 'food']) {
-      $(`#r-${r} .v`).textContent = fmt(me.res[r]);
+      this.app.engage.count($(`#r-${r} .v`), Math.floor(me.res[r]));
       $(`#r-${r} .cap`).textContent = 'макс. ' + fmt(me.caps[r]);
       $(`#r-${r} .fill`).style.width = Math.min(100, me.res[r] / Math.max(1, me.caps[r]) * 100) + '%';
     }
-    $('#r-gems .v').textContent = fmt(me.res.gems);
+    this.app.engage.count($('#r-gems .v'), me.res.gems);
     $('#builders').innerHTML = `🔨 <b>${me.builders.total - me.builders.busy}</b>/${me.builders.total}`;
     $('#army-count').textContent = `${armyUsed(me.army)}/${me.armyCap}`;
-    $('#btn-daily').classList.toggle('hidden', !me.dailyReady);
     const unread = (me.reports || []).filter((r) => r.type === 'defense' && r.ts > (this.app.seenReports || 0)).length;
     $('#btn-reports .badge').textContent = unread || '';
     $('#btn-reports .badge').classList.toggle('hidden', !unread);
@@ -573,10 +571,12 @@ export class UI {
 
   openSettings() {
     this.modal('Настройки', `<p>Игрок: <b>${esc(this.app.me.username)}</b></p>
-      <label class="row"><input type="checkbox" id="opt-sound" ${this.app.sound ? 'checked' : ''}> Звуки</label>`, [
+      <label class="row"><input type="checkbox" id="opt-sound" ${this.app.sound ? 'checked' : ''}> Звуки</label>
+      <label class="row"><input type="checkbox" id="opt-music" ${this.app.musicOn ? 'checked' : ''}> Музыка</label>`, [
       { label: 'Выйти из аккаунта', cls: 'red', onClick: () => this.app.logout() },
     ]);
     $('#opt-sound').onchange = (e) => this.app.setSound(e.target.checked);
+    $('#opt-music').onchange = (e) => this.app.setMusic(e.target.checked);
   }
 
   // --- Чат ---------------------------------------------------------------------------
@@ -602,7 +602,26 @@ export class UI {
   }
 
   // --- Бой ----------------------------------------------------------------------------
+  // Звезда вылетает в центр экрана и улетает на своё место
+  starPop(i) {
+    const el = document.createElement('div');
+    el.className = 'star-pop';
+    el.innerHTML = `<img class="glow" src="${url('fx/fx_star')}" alt=""><img src="${url('ui/star')}" alt="">`;
+    document.body.appendChild(el);
+    const target = document.querySelectorAll('#bt-stars img')[i];
+    const r = target?.getBoundingClientRect() || { left: innerWidth / 2, top: 40, width: 30 };
+    const a = el.animate([
+      { transform: `translate(${innerWidth / 2 - 60}px, ${innerHeight / 2 - 60}px) scale(.2) rotate(-90deg)`, opacity: 0 },
+      { transform: `translate(${innerWidth / 2 - 60}px, ${innerHeight / 2 - 60}px) scale(1.2) rotate(0)`, opacity: 1, offset: 0.35 },
+      { transform: `translate(${innerWidth / 2 - 60}px, ${innerHeight / 2 - 60}px) scale(1) rotate(0)`, opacity: 1, offset: 0.6 },
+      { transform: `translate(${r.left + r.width / 2 - 60}px, ${r.top + r.width / 2 - 60}px) scale(.25)`, opacity: 1 },
+    ], { duration: 1300, easing: 'ease-in-out' });
+    a.onfinish = () => el.remove();
+    this.app.sfx('star');
+  }
+
   battleHud(battle) {
+    this.lastStars = 0;
     const d = battle.data;
     $('#bt-name').textContent = d.name;
     $('#bt-sub').innerHTML = d.info.owner ? `${esc(d.info.owner)} · ур. ${d.info.level} · 🏆 ${d.info.trophies}` : `Уровень ${d.info.level}`;
@@ -648,6 +667,9 @@ export class UI {
   battleTick(battle) {
     const st = battle.liveStats();
     $('#bt-pct').textContent = st.pct + '%';
+    $('#bt-bar').style.width = st.pct + '%';
+    if (st.stars > (this.lastStars || 0)) this.starPop(this.lastStars || 0);
+    this.lastStars = st.stars;
     $('#bt-stars').innerHTML = [0, 1, 2].map((i) => `<img src="${url(i < st.stars ? 'ui/star' : 'ui/star_empty')}" alt="">`).join('');
     $('#bt-timer').textContent = battle.started ? fmtTime(st.time) : `Разведка: ${Math.ceil(battle.scout)}с`;
     $('#bt-timer').classList.toggle('scout', !battle.started);

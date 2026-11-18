@@ -113,6 +113,7 @@ export class Battle {
           s.emit(p.x, p.y - 20, f.wall ? 6 : 26, 'dust');
           if (!f.wall) { s.emit(p.x, p.y - 30, 10, 'smoke'); s.fxSprite('buildings/rubble_fire', p.x, p.y + 10, TW * f.size * 0.9, 1.4, false); }
           this.burning.delete(f.i);
+          if (!f.wall) s.shake(4 + f.size * 2);
           this.app.sfx('destroy');
           break;
         }
@@ -121,13 +122,13 @@ export class Battle {
         case 'spell': {
           const map = { fireball: 'fx_fireball', lightning: 'fx_lightning', heal: 'fx_heal', rage: 'fx_rage', freeze: 'fx_freeze' };
           s.fxSprite('spells/' + map[f.spell], p.x, p.y + TH * 0.5, TW * f.r * 1.6, f.spell === 'fireball' ? 1 : 1.2);
-          if (f.spell === 'fireball') s.emit(p.x, p.y, 30, 'spark');
+          if (f.spell === 'fireball') { s.emit(p.x, p.y, 30, 'spark'); s.shake(10); }
           break;
         }
-        case 'bolt': s.fxSprite('spells/fx_lightning', p.x, p.y + TH * 0.4, TW * 2, 0.5); s.emit(p.x, p.y, 12, 'spark'); break;
+        case 'bolt': s.shake(6); s.fxSprite('spells/fx_lightning', p.x, p.y + TH * 0.4, TW * 2, 0.5); s.emit(p.x, p.y, 12, 'spark'); break;
         case 'meteor': s.fxSprite('spells/fx_fireball', p.x, p.y + TH * 0.4, TW * 2, 0.7); s.emit(p.x, p.y, 10, 'spark'); break;
-        case 'boom': s.fxSprite('spells/fx_fireball', p.x, p.y + TH * 0.3, TW * 2.2, 0.7); s.emit(p.x, p.y, 20, 'dust'); this.app.sfx('boom'); break;
-        case 'trap': s.fxSprite(f.type === 'trap_rune' ? 'spells/fx_lightning' : 'spells/fx_fireball', p.x, p.y + TH * 0.4, TW * f.r * 1.4, 0.7); s.emit(p.x, p.y, 16, 'dust'); this.app.sfx('boom'); break;
+        case 'boom': s.shake(9); s.fxSprite('spells/fx_fireball', p.x, p.y + TH * 0.3, TW * 2.2, 0.7); s.emit(p.x, p.y, 20, 'dust'); this.app.sfx('boom'); break;
+        case 'trap': s.shake(8); s.fxSprite(f.type === 'trap_rune' ? 'spells/fx_lightning' : 'spells/fx_fireball', p.x, p.y + TH * 0.4, TW * f.r * 1.4, 0.7); s.emit(p.x, p.y, 16, 'dust'); this.app.sfx('boom'); break;
         case 'ability': s.fxSprite(f.hero === 'runesmith' ? 'spells/fx_quake' : f.hero === 'huntress' ? 'spells/fx_invis' : 'spells/fx_rage', p.x, p.y + TH * 0.5, TW * 3.5, 1.2); break;
         case 'healpulse': s.emit(p.x, p.y - 20, 3, 'heal'); break;
         case 'deploy': s.emit(p.x, p.y, 6, 'dust'); break;

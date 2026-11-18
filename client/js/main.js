@@ -7,6 +7,7 @@ import { Battle } from './battle.js';
 import { WorldMap } from './world.js';
 import { UI } from './ui.js';
 import { Story } from './story.js';
+import { Engage } from './engage.js';
 import { CHAPTERS, chapterOpen } from '/shared/story.js';
 
 const $ = (s) => document.querySelector(s);
@@ -17,6 +18,7 @@ class App {
     this.me = null;
     this.mode = 'village';
     this.sound = store.get('ck_sound') !== '0';
+    this.musicOn = store.get('ck_music') !== '0';
     this.seenReports = +(store.get('ck_seen') || 0);
   }
 
@@ -30,9 +32,14 @@ class App {
     this.world = new WorldMap(this);
     this.ui = new UI(this);
     this.story = new Story(this);
+    this.engage = new Engage(this);
     $('#loading').classList.add('hide');
     if (token) {
-      try { await this.refresh(); this.enterGame(); return; } catch { setToken(null); }
+      try {
+        await this.refresh(); this.enterGame();
+        if (this.me.dailyReady) setTimeout(() => this.engage.openDaily(), 900);
+        return;
+      } catch { setToken(null); }
     }
     this.showAuth();
   }
@@ -71,6 +78,7 @@ class App {
         $('#auth').classList.remove('show');
         this.enterGame();
         if (reg) this.welcome();
+        else if (this.me.dailyReady) setTimeout(() => this.engage.openDaily(), 700);
       } catch (err) {
         $('#auth-err').textContent = err.message;
       } finally { btn.disabled = false; }
@@ -121,6 +129,8 @@ class App {
     this.story.close();
     this.village.visit = null;
     this.village.enter();
+    this.engage?.music('village');
+    this.wipe();
     this.scene.cam = { x: 0, y: 22 * 32, z: Math.max(this.scene.minZ, 0.62) };
     this.scene.clampCam();
     this.setMe(this.me);
@@ -128,10 +138,12 @@ class App {
 
   // --- Синхронизация с сервером ------------------------------------------------------
   setMe(me) {
+    const prev = this.me;
     this.me = me;
     this.fetchedAt = Date.now();
     this.village.setMe(me);
     this.ui?.updateHud(me);
+    this.engage?.update(me, prev && prev.id === me.id ? prev : null);
   }
 
   async refresh() {
@@ -154,20 +166,29 @@ class App {
   }
 
   async collect(id) {
+    const b = this.me.buildings.find((v) => v.id === id);
+    let from = null;
+    if (b) {
+      const size = 3, w = this.scene.toScreen((b.x - b.y) * 32, (b.x + b.y + size) * 16 - 70);
+      from = { x: w.x, y: w.y };
+    }
     try {
       const r = await this.act('collect', { id });
       const got = r.collected;
       if (got.gold + got.food > 0) {
+        for (const k of ['gold', 'food']) if (got[k]) this.engage.fly(from, k, Math.min(9, 3 + Math.round(Math.log10(got[k] + 1) * 1.5)));
         this.sfx('coin');
-        const b = this.me.buildings.find((v) => v.id === id);
-        if (b) {
-          const p = { x: (b.x - b.y) * 32 + 48 * 0, y: (b.x + b.y + 3) * 16 - 60 };
-          this.scene.emit(p.x, p.y, 8, 'coin');
-        }
-        this.ui.toast(`+${fmt(got.gold || got.food)} ${got.gold ? 'золота' : 'зерна'}`, 'good');
+        if (b) { this.village.floatText(b, `+${fmt(got.gold || got.food)}`, got.gold ? '#ffd84a' : '#ffb36b'); this.village.coinBurst(b); }
       } else this.ui.toast('Хранилище заполнено — улучшите Казну или Амбар');
     } catch { /* тост показан */ }
   }
+
+  wipe() {
+    const w = $('#wipe');
+    w.classList.remove('go'); void w.offsetWidth; w.classList.add('go');
+  }
+
+  setMusic(on) { this.musicOn = on; store.set('ck_music', on ? '1' : '0'); const t = this.engage.track; this.engage.track = null; this.engage.music(on ? t : null); }
 
   async daily() {
     try {
@@ -190,7 +211,9 @@ class App {
   openWorld(x, y) {
     this.village.cancelPlacing();
     this.ui.closeModal();
+    this.wipe();
     this.world.show(x, y);
+    this.engage.music('world');
   }
 
   // Осмотр чужого замка
@@ -231,6 +254,8 @@ class App {
       this.scene.cam = { x: 0, y: 22 * 32 - 20, z: Math.max(this.scene.minZ, 0.85) };
       this.scene.clampCam();
       this.sfx('horn');
+      this.engage.music('battle');
+      this.wipe();
     } catch (e) { this.ui.toast(e.message, 'bad'); }
   }
 
@@ -289,6 +314,9 @@ class App {
         win: () => [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => tone(f, 0.25, 'triangle', 0.07), i * 140)),
         lose: () => [392, 330, 262].forEach((f, i) => setTimeout(() => tone(f, 0.3, 'triangle', 0.07), i * 180)),
         error: () => tone(160, 0.15, 'square', 0.05),
+        quest: () => [659, 880, 1175].forEach((f, i) => setTimeout(() => tone(f, 0.18, 'triangle', 0.06), i * 90)),
+        levelup: () => { [392, 523, 659, 784, 1046].forEach((f, i) => setTimeout(() => tone(f, 0.22, 'square', 0.035), i * 70)); setTimeout(() => noise(0.4, 0.08, 4000), 300); },
+        star: () => { tone(880, 0.12, 'triangle', 0.08); setTimeout(() => tone(1320, 0.25, 'triangle', 0.08), 90); },
       })[kind]?.();
     } catch { /* звук недоступен */ }
   }

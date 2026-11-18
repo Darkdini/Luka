@@ -179,11 +179,19 @@ export class Village {
     }
     for (const d of me.decor) items.push({ d: d.x + d.y + 2, dec: d });
     if (this.ghost) items.push({ d: this.ghost.x + this.ghost.y + BUILDINGS[this.ghost.type].size * 2 + 0.1, ghost: this.ghost });
+    this.updateLife(dt, me);
+    for (const w of this.walkers) items.push({ d: w.x + w.y + 0.3, walker: w });
+    for (const b of me.buildings) if (b.up) {
+      const size = BUILDINGS[b.type].size;
+      items.push({ d: b.x + b.y + size * 2 + 0.6, worker: b });
+    }
     items.sort((a, b) => a.d - b.d);
 
     this.hits = [];
     const selObj = this.visit ? null : this.findSel();
     for (const it of items) {
+      if (it.walker) { this.drawWalker(it.walker); continue; }
+      if (it.worker) { this.drawWorker(it.worker); continue; }
       if (it.b) this.drawB(it.b, now, selObj === it.b);
       else if (it.dec) {
         if (selObj === it.dec) s.diamond(it.dec.x, it.dec.y, 1, 1, 'rgba(255,255,255,0.25)', '#fff');
@@ -204,8 +212,165 @@ export class Village {
     }
     // пузыри сбора и подписи поверх
     if (!this.visit) for (const b of me.buildings) this.drawOverlay(b, now);
+    this.drawSky(dt);
     s.drawParticles(dt);
+    this.drawFloats(dt);
     if (!this.visit) this.app.ui.tick(now);
+  }
+
+  // --- Жизнь в поселении ---------------------------------------------------------
+  updateLife(dt, me) {
+    if (!this.walkers || this.walkersFor !== me) {
+      this.walkersFor = me;
+      const kinds = ['peasant', 'farmer', 'merchant', 'guard', 'monk', 'child', 'smith'];
+      const n = Math.min(kinds.length, 3 + me.buildings.filter((b) => b.level > 0 && BUILDINGS[b.type].cat !== 'wall').length / 3 | 0);
+      this.walkers = Array.from({ length: n }, (_, i) => {
+        const p = this.randomSpot(me) || { x: 21, y: 25 };
+        return { kind: kinds[i], x: p.x, y: p.y, tx: p.x, ty: p.y, wait: Math.random() * 3, dir: 1, ph: Math.random() * 6 };
+      });
+    }
+    for (const w of this.walkers) {
+      if (w.wait > 0) { w.wait -= dt; continue; }
+      const dx = w.tx - w.x, dy = w.ty - w.y, d = Math.hypot(dx, dy);
+      if (d < 0.05) {
+        w.wait = 1 + Math.random() * 4;
+        const p = this.randomSpot(me, w);
+        if (p) { w.tx = p.x; w.ty = p.y; }
+        continue;
+      }
+      const sp = 0.7 * dt;
+      w.x += dx / d * Math.min(sp, d); w.y += dy / d * Math.min(sp, d);
+      if (Math.abs(dx - dy) > 0.01) w.dir = dx - dy > 0 ? 1 : -1;
+    }
+  }
+
+  // Случайная свободная точка у какого-нибудь здания (жители ходят «по делам»)
+  randomSpot(me, from) {
+    for (let i = 0; i < 20; i++) {
+      const b = me.buildings[Math.floor(Math.random() * me.buildings.length)];
+      if (!b) return null;
+      const size = BUILDINGS[b.type].size;
+      const x = b.x + size + 0.3 + Math.random() * 0.6, y = b.y + Math.random() * size;
+      const tx = Math.floor(x), ty = Math.floor(y);
+      if (!this.tileFree('wall', tx, ty)) continue;
+      if (from) {
+        const mx = Math.floor((from.x + x) / 2), my = Math.floor((from.y + y) / 2);
+        if (Math.hypot(x - from.x, y - from.y) > 9 || !this.tileFree('wall', mx, my)) continue;
+      }
+      return { x, y };
+    }
+    return null;
+  }
+
+  drawWalker(w) {
+    const im = img('villagers/' + w.kind);
+    if (!im) return;
+    const c = this.scene.ctx, p = iso(w.x, w.y);
+    const H = TH * 1.25, ww = im.width * H / im.height;
+    const moving = w.wait <= 0;
+    const bob = moving ? Math.abs(Math.sin(this.t * 9 + w.ph)) * 2.5 : 0;
+    c.save();
+    c.fillStyle = 'rgba(0,0,0,0.25)';
+    c.beginPath(); c.ellipse(p.x, p.y, H * 0.22, H * 0.09, 0, 0, Math.PI * 2); c.fill();
+    c.translate(p.x, p.y - bob);
+    if (w.dir < 0) c.scale(-1, 1);
+    c.drawImage(im, -ww / 2, -H, ww, H);
+    c.restore();
+  }
+
+  // Гном-строитель стучит молотом у стройки
+  drawWorker(b) {
+    const im = img('villagers/builder');
+    if (!im) return;
+    const size = BUILDINGS[b.type].size;
+    const p = iso(b.x + size + 0.35, b.y + size * 0.65);
+    const c = this.scene.ctx;
+    const H = TH * 1.35, w = im.width * H / im.height;
+    const hit = Math.sin(this.t * 7 + b.id);
+    c.save();
+    c.fillStyle = 'rgba(0,0,0,0.25)';
+    c.beginPath(); c.ellipse(p.x, p.y, H * 0.22, H * 0.09, 0, 0, Math.PI * 2); c.fill();
+    c.translate(p.x, p.y);
+    c.scale(-1, 1);
+    c.rotate(hit > 0 ? -0.08 * hit : 0);
+    c.drawImage(im, -w / 2, -H, w, H);
+    c.restore();
+    if (hit > 0.97 && Math.random() < 0.5) { this.scene.emit(p.x - 12, p.y - H * 0.4, 3, 'spark'); this.app.sfx?.('tap'); }
+  }
+
+  // Тени облаков и птицы
+  drawSky(dt) {
+    const c = this.scene.ctx;
+    if (!this.clouds) {
+      this.clouds = Array.from({ length: 4 }, (_, i) => ({ x: -1400 + i * 800 + Math.random() * 300, y: 200 + Math.random() * 1100, r: 260 + Math.random() * 220 }));
+      this.birdT = 6;
+    }
+    c.save();
+    for (const cl of this.clouds) {
+      cl.x += 18 * dt; cl.y += 4 * dt;
+      if (cl.x - cl.r > 1700) { cl.x = -1700 - cl.r; cl.y = 100 + Math.random() * 1200; }
+      const g = c.createRadialGradient(cl.x, cl.y, cl.r * 0.2, cl.x, cl.y, cl.r);
+      g.addColorStop(0, 'rgba(10,25,40,0.13)'); g.addColorStop(1, 'rgba(10,25,40,0)');
+      c.fillStyle = g;
+      c.beginPath(); c.ellipse(cl.x, cl.y, cl.r * 1.4, cl.r * 0.6, 0, 0, Math.PI * 2); c.fill();
+    }
+    this.birdT -= dt;
+    if (this.birdT <= 0 && !this.birds) {
+      const y = 100 + Math.random() * 700;
+      this.birds = Array.from({ length: 4 + (Math.random() * 4 | 0) }, (_, i) => ({ x: -1600 - i * 40, y: y + (i % 2 ? 18 : -18) * Math.ceil(i / 2), ph: Math.random() * 6 }));
+    }
+    if (this.birds) {
+      c.strokeStyle = 'rgba(30,30,30,0.8)'; c.lineWidth = 2.2; c.lineCap = 'round';
+      for (const b of this.birds) {
+        b.x += 160 * dt; b.y -= 12 * dt;
+        const f = Math.sin(this.t * 10 + b.ph) * 6;
+        c.beginPath(); c.moveTo(b.x - 9, b.y - f); c.quadraticCurveTo(b.x - 3, b.y - 4, b.x, b.y); c.quadraticCurveTo(b.x + 3, b.y - 4, b.x + 9, b.y - f); c.stroke();
+      }
+      if (this.birds.every((b) => b.x > 1700)) { this.birds = null; this.birdT = 15 + Math.random() * 20; }
+    }
+    c.restore();
+  }
+
+  // Праздник: стройка завершена
+  celebrate(b) {
+    const size = BUILDINGS[b.type].size;
+    const p = iso(b.x + size / 2, b.y + size / 2);
+    this.scene.fxSprite('fx/fx_levelup', p.x, p.y + TH * size * 0.6, TW * size * 1.5, 1.6);
+    this.scene.fxSprite('fx/fx_rays', p.x, p.y - TH * size * 0.2, TW * size * 1.8, 1.2);
+    setTimeout(() => this.scene.fxSprite('fx/fx_confetti', p.x, p.y - TH * size * 0.6, TW * size * 1.6, 1.3), 250);
+    this.scene.emit(p.x, p.y - TH * size, 40, 'confetti');
+    this.scene.emit(p.x, p.y - TH * size * 0.5, 16, 'spark');
+    this.floatText(b, b.level > 1 ? `Уровень ${b.level}!` : 'Построено!', '#7fff6a', 1.8);
+  }
+
+  coinBurst(b) {
+    const size = BUILDINGS[b.type].size;
+    const p = iso(b.x + size / 2, b.y + size / 2);
+    this.scene.fxSprite('fx/fx_coins', p.x, p.y - TH * size * 0.4, TW * size * 0.9, 0.9);
+  }
+
+  floatText(b, text, color, scale = 1) {
+    const size = BUILDINGS[b.type].size;
+    const p = iso(b.x + size / 2, b.y + size / 2);
+    (this.floats ||= []).push({ x: p.x, y: p.y - TH * size * 1.8, text, color, t: 0, scale });
+  }
+
+  drawFloats(dt) {
+    if (!this.floats?.length) return;
+    const c = this.scene.ctx, z = this.scene.cam.z;
+    for (const f of this.floats) {
+      f.t += dt;
+      const k = f.t / 1.6;
+      c.save();
+      c.globalAlpha = Math.max(0, 1 - k * k);
+      c.font = `900 ${(22 * f.scale) / Math.max(0.6, z)}px Rubik, sans-serif`;
+      c.textAlign = 'center';
+      c.lineWidth = 5 / Math.max(0.6, z); c.strokeStyle = 'rgba(0,0,0,0.75)';
+      const y = f.y - k * 70;
+      c.strokeText(f.text, f.x, y); c.fillStyle = f.color; c.fillText(f.text, f.x, y);
+      c.restore();
+    }
+    this.floats = this.floats.filter((f) => f.t < 1.6);
   }
 
   drawB(b, now, selected) {

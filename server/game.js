@@ -9,6 +9,7 @@ import {
 } from '../shared/config.js';
 import { achievementStatus } from '../shared/achievements.js';
 import { chapterById } from '../shared/story.js';
+import { TUTORIAL, STREAK, DAILY_BONUS_GEMS, questCtx, dailyQuests, today } from '../shared/quests.js';
 
 export class GameError extends Error {}
 const fail = (msg) => { throw new GameError(msg); };
@@ -48,7 +49,8 @@ export function newPlayerState(race, seed) {
   migrate(s);
   const add = (type, x, y, level = 1) => {
     const b = { id: s.nextId++, type, level, x, y, up: null };
-    if (BUILDINGS[type].produces) { b.store = 0; b.last = now; }
+    // стартовые рудники наполовину полны — первый сбор сразу радует
+    if (BUILDINGS[type].produces) { b.store = collectorCap(b) * 0.5; b.last = now; }
     s.buildings.push(b);
     return b;
   };
@@ -77,14 +79,37 @@ export function newPlayerState(race, seed) {
 }
 
 // Старые сохранения дополняются новыми полями
-const STAT_KEYS = ['attacks', 'wins', 'defenses', 'defWins', 'starsTotal', 'goldLooted', 'foodLooted', 'destroyed', 'npcWins', 'trained', 'cleared', 'trophiesMax'];
+const STAT_KEYS = ['attacks', 'wins', 'defenses', 'defWins', 'starsTotal', 'goldLooted', 'foodLooted', 'destroyed', 'npcWins', 'trained', 'cleared', 'trophiesMax', 'collectedGold', 'collectedFood', 'upgrades', 'speedups', 'mottoSet'];
 export function migrate(s) {
   s.stats = s.stats || {};
   for (const k of STAT_KEYS) s.stats[k] = s.stats[k] || 0;
   s.achievements = s.achievements || {};
   s.story = s.story || {};
   s.npc = s.npc || {};
+  s.tutorial = s.tutorial || 0;
+  s.streak = s.streak || { count: 0, last: 0 };
+  ensureDaily(s);
   return s;
+}
+
+// --- Ежедневные задания ----------------------------------------------------------
+export function ensureDaily(s) {
+  const d = today();
+  if (!s.daily || s.daily.day !== d) s.daily = { day: d, c: {}, claimed: [false, false, false], bonus: false };
+  return s.daily;
+}
+export function bumpDaily(s, key, n = 1) {
+  const d = ensureDaily(s);
+  d.c[key] = (d.c[key] || 0) + n;
+}
+function questContext(s) {
+  return questCtx({ buildings: s.buildings, stats: s.stats, story: s.story, achClaimed: Object.values(s.achievements).reduce((a, v) => a + v, 0) });
+}
+function grant(s, r) {
+  if (r.gems) s.res.gems += r.gems;
+  const got = { gems: r.gems || 0, gold: 0, food: 0 };
+  for (const k of ['gold', 'food']) if (r[k]) got[k] = addRes(s, k, r[k]);
+  return got;
 }
 
 // --- Течение времени ------------------------------------------------------------
@@ -177,6 +202,7 @@ export const actions = {
     const time = upgradeTime(type, 1);
     if (time > 0 && !freeBuilder(s)) fail('Все строители заняты');
     pay(s, def.res, upgradeCost(type, 1));
+    if (time > 0) { s.stats.upgrades++; bumpDaily(s, 'upgrades'); }
     const b = { id: s.nextId++, type, level: time > 0 ? 0 : 1, x, y, up: time > 0 ? { to: 1, end: Date.now() + time * 1000, total: time } : null };
     if (def.produces) { b.store = 0; b.last = Date.now(); }
     s.buildings.push(b);
@@ -193,6 +219,7 @@ export const actions = {
     const time = upgradeTime(b.type, to);
     if (time > 0 && !freeBuilder(s)) fail('Все строители заняты');
     pay(s, def.res, upgradeCost(b.type, to));
+    if (time > 0) { s.stats.upgrades++; bumpDaily(s, 'upgrades'); }
     if (time <= 0) b.level = to;
     else b.up = { to, end: Date.now() + time * 1000, total: time };
   },
@@ -208,6 +235,7 @@ export const actions = {
     if (!b.up) fail('Нечего ускорять');
     pay(s, 'gems', gemsForTime((b.up.end - Date.now()) / 1000));
     b.up.end = Date.now();
+    s.stats.speedups++;
     tick(s);
   },
 
@@ -228,6 +256,8 @@ export const actions = {
       b.store -= added;
       got[def.produces] += added;
     }
+    if (got.gold) { s.stats.collectedGold += got.gold; bumpDaily(s, 'gold', got.gold); }
+    if (got.food) { s.stats.collectedFood += got.food; bumpDaily(s, 'food', got.food); }
     return { collected: got };
   },
 
@@ -252,6 +282,7 @@ export const actions = {
     if (armyUsed(s.army) + queued + t.space * n > armyCapacity(s)) fail('Лагерь переполнен');
     pay(s, 'food', t.cost * n);
     s.stats.trained += n;
+    bumpDaily(s, 'trained', n);
     const nb = Math.max(1, s.buildings.filter((b) => b.type === 'barracks' && b.level > 0).length);
     let end = Math.max(Date.now(), s.training.length ? s.training[s.training.length - 1].end : 0);
     for (let i = 0; i < n; i++) {
@@ -275,6 +306,7 @@ export const actions = {
     pay(s, 'gems', gemsForTime((last - Date.now()) / 1000));
     for (const q of s.training) q.end = Date.now();
     for (const q of s.brewing) q.end = Date.now();
+    s.stats.speedups++;
     tick(s);
   },
 
@@ -366,14 +398,40 @@ export const actions = {
     return { reward: r };
   },
 
+  // Календарь входа: серия дней подряд, 7-й день — королевский сундук
   daily(s) {
-    const day = Math.floor(Date.now() / 86400e3);
-    if (s.lastDaily === day) fail('Награда уже получена сегодня');
-    s.lastDaily = day;
-    s.res.gems += GEMS_FREE.dailyBonus;
-    const g = addRes(s, 'gold', 500 * castleLevelOf(s));
-    const f = addRes(s, 'food', 500 * castleLevelOf(s));
-    return { gems: GEMS_FREE.dailyBonus, gold: g, food: f };
+    const d = today();
+    if (s.streak.last === d) fail('Награда уже получена сегодня');
+    s.streak.count = s.streak.last === d - 1 ? s.streak.count % 7 + 1 : 1;
+    s.streak.last = d;
+    const r = STREAK[s.streak.count - 1];
+    const cl = castleLevelOf(s);
+    const got = grant(s, { gems: r.gems, gold: (r.gold || 0) * cl, food: (r.food || 0) * cl });
+    return { day: s.streak.count, got };
+  },
+
+  claimQuest(s) {
+    const q = TUTORIAL[s.tutorial] || fail('Обучение пройдено');
+    if (!q.done(questContext(s))) fail('Задание ещё не выполнено');
+    s.tutorial++;
+    return { got: grant(s, q.reward), next: s.tutorial };
+  },
+
+  claimDaily(s, { i }) {
+    const d = ensureDaily(s);
+    const q = dailyQuests(d.day, castleLevelOf(s))[i | 0] || fail('Задание не найдено');
+    if (d.claimed[i | 0]) fail('Уже получено');
+    if ((d.c[q.counter] || 0) < q.goal) fail('Задание ещё не выполнено');
+    d.claimed[i | 0] = true;
+    return { got: grant(s, q.reward) };
+  },
+
+  claimDailyBonus(s) {
+    const d = ensureDaily(s);
+    if (d.bonus) fail('Уже получено');
+    if (!d.claimed.every(Boolean)) fail('Выполните все три задания');
+    d.bonus = true;
+    return { got: grant(s, { gems: DAILY_BONUS_GEMS }) };
   },
 };
 
@@ -417,7 +475,10 @@ export function view(p) {
     troopLevels: s.troopLevels, forge: s.forge,
     heroes: s.heroes,
     trophies: s.trophies, shieldUntil: s.shieldUntil,
-    dailyReady: s.lastDaily !== Math.floor(Date.now() / 86400e3),
+    dailyReady: s.streak.last !== today(),
+    streak: s.streak,
+    tutorial: s.tutorial,
+    daily: { ...ensureDaily(s), quests: dailyQuests(s.daily.day, castleLevelOf(s)) },
     reports: s.reports.slice(0, 20),
     stats: s.stats,
     story: s.story,

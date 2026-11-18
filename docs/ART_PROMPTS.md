@@ -27,6 +27,9 @@ chunky stylized 3D cartoon render, bold exaggerated proportions, bright saturate
 | ui_kit.png | Элементы интерфейса |
 | base_bg.png, world_map.png, loading_battle.png, grass.png | Фоны |
 | army_camp.gif | Военный лагерь |
+| villagers_sheet.png | Жители поселения и строитель |
+| rewards_sheet.png | Сундуки и награды календаря |
+| celebration_fx.png | Эффекты праздника (уровень, конфетти, звезда, монеты) |
 
 ## 🎨 Нужно сгенерировать (по приоритету)
 
@@ -84,3 +87,11 @@ Isometric 3/4 top-down view, large empty flat diamond-shaped snowy plateau for a
 ```
 Character sprite sheet grid 2x2, chunky stylized skeleton warriors with rusty swords and shields, glowing blue eyes, facing bottom-right, action pose
 ```
+
+## 🎵 Музыка (Suno / Udio) → client/assets/audio/
+
+Игра сама подхватит файлы: `village.mp3`, `world.mp3`, `battle.mp3`.
+
+- **village.mp3**: `cozy medieval village theme, lute, recorder, light hand drums, warm and peaceful, loopable, instrumental, 2 minutes`
+- **world.mp3**: `epic adventurous fantasy overworld theme, orchestral strings, french horns, sense of exploration, loopable, instrumental`
+- **battle.mp3**: `intense medieval battle music, war drums, brass, choir stabs, driving rhythm, loopable, instrumental`

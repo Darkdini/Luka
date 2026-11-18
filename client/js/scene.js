@@ -122,13 +122,20 @@ export class Scene {
   }
 
   // --- Отрисовка ----------------------------------------------------------------
+  shake(power) { this.shakeP = Math.max(this.shakeP || 0, power); }
+
   begin() {
     const c = this.ctx;
+    let sx = 0, sy = 0;
+    if (this.shakeP > 0.2) {
+      sx = (Math.random() - 0.5) * this.shakeP; sy = (Math.random() - 0.5) * this.shakeP;
+      this.shakeP *= 0.86;
+    } else this.shakeP = 0;
     c.setTransform(1, 0, 0, 1, 0, 0);
     c.fillStyle = '#2d6a2f';
     c.fillRect(0, 0, this.cv.width, this.cv.height);
     c.setTransform(this.dpr * this.cam.z, 0, 0, this.dpr * this.cam.z,
-      this.dpr * (this.w / 2 - this.cam.x * this.cam.z), this.dpr * (this.h / 2 - this.cam.y * this.cam.z));
+      this.dpr * (this.w / 2 - this.cam.x * this.cam.z + sx), this.dpr * (this.h / 2 - this.cam.y * this.cam.z + sy));
     c.imageSmoothingQuality = 'high';
   }
 
@@ -267,6 +274,7 @@ export class Scene {
       if (kind === 'spark') { p.vx *= 2.5; p.vy = p.vy * 2.5 - 40; p.size = 2 + Math.random() * 3; }
       if (kind === 'coin') { p.vy = -120 - Math.random() * 60; p.vx *= 1.2; p.life = 0.9; p.size = 14; }
       if (kind === 'heal') { p.vy = -40; p.vx *= 0.4; p.life = 1; p.size = 6; }
+      if (kind === 'confetti') { p.vx *= 3; p.vy = -160 - Math.random() * 140; p.life = 1.6 + Math.random() * 0.6; p.size = 4 + Math.random() * 3; p.col = ['#ffd84a', '#ff5a5a', '#5ad1ff', '#7fe03c', '#c08bff'][i % 5]; p.rot = Math.random() * 6; }
       this.particles.push(p);
     }
   }
@@ -281,6 +289,7 @@ export class Scene {
       p.t += dt;
       p.x += p.vx * dt; p.y += p.vy * dt;
       if (p.kind === 'dust' || p.kind === 'spark' || p.kind === 'coin') p.vy += 160 * dt;
+      if (p.kind === 'confetti') { p.vy += 140 * dt; p.vx *= 0.985; p.rot += dt * 8; }
       const k = 1 - p.t / p.life;
       if (k <= 0) continue;
       c.save();
@@ -293,6 +302,11 @@ export class Scene {
           const w = p.w * s, h = im.height * w / im.width;
           c.drawImage(im, p.x - w / 2, p.y - h * 0.75, w, h);
         }
+      } else if (p.kind === 'confetti') {
+        c.globalAlpha = Math.min(1, k * 2);
+        c.fillStyle = p.col;
+        c.translate(p.x, p.y); c.rotate(p.rot);
+        c.fillRect(-p.size / 2, -p.size, p.size, p.size * 2 * Math.abs(Math.cos(p.rot)) + 1);
       } else if (p.kind === 'coin') {
         const im = img('ui/icon_gold');
         c.globalAlpha = k;

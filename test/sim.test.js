@@ -72,3 +72,21 @@ test('сюжет: глава 1 проходится и даёт награду �
   assert.throws(() => startAttack(me, { kind: 'story', id: 3 }));
   assert.ok(Array.isArray(region(0, 0, 50, 50, () => false)));
 });
+
+import { TUTORIAL } from '../shared/quests.js';
+
+test('обучение и ежедневные награды', () => {
+  const s = newPlayerState('humans', 5);
+  assert.throws(() => actions.claimQuest(s), /не выполнено/);
+  actions.collect(s, {});                      // стартовые рудники наполовину полны
+  assert.ok(s.stats.collectedGold > 0);
+  const gems = s.res.gems;
+  const r = actions.claimQuest(s);
+  assert.equal(s.tutorial, 1);
+  assert.equal(s.res.gems - gems, TUTORIAL[0].reward.gems);
+  assert.ok(r.got.gold > 0);
+  const d = actions.daily(s);                  // календарь: день 1
+  assert.equal(d.day, 1);
+  assert.throws(() => actions.daily(s), /уже получена/);
+  assert.ok(s.daily.c.gold > 0, 'сбор засчитан в задание дня');
+});

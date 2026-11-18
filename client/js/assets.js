@@ -13,6 +13,10 @@ const LIST = [
   ...['knight', 'huntress', 'runesmith', 'sorceress'].flatMap((n) => [`heroes/${n}`, `heroes/${n}_portrait`]),
   ...['fireball', 'lightning', 'heal', 'rage'].map((n) => `spells/${n}`),
   ...['fireball', 'lightning', 'heal', 'rage', 'freeze', 'quake', 'invis', 'skeletons'].map((n) => `spells/fx_${n}`),
+  ...['builder', 'peasant', 'farmer', 'merchant', 'guard', 'monk', 'child', 'smith'].map((n) => `villagers/${n}`),
+  ...['chest_wood', 'chest_silver', 'chest_gold', 'chest_royal', 'gems_small', 'gems_bag', 'gold_pile', 'bread_basket'].map((n) => `rewards/${n}`),
+  ...['fx_levelup', 'fx_confetti', 'fx_star', 'fx_sparkle', 'fx_rays', 'fx_arrow', 'fx_coins', 'fx_magic'].map((n) => `fx/${n}`),
+  ...['icon_gold', 'icon_food', 'icon_gem', 'star', 'star_empty', 'trophy'].map((n) => `ui/${n}`),
   ...['pad_s', 'pad_m', 'pad_l', 'pad_wood', 'pad_marble', 'road', 'road_cross', 'stairs'].map((n) => `pads/${n}`),
 ];
 

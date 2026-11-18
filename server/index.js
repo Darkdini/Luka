@@ -1,5 +1,6 @@
 import http from 'node:http';
 import path from 'node:path';
+import fs from 'node:fs';
 import express from 'express';
 import { WebSocketServer } from 'ws';
 import { RACES, DONATE_PACKS } from '../shared/config.js';
@@ -107,7 +108,10 @@ app.get('/api/profile/:id', wrap((req) => { auth(req); return profile(req.params
 app.post('/api/profile', wrap((req) => {
   const p = auth(req);
   const { motto, avatar, title } = req.body || {};
-  if (motto != null) p.motto = String(motto).replace(/\s+/g, ' ').trim().slice(0, 80);
+  if (motto != null) {
+    p.motto = String(motto).replace(/\s+/g, ' ').trim().slice(0, 80);
+    if (p.motto) { p.state.stats.mottoSet = 1; savePlayer(p); }
+  }
   if (avatar != null) {
     const av = AVATARS.find((a) => a.id === avatar);
     if (!av || !avatarUnlocked(p.state, av)) throw new GameError('Аватар ещё не открыт');
@@ -136,6 +140,13 @@ app.post('/api/attack/finish', wrap((req) => {
   savePlayer(p);
   return { result: out, me: view(p) };
 }));
+
+// Музыка: какие треки лежат в client/assets/audio (клиент не запрашивает отсутствующие)
+app.get('/api/audio', (req, res) => {
+  let list = [];
+  try { list = fs.readdirSync(path.join(ROOT, 'client/assets/audio')).filter((f) => f.endsWith('.mp3')).map((f) => f.slice(0, -4)); } catch { /* нет папки */ }
+  res.json(list);
+});
 
 app.get('/api/top', wrap((req) => { const p = auth(req); return leaderboard(p.id); }));
 

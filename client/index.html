@@ -14,7 +14,7 @@
   <div id="loading">
     <div class="logo"><span>Короны</span><small>и</small><span>Крепости</span></div>
     <div class="load-bar"><div id="load-fill"></div></div>
-    <p>Готовим королевство…</p>
+    <p id="load-tip">Готовим королевство…</p>
   </div>
 
   <!-- Вход / регистрация -->
@@ -63,13 +63,22 @@
       <button class="rbtn" id="btn-reports" title="Отчёты"><img src="/assets/ui/btn_stats.png" alt="Отчёты"><span class="badge hidden"></span></button>
       <button class="rbtn emo" id="btn-ach" title="Достижения">🏅<span class="badge hidden"></span></button>
       <button class="rbtn" id="btn-settings" title="Настройки"><img src="/assets/ui/btn_settings.png" alt="Настройки"></button>
-      <button class="rbtn daily hidden" id="btn-daily" title="Ежедневная награда">🎁</button>
+      <button class="rbtn daily" id="btn-daily" title="Ежедневные награды">🎁</button>
     </div>
     <button id="btn-attack" class="big-action"><span class="ba-ico">🗺</span><span>Карта мира</span></button>
     <button id="btn-story" class="story-action"><span class="ba-ico">📜</span><span>Сюжет</span></button>
     <div id="hud-br">
       <button id="btn-army" class="sq-action"><span class="ba-ico">🛡</span><span>Армия</span><small id="army-count"></small><small id="army-timer"></small></button>
       <button id="btn-shop" class="sq-action shop"><span class="ba-ico">🏪</span><span>Магазин</span></button>
+    </div>
+    <div id="advisor" class="hidden">
+      <img class="adv-ava" src="/assets/heroes/knight_portrait.png" alt="Советник">
+      <div class="adv-body">
+        <div class="adv-head"><b class="adv-title"></b><span class="adv-step"></span></div>
+        <div class="adv-text"></div>
+        <div class="adv-reward"></div>
+      </div>
+      <button class="btn sm green adv-claim hidden">Забрать!</button>
     </div>
     <div id="selbar"></div>
     <div id="placebar"><button id="place-cancel" class="round red" aria-label="Отмена">✖</button><button id="place-ok" class="round green" aria-label="Построить">✔</button></div>
@@ -82,7 +91,7 @@
         <div class="bt-loot-row">Доступно: <span id="bt-loot-max"></span></div>
         <div class="bt-loot-row">Добыто: <span id="bt-loot"></span></div>
       </div>
-      <div class="bt-center"><div id="bt-timer"></div><div id="bt-stars"></div><div id="bt-pct">0%</div></div>
+      <div class="bt-center"><div id="bt-timer"></div><div id="bt-stars"></div><div id="bt-pct">0%</div><div class="bt-progress"><div id="bt-bar"></div><i style="left:50%"></i></div></div>
       <button id="bt-end" class="btn red sm">Отступить</button>
     </div>
     <div id="bt-cards"></div>
@@ -143,9 +152,24 @@
     <form id="chat-form"><input id="chat-input" maxlength="200" placeholder="Сообщение…" autocomplete="off"><button class="btn sm green">➤</button></form>
   </div>
 
+  <div id="pointer"><div class="ptr-arrow"></div></div>
+  <div id="wipe"></div>
   <div id="modal-bg"><div id="modal" class="modal"></div></div>
   <div id="toasts"></div>
 
+  <script>
+    // Советы на экране загрузки
+    (function () {
+      var tips = ['Совет: собирайте ресурсы почаще — у рудников ограниченный склад.',
+        'Совет: Латники принимают огонь на себя — высаживайте их первыми.',
+        'Совет: Сапёры пробивают стены, открывая путь мечникам.',
+        'Легенда гласит: Корону Семи Камней ковали гномы горы Торн.',
+        'Совет: заходите каждый день — на 7-й день ждёт королевский сундук.',
+        'Совет: лагеря у центра мира богаче, но и опаснее.'];
+      var el = document.getElementById('load-tip');
+      el.textContent = tips[Math.floor(Math.random() * tips.length)];
+    })();
+  </script>
   <script type="module" src="/js/main.js"></script>
 </body>
 </html>

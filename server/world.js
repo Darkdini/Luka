@@ -8,7 +8,7 @@ import { chapterById, chapterOpen } from '../shared/story.js';
 import { achievementStatus, leagueOf, titlesOf } from '../shared/achievements.js';
 import { runBattle } from '../shared/sim.js';
 import { db, getPlayer, savePlayer } from './db.js';
-import { rng, tick, lootableBase, GameError } from './game.js';
+import { rng, tick, lootableBase, GameError, bumpDaily } from './game.js';
 
 const fail = (m) => { throw new GameError(m); };
 
@@ -216,12 +216,12 @@ export function finishAttack(me, battleId, log, notify) {
   st.foodLooted = (st.foodLooted || 0) + got.food;
   st.destroyed = (st.destroyed || 0) + (result.destroyed || 0);
   st.attacks++;
-  if (result.stars > 0) { st.wins++; st.starsTotal += result.stars; }
+  if (result.stars > 0) { st.wins++; st.starsTotal += result.stars; bumpDaily(s, 'wins'); bumpDaily(s, 'stars', result.stars); }
 
   let trophies = 0;
   const extra = {};
   if (battle.npc) {
-    if (result.stars > 0) { s.npc[battle.npc] = now + NPC_RESPAWN_SEC * 1000; st.npcWins = (st.npcWins || 0) + 1; }
+    if (result.stars > 0) { s.npc[battle.npc] = now + NPC_RESPAWN_SEC * 1000; st.npcWins = (st.npcWins || 0) + 1; bumpDaily(s, 'npc'); }
   } else if (battle.story) {
     const ch = chapterById(battle.story);
     const prev = s.story[ch.id] || { stars: 0 };

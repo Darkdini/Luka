@@ -150,8 +150,9 @@ def sheet(name, cols, rows, names, folder, max_side, **kw):
     return sizes
 
 
-def glow_fx(name, cols, rows, names, folder, max_side, skip_rows=()):
-    """Эффекты на тёмном фоне: вычитаем фон -> рисуются в режиме 'lighter'."""
+def glow_fx(name, cols, rows, names, folder, max_side, skip_rows=(), alpha=False):
+    """Эффекты на тёмном фоне: вычитаем фон -> рисуются в режиме 'lighter'.
+    alpha=True: настоящая прозрачность (яркость -> альфа), годится для DOM/CSS."""
     rgb = load_rgb(name).astype(np.float32)
     h, w, _ = rgb.shape
     sizes = {}
@@ -164,8 +165,14 @@ def glow_fx(name, cols, rows, names, folder, max_side, skip_rows=()):
                 continue
             y0, y1 = int(r * h / rows), int((r + 1) * h / rows)
             x0, x1 = int(c * w / cols), int((c + 1) * w / cols)
-            cell = np.clip((rgb[y0:y1, x0:x1] - 36) * 1.12, 0, 255).astype(np.uint8)
-            sizes[key] = save(Image.fromarray(cell, "RGB"), f"{folder}/{key}.png", max_side)
+            cell = np.clip((rgb[y0:y1, x0:x1] - 36) * 1.12, 0, 255)
+            if alpha:
+                a = cell.max(axis=2, keepdims=True)
+                col = np.where(a > 0, cell / np.maximum(a, 1) * 255, 0)
+                out = np.concatenate([col, np.clip(a * 1.15, 0, 255)], axis=2).astype(np.uint8)
+                sizes[key] = save(Image.fromarray(out, "RGBA"), f"{folder}/{key}.png", max_side)
+            else:
+                sizes[key] = save(Image.fromarray(cell.astype(np.uint8), "RGB"), f"{folder}/{key}.png", max_side)
     print(f"{name}: {len(sizes)} эффектов")
     return sizes
 
@@ -329,6 +336,18 @@ def main():
                           [["pad_s", "pad_m", "pad_l", "pad_wood"],
                            ["pad_marble", "road", "road_cross", "stairs"]],
                           "pads", 420, light=196, max_sat=14))
+    manifest.update(sheet("villagers_sheet.png", 4, 2,
+                          [["builder", "peasant", "farmer", "merchant"],
+                           ["guard", "monk", "child", "smith"]],
+                          "villagers", 200, light=112, max_sat=9))
+    manifest.update(sheet("rewards_sheet.png", 4, 2,
+                          [["chest_wood", "chest_silver", "chest_gold", "chest_royal"],
+                           ["gems_small", "gems_bag", "gold_pile", "bread_basket"]],
+                          "rewards", 220, light=150, max_sat=12))
+    glow_fx("celebration_fx.png", 4, 2,
+            [["fx_levelup", "fx_confetti", "fx_star", "fx_sparkle"],
+             ["fx_rays", "fx_arrow", "fx_coins", "fx_magic"]],
+            "fx", 320, alpha=True)
     ui_kit()
     army_camp_gif()
     backgrounds()

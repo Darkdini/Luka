@@ -28,29 +28,50 @@ const q = {
 function cellFree(x, y) {
   if (!buildable(x, y) || campAt(x, y)) return false;
   if (Math.abs(x - CENTER) < 8 && Math.abs(y - CENTER) < 8) return false;
+  for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) if (campAt(x + dx, y + dy)) return false; // не вплотную к лагерям
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (!buildable(x + dx, y + dy)) return false; // не на кромке воды/гор
   return !q.near.get(x - CASTLE_GAP, x + CASTLE_GAP, y - CASTLE_GAP, y + CASTLE_GAP);
 }
 
 export function findSpot(seed = Date.now()) {
   const n = q.count.get().n;
   const r = rng(seed >>> 0);
-  const ring = Math.min(WORLD / 2 - 12, 28 + Math.sqrt(n + 1) * 1.6);
-  for (let attempt = 0; attempt < 4000; attempt++) {
-    const spread = 8 + attempt / 60;
+  const ring = Math.min(WORLD / 2 - 12, 28 + Math.sqrt(n + 1) * 3.6);
+  // случайные попытки около «кольца новичков», постепенно расширяя полосу
+  for (let attempt = 0; attempt < 3000; attempt++) {
+    const spread = 6 + attempt / 15;
     const rad = Math.max(10, ring + (r() - 0.5) * spread * 2);
     const ang = r() * Math.PI * 2;
     const x = Math.round(CENTER + Math.cos(ang) * rad), y = Math.round(CENTER + Math.sin(ang) * rad);
     if (x < 4 || y < 4 || x >= WORLD - 4 || y >= WORLD - 4) continue;
     if (cellFree(x, y)) return { x, y };
   }
-  fail('Мир переполнен');
+  // запасной путь: ближайшая к кольцу свободная клетка по всему миру
+  let best = null, bd = 1e9;
+  for (let y = 4; y < WORLD - 4; y += 2) for (let x = 4; x < WORLD - 4; x += 2) {
+    const d = Math.abs(Math.hypot(x - CENTER, y - CENTER) - ring);
+    if (d < bd && cellFree(x, y)) { bd = d; best = { x, y }; }
+  }
+  return best || fail('Мир переполнен');
 }
 
+// Перерасселение при смене правил мира (версия хранится в meta)
+const WORLD_VERSION = '3';
 export function placeUnplaced() {
-  for (const { id } of q.unplaced.all()) {
+  const v = db.prepare("SELECT v FROM meta WHERE k = 'world_v'").get()?.v;
+  if (v !== WORLD_VERSION) {
+    db.exec('UPDATE players SET wx = NULL, wy = NULL');
+    db.prepare("INSERT OR REPLACE INTO meta (k, v) VALUES ('world_v', ?)").run(WORLD_VERSION);
+  }
+  let placed = 0;
+  // старожилы расселяются первыми — ближе к центру, новички — дальше кольцом
+  for (const { id } of db.prepare('SELECT id FROM players WHERE wx IS NULL ORDER BY created_at ASC').all()) {
     const s = findSpot(id * 7919);
     q.setPos.run(s.x, s.y, id);
+    placed++;
   }
+  if (placed) console.log(`Расселено замков: ${placed}`);
+  return placed;
 }
 
 // --- Карта: участок мира -------------------------------------------------------

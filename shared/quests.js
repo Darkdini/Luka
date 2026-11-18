@@ -33,7 +33,7 @@ export const TUTORIAL = [
     done: (c) => c.st.speedups > 0, target: { building: '@upgrading' }, reward: { gems: 15 } },
   { id: 'castle2', title: 'Сердце королевства', text: 'Улучшите Цитадель до 2 уровня — откроются стены, баллисты и Алтарь героев.',
     done: (c) => c.castle >= 2, target: { building: 'castle' }, reward: { gold: 1500, gems: 20 } },
-  { id: 'walls', title: 'Каменный пояс', text: 'Деревянный частокол не удержит врага. Нажмите на стену и укрепите её камнем (2 ур.).',
+  { id: 'walls', title: 'Каменный пояс', text: 'Деревянный частокол не удержит врага. Магазин → «Стена и ловушки»: укрепите стену камнем (2 ур.).',
     done: (c) => c.wall >= 2, target: { ui: '#btn-shop' }, reward: { gold: 1000 } },
   { id: 'ballista', title: 'Тяжёлые болты', text: 'Постройте Баллисту — она пробивает даже латников.',
     done: (c) => c.count('ballista') >= 1, target: { ui: '#btn-shop' }, reward: { gems: 10 } },

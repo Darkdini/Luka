@@ -109,6 +109,19 @@ export function migrateCity(s) {
   s.decor = cityDecor(s.nextId * 31, s);
 }
 
+// Здания на ячейках без площадки (после смены планировки) переезжают на свободные
+export function fixPlots(s) {
+  const valid = new Set(PLOTS.map((p) => p.x * 100 + p.y));
+  const taken = new Set(s.buildings.filter((b) => isPlotType(b.type) && valid.has(b.x * 100 + b.y)).map((b) => b.x * 100 + b.y));
+  for (const b of s.buildings) {
+    if (!isPlotType(b.type) || valid.has(b.x * 100 + b.y)) continue;
+    const p = PLOTS.find((q) => !taken.has(q.x * 100 + q.y) && ringOpen(q.ring, castleLevelOf(s)));
+    if (!p) continue;
+    b.x = p.x; b.y = p.y; taken.add(p.x * 100 + p.y);
+  }
+  s.decor = s.decor.filter((d) => { const p = inPlot(d.x, d.y); return p && !taken.has(p.x * 100 + p.y); });
+}
+
 // Старые сохранения дополняются новыми полями
 const STAT_KEYS = ['attacks', 'wins', 'defenses', 'defWins', 'starsTotal', 'goldLooted', 'foodLooted', 'destroyed', 'npcWins', 'trained', 'cleared', 'trophiesMax', 'collectedGold', 'collectedFood', 'upgrades', 'speedups', 'mottoSet'];
 export function migrate(s) {
@@ -120,6 +133,7 @@ export function migrate(s) {
   s.tutorial = s.tutorial || 0;
   s.wallLevel = Math.max(1, s.wallLevel || 0);
   migrateCity(s);
+  if (s.city < 2) { fixPlots(s); s.city = 2; }
   s.streak = s.streak || { count: 0, last: 0 };
   ensureDaily(s);
   return s;
@@ -228,7 +242,15 @@ export const actions = {
     const limit = def.countByCastle[cl - 1];
     if (countOf(s, type) >= limit) fail('Достигнут лимит. Улучшите Цитадель');
     if (type === 'wall') fail('Стену улучшают целиком');
-    if (def.cat === 'trap') { if (!roadFree(s, x, y)) fail('Ловушку ставят на свободную дорогу'); }
+    if (def.cat === 'trap') {
+      if (!roadFree(s, x, y)) {
+        // ловушку без точных координат ставим на случайную свободную дорогу
+        const r = cityRect(cl), free = [];
+        for (let yy = r.y0; yy <= r.y1; yy++) for (let xx = r.x0; xx <= r.x1; xx++) if (roadFree(s, xx, yy)) free.push([xx, yy]);
+        if (!free.length) fail('Нет места для ловушки');
+        [x, y] = free[(s.nextId * 7919) % free.length];
+      }
+    }
     else if (!plotFree(s, x, y)) fail(inPlot(x, y) && s.decor.some((d) => inPlot(d.x, d.y) === inPlot(x, y)) ? 'Сначала расчистите ячейку' : 'Ячейка занята или закрыта');
     if (type === 'builderhut') {
       const n = countOf(s, 'builderhut');

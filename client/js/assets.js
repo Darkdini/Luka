@@ -29,7 +29,7 @@ export function url(name) {
 }
 
 export async function loadAll(onProgress) {
-  const all = [...LIST, 'bg/base.jpg', 'bg/world_map.jpg', 'bg/grass.jpg'];
+  const all = [...LIST, 'bg/town.jpg', 'bg/base.jpg', 'bg/world_map.jpg', 'bg/grass.jpg'];
   let done = 0;
   await Promise.all(all.map((n) => new Promise((res) => {
     const im = new Image();

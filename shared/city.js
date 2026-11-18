@@ -18,17 +18,32 @@ export const RING_UNLOCK = [0, 1, 2, 4];
 
 const ringOf = (bx, by) => Math.max(Math.abs(bx - 3.5), Math.abs(by - 3.5)) - 0.5;
 
-export const PLOTS = (() => {
+const ALL_PLOTS = (() => {
   const out = [];
   for (let by = 0; by < NB; by++) for (let bx = 0; bx < NB; bx++) {
     const ring = ringOf(bx, by);
     if (ring === 0) continue; // площадь Цитадели
-    out.push({ i: out.length, x: X0 + bx * PITCH, y: X0 + by * PITCH, ring, bx, by });
+    out.push({ x: X0 + bx * PITCH, y: X0 + by * PITCH, ring, bx, by });
   }
-  // ближе к центру — раньше в списке (так раскладываются стартовые здания)
-  return out.sort((a, b) => a.ring - b.ring || Math.hypot(a.bx - 3.5, a.by - 3.5) - Math.hypot(b.bx - 3.5, b.by - 3.5) || a.i - b.i)
-    .map((p, i) => ({ ...p, i }));
+  return out.sort((a, b) => a.ring - b.ring || Math.hypot(a.bx - 3.5, a.by - 3.5) - Math.hypot(b.bx - 3.5, b.by - 3.5) || a.y - b.y || a.x - b.x);
 })();
+
+// Ячейки, у которых есть площадка на рисованной панораме города (client/assets/bg/town.jpg):
+// 12 первого кольца (открыты сразу), 6 второго (Цитадель 2), 5 третьего (Цитадель 4).
+const USED = [...Array(18).keys(), 32, 33, 34, 35, 36];
+export const PLOTS = USED.map((k, i) => ({ ...ALL_PLOTS[k], i }));
+
+// Площадки на панораме: центр верхней грани в пикселях исходника 1916×821 (порядок = PLOTS)
+export const PANO = {
+  src: 'bg/town', w: 1916, h: 821,
+  plaza: [1545, 245],
+  pads: [
+    [465, 570], [555, 210], [565, 495], [625, 285], [710, 575], [715, 405],
+    [735, 182], [760, 342], [850, 495], [890, 610], [920, 228], [930, 155],
+    [1105, 170], [1120, 365], [1285, 335], [1300, 450], [1385, 385], [1390, 565],
+    [1470, 430], [1555, 515], [1630, 600], [1685, 450], [1755, 535],
+  ],
+};
 
 export const ringOpen = (ring, castleLevel) => castleLevel >= RING_UNLOCK[ring];
 export function maxRing(castleLevel) {

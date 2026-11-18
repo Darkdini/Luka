@@ -1,7 +1,8 @@
 import { RACES, GAME_TITLE, fmt } from '/shared/config.js';
 import { api, token, setToken, store } from './api.js';
 import { loadAll } from './assets.js';
-import { Scene } from './scene.js';
+import { Scene, setPanorama, PANO_K } from './scene.js';
+import { PANO } from '/shared/city.js';
 import { Village } from './village.js';
 import { Battle } from './battle.js';
 import { WorldMap } from './world.js';
@@ -149,7 +150,7 @@ class App {
     this.village.enter();
     this.engage?.music('village');
     this.wipe();
-    this.scene.cam = { x: 0, y: 22 * 32 + (this.scene.portrait ? 30 : 0), z: this.scene.defaultZoom('village') };
+    this.homeCamera();
     this.scene.clampCam();
     this.setMe(this.me);
   }
@@ -201,6 +202,15 @@ class App {
     } catch { /* тост показан */ }
   }
 
+  // Камера города: панорама на всю высоту, старт — у ворот и первых площадок
+  homeCamera() {
+    setPanorama(true);
+    this.scene.cam.z = 0;
+    this.scene.fitZoom();
+    this.scene.cam = { x: 700 * PANO_K, y: PANO.h * PANO_K / 2, z: this.scene.defaultZoom('village') };
+    this.scene.clampCam();
+  }
+
   wipe() {
     const w = $('#wipe');
     w.classList.remove('go'); void w.offsetWidth; w.classList.add('go');
@@ -248,7 +258,7 @@ class App {
       $('#visit-sub').textContent = `${d.owner} · 🏆 ${d.trophies}`;
       $('#visit-attack').onclick = () => this.attack({ kind: 'player', id: d.id });
       $('#visit-profile').onclick = () => this.ui.openProfile(d.id);
-      this.scene.cam = { x: 0, y: 22 * 32 + (this.scene.portrait ? 30 : 0), z: this.scene.defaultZoom('village') };
+      this.homeCamera();
     } catch (e) { this.ui.toast(e.message, 'bad'); }
   }
 
@@ -269,7 +279,7 @@ class App {
       document.body.dataset.mode = 'battle';
       this.ui.cardsKey = null;
       this.battle.start(data);
-      this.scene.cam = { x: 0, y: 22 * 32 - 20, z: this.scene.defaultZoom('battle') };
+      setPanorama(false); this.scene.fitZoom(); this.scene.cam = { x: 0, y: 22 * 32 - 20, z: this.scene.defaultZoom('battle') }; this.scene.clampCam();
       this.scene.clampCam();
       this.sfx('horn');
       this.engage.music('battle');

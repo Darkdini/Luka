@@ -129,6 +129,7 @@ export class Engage {
       const s = app.scene.toScreen(h.x + h.w / 2, h.y + (t.bubble ? 0 : h.h * 0.25));
       x = s.x; y = s.y - 4;
     }
+    if (x < 20 || x > innerWidth - 20 || y < 90 || y > innerHeight - 80) { p.classList.remove('show'); return; } // цель за краем экрана
     p.style.transform = `translate(${x}px, ${y}px)`;
     p.classList.add('show');
   }

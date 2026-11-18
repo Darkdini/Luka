@@ -1,10 +1,34 @@
 // Изометрическая сцена: камера, ввод, отрисовка базы, юнитов и эффектов.
 import { BUILDINGS, GRID, spriteFor } from '/shared/config.js';
 import { img } from './assets.js';
-import { PLOTS, PLOT, PLAZA, RING_UNLOCK, ringOpen, cityRect, isRoad, inPlot, maxRing } from '/shared/city.js';
+import { PLOTS, PLOT, PLAZA, RING_UNLOCK, ringOpen, cityRect, isRoad, inPlot, maxRing, PANO, CASTLE_POS } from '/shared/city.js';
 
 export const TW = 64, TH = 32;
-export const iso = (gx, gy) => ({ x: (gx - gy) * TW / 2, y: (gx + gy) * TH / 2 });
+const isoFlat = (gx, gy) => ({ x: (gx - gy) * TW / 2, y: (gx + gy) * TH / 2 });
+
+// --- Панорама города: каждая ячейка сетки «переносится» на свою нарисованную
+// площадку. Внутри ячейки геометрия та же, поэтому весь код отрисовки работает как есть.
+export const PANO_K = 1.2;                       // масштаб картинки: площадка ≈ 3 клетки
+const PANO_ANCH = [];
+for (const p of PLOTS) {
+  const pad = PANO.pads[p.i];
+  if (pad) PANO_ANCH.push({ x0: p.x, y0: p.y, size: PLOT, cx: pad[0] * PANO_K, cy: pad[1] * PANO_K });
+}
+PANO_ANCH.push({ x0: CASTLE_POS.x, y0: CASTLE_POS.y, size: CASTLE_POS.size, cx: PANO.plaza[0] * PANO_K, cy: PANO.plaza[1] * PANO_K });
+let PANO_ON = false;
+export function setPanorama(on) { PANO_ON = on; }
+export const panoramaOn = () => PANO_ON;
+function anchorOf(gx, gy) {
+  for (const a of PANO_ANCH) if (gx >= a.x0 - 0.6 && gx <= a.x0 + a.size + 0.6 && gy >= a.y0 - 0.6 && gy <= a.y0 + a.size + 0.6) return a;
+  return null;
+}
+export const iso = (gx, gy) => {
+  if (!PANO_ON) return isoFlat(gx, gy);
+  const a = anchorOf(gx, gy);
+  if (!a) return { x: -99999, y: -99999 };
+  const o = isoFlat(gx - a.x0 - a.size / 2, gy - a.y0 - a.size / 2);
+  return { x: a.cx + o.x, y: a.cy + o.y };
+};
 
 // Положение нарисованного плато на фоне base.jpg (в пикселях исходника)
 const BG = { cx: 793, cy: 527, halfW: 700 };
@@ -33,6 +57,13 @@ export class Scene {
   get portrait() { return this.h > this.w; }
 
   fitZoom() {
+    if (PANO_ON) {
+      // картинка всегда заполняет экран по высоте (на широком экране — по ширине)
+      this.minZ = Math.max(this.h / (PANO.h * PANO_K), this.w / (PANO.w * PANO_K));
+      this.maxZ = this.minZ * 2;
+      this.cam.z = Math.max(this.minZ, Math.min(this.maxZ, this.cam.z));
+      return;
+    }
     // в портрете база шире экрана: разрешаем отдалить до ~3/4 ширины базы
     const minZ = this.portrait ? this.w / (GRID * TW * 0.72) : Math.max(this.w / (GRID * TW * 1.15), this.h / (GRID * TH * 1.35));
     this.minZ = Math.max(0.18, minZ);
@@ -42,6 +73,7 @@ export class Scene {
 
   // Удобный стартовый масштаб: на телефоне база видна целиком по ширине ядра
   defaultZoom(kind) {
+    if (PANO_ON && kind !== 'battle') return this.minZ * (this.portrait ? 1.1 : 1);
     if (this.portrait) return Math.max(this.minZ, Math.min(0.7, this.w / (TW * (kind === 'battle' ? 20 : 16))));
     return Math.max(this.minZ, kind === 'battle' ? 0.85 : 0.62);
   }
@@ -50,10 +82,28 @@ export class Scene {
   toWorld(sx, sy) { return { x: (sx - this.w / 2) / this.cam.z + this.cam.x, y: (sy - this.h / 2) / this.cam.z + this.cam.y }; }
   toGrid(sx, sy) {
     const w = this.toWorld(sx, sy);
+    if (PANO_ON) {
+      // ближайшая площадка, в ромб которой попали
+      for (const a of PANO_ANCH) {
+        const dx = (w.x - a.cx) / (a.size * TW / 2), dy = (w.y - a.cy) / (a.size * TH / 2);
+        if (Math.abs(dx) + Math.abs(dy) <= 1.15) {
+          const ox = w.x - a.cx, oy = w.y - a.cy;
+          return { gx: a.x0 + a.size / 2 + oy / TH + ox / TW, gy: a.y0 + a.size / 2 + oy / TH - ox / TW };
+        }
+      }
+      return { gx: -100, gy: -100 };
+    }
     return { gx: w.y / TH + w.x / TW, gy: w.y / TH - w.x / TW };
   }
 
   clampCam() {
+    if (PANO_ON) {
+      const W = PANO.w * PANO_K, H = PANO.h * PANO_K;
+      const vw = this.w / 2 / this.cam.z, vh = this.h / 2 / this.cam.z;
+      this.cam.x = vw * 2 >= W ? W / 2 : Math.max(vw, Math.min(W - vw, this.cam.x));
+      this.cam.y = vh * 2 >= H ? H / 2 : Math.max(vh, Math.min(H - vh, this.cam.y));
+      return;
+    }
     const halfW = GRID * TW / 2 * 1.05, top = -GRID * TH * 0.1, bot = GRID * TH * 1.1;
     const vw = this.w / 2 / this.cam.z, vh = this.h / 2 / this.cam.z;
     this.cam.x = Math.max(-halfW + vw, Math.min(halfW - vw, this.cam.x));
@@ -152,6 +202,11 @@ export class Scene {
   }
 
   drawBackground() {
+    if (PANO_ON) {
+      const t = img(PANO.src);
+      if (t) this.ctx.drawImage(t, 0, 0, PANO.w * PANO_K, PANO.h * PANO_K);
+      return;
+    }
     const c = this.ctx, bg = img('bg/base');
     const half = GRID * TW / 2;
     if (bg) {

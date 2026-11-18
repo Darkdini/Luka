@@ -2,7 +2,8 @@
 // удобно пальцем на телефоне: ячейка → здание, «Переместить» → ячейка.
 import { BUILDINGS, collectorCap, RACES } from '/shared/config.js';
 import { PLOTS, PLOT, CASTLE_POS, ringOpen, inPlot, isRoad, wallTiles, isPlotType, RING_UNLOCK, cityRect, X0, PITCH } from '/shared/city.js';
-import { iso, TW, TH } from './scene.js';
+import { iso, TW, TH, panoramaOn, PANO_K } from './scene.js';
+import { PANO } from '/shared/city.js';
 import { img } from './assets.js';
 
 const castleLvl = (base) => base.buildings.find((b) => b.type === 'castle')?.level || 1;
@@ -123,6 +124,7 @@ export class Village {
     this.sel = null;
     this.app.ui.select(null);
     if (plot && isPlotType(type)) { this.place(type, plot.x, plot.y); return; }
+    if (def.cat === 'trap' && panoramaOn()) { this.place(type); return; } // сервер сам выберет место на дороге
     this.placing = { mode: def.cat === 'trap' ? 'road' : 'plot', type };
     const free = PLOTS.filter((q) => this.plotState(q) === 'free');
     if (this.placing.mode === 'plot' && !free.length) { this.placing = null; this.app.ui.toast('Нет свободных ячеек — расчистите заросли или улучшите Цитадель'); return; }
@@ -166,9 +168,11 @@ export class Village {
     const now = this.now();
     const cl = castleLvl(me);
     s.begin();
-    s.drawBackground();
     const occ = new Set(me.buildings.filter((b) => isPlotType(b.type)).map((b) => b.x + ',' + b.y));
-    s.drawCity(cl, !this.visit, occ);
+    s.drawBackground();
+    const pano = panoramaOn();
+    if (pano) this.drawPadStates(cl);
+    else s.drawCity(cl, !this.visit, occ);
     // подсветка доступных мест
     const pl = this.placing;
     if (pl && !this.visit) {
@@ -187,17 +191,25 @@ export class Village {
       const size = BUILDINGS[b.type].size;
       items.push({ d: b.x + b.y + size * 2, b });
     }
-    for (const w of this.wallList) items.push({ d: w.x + w.y + 1.5, wall: w });
+    if (!pano) for (const w of this.wallList) items.push({ d: w.x + w.y + 1.5, wall: w });
     for (const d of me.decor) {
       const p = inPlot(d.x, d.y);
       if (p && !ringOpen(p.ring, cl)) continue; // закрытые ячейки уже нарисованы заросшими
       items.push({ d: d.x + d.y + 2, dec: d });
     }
-    this.updateLife(dt, me);
-    for (const w of this.walkers) items.push({ d: w.x + w.y + 0.3, walker: w });
+    if (pano) this.updatePanoLife(dt);
+    else {
+      this.updateLife(dt, me);
+      for (const w of this.walkers) items.push({ d: w.x + w.y + 0.3, walker: w });
+    }
     for (const b of me.buildings) if (b.up) {
       const size = BUILDINGS[b.type].size;
       items.push({ d: b.x + b.y + size * 2 + 0.6, worker: b });
+    }
+    // на панораме глубина — по экранной высоте
+    if (pano) {
+      for (const it of items) { const o = it.b || it.dec || it.worker; if (o) { const sz = it.b || it.worker ? BUILDINGS[o.type].size : 1; it.d = iso(o.x + sz, o.y + sz).y + (it.worker ? 1 : 0); } }
+      for (const w of this.pwalkers) items.push({ d: w.y, pwalker: w });
     }
     items.sort((a, b) => a.d - b.d);
 
@@ -205,6 +217,7 @@ export class Village {
     const selObj = this.visit ? null : this.findSel();
     for (const it of items) {
       if (it.walker) { this.drawWalker(it.walker); continue; }
+      if (it.pwalker) { this.drawWalker(it.pwalker, true); continue; }
       if (it.worker) { this.drawWorker(it.worker); continue; }
       if (it.wall) { this.drawWall(it.wall, this.sel?.kind === 'w'); continue; }
       if (it.b) this.drawB(it.b, now, selObj === it.b);
@@ -221,6 +234,46 @@ export class Village {
     s.drawParticles(dt);
     this.drawFloats(dt);
     if (!this.visit) this.app.ui.tick(now);
+  }
+
+  // Панорама: закрытые площадки — туман и табличка с замком
+  drawPadStates(cl) {
+    if (this.visit) return;
+    const s = this.scene, c = s.ctx, lock = img('city/plot_locked');
+    for (const p of PLOTS) {
+      if (ringOpen(p.ring, cl)) continue;
+      const o = iso(p.x + PLOT / 2, p.y + PLOT / 2);
+      c.save();
+      const g = c.createRadialGradient(o.x, o.y, 10, o.x, o.y, TW * 1.8);
+      g.addColorStop(0, 'rgba(235,240,250,0.7)'); g.addColorStop(1, 'rgba(235,240,250,0)');
+      c.fillStyle = g; c.beginPath(); c.ellipse(o.x, o.y, TW * 1.9, TH * 1.9, 0, 0, Math.PI * 2); c.fill();
+      if (lock) { const w = TW * 2.4, h = lock.height * w / lock.width; c.globalAlpha = 0.9; c.drawImage(lock, o.x - w / 2, o.y - h * 0.55, w, h); }
+      c.restore();
+      s.label(`Цитадель ${RING_UNLOCK[p.ring]}`, o.x, o.y + TH * 1.9, { size: 12 });
+    }
+  }
+
+  // Жители ходят между площадками (в пикселях панорамы)
+  updatePanoLife(dt) {
+    const pts = PANO.pads.map(([x, y]) => ({ x: x * PANO_K, y: y * PANO_K + TH * 2.1 }));
+    if (!this.pwalkers) {
+      const kinds = ['peasant', 'farmer', 'merchant', 'guard', 'monk', 'child', 'smith'];
+      this.pwalkers = kinds.map((kind, i) => { const p = pts[(i * 5) % 12]; return { kind, x: p.x, y: p.y, tx: p.x, ty: p.y, wait: Math.random() * 3, dir: 1, ph: Math.random() * 6 }; });
+    }
+    for (const w of this.pwalkers) {
+      if (w.wait > 0) { w.wait -= dt; continue; }
+      const dx = w.tx - w.x, dy = w.ty - w.y, d = Math.hypot(dx, dy);
+      if (d < 2) {
+        w.wait = 1 + Math.random() * 4;
+        const near = pts.slice(0, 12).filter((q) => Math.hypot(q.x - w.x, q.y - w.y) < 300);
+        const t = near[Math.floor(Math.random() * near.length)] || pts[0];
+        w.tx = t.x; w.ty = t.y;
+        continue;
+      }
+      const sp = 38 * dt;
+      w.x += dx / d * Math.min(sp, d); w.y += dy / d * Math.min(sp, d);
+      if (Math.abs(dx) > 1) w.dir = dx > 0 ? 1 : -1;
+    }
   }
 
   drawWall(w, selected) {
@@ -292,10 +345,10 @@ export class Village {
     return { x: fx + dx + 0.5, y: fy + dy + 0.5 };
   }
 
-  drawWalker(w) {
+  drawWalker(w, px) {
     const im = img('villagers/' + w.kind);
     if (!im) return;
-    const c = this.scene.ctx, p = iso(w.x, w.y);
+    const c = this.scene.ctx, p = px ? { x: w.x, y: w.y } : iso(w.x, w.y);
     const H = TH * 1.25, ww = im.width * H / im.height;
     const moving = w.wait <= 0;
     const bob = moving ? Math.abs(Math.sin(this.t * 9 + w.ph)) * 2.5 : 0;

@@ -268,6 +268,7 @@ def backgrounds():
         ("base_bg.png", "bg/base.jpg", 2400),
         ("splash_vertical.png", "bg/splash.jpg", 1400),
         ("campaign_vertical.png", "bg/campaign.jpg", 1800),
+        ("town_panorama.png", "bg/town.jpg", 2400),
     ]:
         img = Image.open(os.path.join(SRC, src)).convert("RGB")
         path = os.path.join(OUT, dst)

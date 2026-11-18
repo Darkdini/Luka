@@ -33,8 +33,8 @@
         <button class="auth-tab" data-mode="register">Регистрация</button>
       </div>
       <form id="auth-form" autocomplete="on">
-        <label>Имя правителя<input name="username" required minlength="3" maxlength="16" autocomplete="username"></label>
-        <label>Пароль<input name="password" type="password" required minlength="6" autocomplete="current-password"></label>
+        <label>Ник (английскими буквами)<input name="username" required minlength="5" maxlength="16" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Например, Arthur_77"><small class="hint reg-only">5–16 символов: A–Z, цифры и _</small></label>
+        <label>Пароль<input name="password" type="password" required minlength="5" autocomplete="current-password"><small class="hint reg-only">от 5 символов</small></label>
         <div class="reg-only">
           <label>Название замка<input name="castle" maxlength="24" placeholder="Например, Северный Оплот"></label>
           <div class="race-title">Выберите расу</div>

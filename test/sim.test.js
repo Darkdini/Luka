@@ -107,3 +107,14 @@ test('город: ячейки, обмен местами, стена', () => {
   assert.equal(s.wallLevel, 2);
   assert.ok(lootableBase(s).filter((v) => v.type === 'wall').length > 60);
 });
+
+import { checkUsername, hasProfanity, censor } from '../shared/names.js';
+
+test('ники: латиница от 5 символов, без мата', () => {
+  assert.equal(checkUsername('Arthur_77'), null);
+  assert.ok(checkUsername('Abc'));
+  assert.ok(checkUsername('Артур123'));
+  for (const w of ['fuuuck', 'xyй', 'p1zda', 'blyat_1', 'SukaKing']) assert.ok(hasProfanity(w), w);
+  for (const w of ['Hancock', 'Херсон', 'Команда', 'Shopper', 'Herald']) assert.ok(!hasProfanity(w), w);
+  assert.equal(censor('привет сука'), 'привет ★★★★');
+});

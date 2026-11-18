@@ -9,6 +9,7 @@ import { UI } from './ui.js';
 import { Story } from './story.js';
 import { Engage } from './engage.js';
 import { CHAPTERS, chapterOpen } from '/shared/story.js';
+import { checkUsername, checkPassword, checkCastleName } from '/shared/names.js';
 
 const $ = (s) => document.querySelector(s);
 
@@ -58,6 +59,12 @@ class App {
       const f = $('#auth-form'); if (f.captcha) f.captcha.value = '';
     };
     $('#cap-new').onclick = loadCaptcha;
+    $('#auth-form').username.addEventListener('input', (e) => {
+      if ($('#auth').dataset.mode !== 'register') return;
+      const v = e.target.value, clean = v.replace(/[^A-Za-z0-9_]/g, '');
+      if (v !== clean) { e.target.value = clean; $('#auth-err').textContent = 'Ник — только английские буквы, цифры и _'; }
+      else $('#auth-err').textContent = '';
+    });
     const tabs = document.querySelectorAll('#auth .auth-tab');
     tabs.forEach((t) => {
       t.onclick = () => {
@@ -74,6 +81,10 @@ class App {
       const btn = f.querySelector('button[type=submit]');
       btn.disabled = true;
       $('#auth-err').textContent = '';
+      if (reg) {
+        const bad = checkUsername(f.username.value.trim()) || checkPassword(f.password.value) || checkCastleName(f.castle.value);
+        if (bad) { $('#auth-err').textContent = bad; btn.disabled = false; return; }
+      }
       try {
         const data = { username: f.username.value.trim(), password: f.password.value };
         const r = reg

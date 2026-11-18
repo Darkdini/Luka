@@ -6,6 +6,7 @@ import { WebSocketServer } from 'ws';
 import { RACES, DONATE_PACKS } from '../shared/config.js';
 import { db, getPlayer, getPlayerByName, savePlayer } from './db.js';
 import { newCaptcha, checkCaptcha } from './captcha.js';
+import { checkUsername, checkPassword as checkPasswordRule, checkCastleName, hasProfanity, censor } from '../shared/names.js';
 import { hashPassword, checkPassword, makeToken, readToken, rateLimit } from './auth.js';
 import { newPlayerState, tick, actions, view, GameError, wallBuildings } from './game.js';
 import { findSpot, placeUnplaced, region, findPlayer, startAttack, finishAttack, leaderboard, profile } from './world.js';
@@ -55,10 +56,9 @@ app.post('/api/register', wrap((req) => {
   if (website) throw new GameError('Ошибка регистрации'); // поле-ловушка: люди его не видят
   if (!checkCaptcha(captchaId, captcha)) throw new GameError('Неверный код с картинки — попробуйте ещё раз');
   if (!rateLimit('reg:' + req.ip, 5, 3600e3)) throw new GameError('Слишком много регистраций, попробуйте позже');
-  if (typeof username !== 'string' || !/^[A-Za-zА-Яа-яЁё0-9_]{3,16}$/.test(username)) throw new GameError('Имя: 3–16 букв, цифр или _');
-  if (typeof password !== 'string' || password.length < 6 || password.length > 72) throw new GameError('Пароль: от 6 символов');
-  const cname = String(castleName || '').trim().slice(0, 24);
-  if (cname.length < 3) throw new GameError('Название замка: от 3 символов');
+  const bad = checkUsername(username) || checkPasswordRule(password) || checkCastleName(castleName);
+  if (bad) throw new GameError(bad);
+  const cname = String(castleName).trim().replace(/\s+/g, ' ');
   if (!RACES[race]) throw new GameError('Выберите расу');
   if (getPlayerByName(username)) throw new GameError('Имя уже занято');
   const now = Date.now();
@@ -123,6 +123,7 @@ app.post('/api/profile', wrap((req) => {
   const { motto, avatar, title } = req.body || {};
   if (motto != null) {
     p.motto = String(motto).replace(/\s+/g, ' ').trim().slice(0, 80);
+    if (hasProfanity(p.motto)) throw new GameError('Девиз содержит недопустимые слова');
     if (p.motto) { p.state.stats.mottoSet = 1; savePlayer(p); }
   }
   if (avatar != null) {
@@ -211,7 +212,7 @@ wss.on('connection', (ws, req) => {
     let m;
     try { m = JSON.parse(raw); } catch { return; }
     if (m.type !== 'chat') return;
-    const text = String(m.text || '').trim().slice(0, 200);
+    const text = censor(String(m.text || '').trim().slice(0, 200));
     const now = Date.now();
     if (!text || now - last < 1000) return;
     last = now;

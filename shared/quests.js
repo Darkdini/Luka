@@ -4,7 +4,7 @@
 // ============================================================================
 
 // Контекст из состояния игрока (сервер) или из view (клиент)
-export function questCtx({ buildings, stats, story, achClaimed }) {
+export function questCtx({ buildings, stats, story, achClaimed, wallLevel }) {
   const lvl = (t) => Math.max(0, ...buildings.filter((b) => b.type === t).map((b) => b.level));
   return {
     castle: lvl('castle') || 1,
@@ -13,6 +13,7 @@ export function questCtx({ buildings, stats, story, achClaimed }) {
     st: stats || {},
     story: story || {},
     achClaimed: achClaimed || 0,
+    wall: wallLevel || 0,
   };
 }
 
@@ -32,8 +33,8 @@ export const TUTORIAL = [
     done: (c) => c.st.speedups > 0, target: { building: '@upgrading' }, reward: { gems: 15 } },
   { id: 'castle2', title: 'Сердце королевства', text: 'Улучшите Цитадель до 2 уровня — откроются стены, баллисты и Алтарь героев.',
     done: (c) => c.castle >= 2, target: { building: 'castle' }, reward: { gold: 1500, gems: 20 } },
-  { id: 'walls', title: 'Каменный пояс', text: 'Откройте «Магазин» → «Стены и ловушки» и поставьте 10 секций стены.',
-    done: (c) => c.count('wall') >= 10, target: { ui: '#btn-shop' }, reward: { gold: 1000 } },
+  { id: 'walls', title: 'Каменный пояс', text: 'Откройте «Магазин» → «Стены и ловушки» и возведите Крепостную стену вокруг города.',
+    done: (c) => c.wall >= 1, target: { ui: '#btn-shop' }, reward: { gold: 1000 } },
   { id: 'ballista', title: 'Тяжёлые болты', text: 'Постройте Баллисту — она пробивает даже латников.',
     done: (c) => c.count('ballista') >= 1, target: { ui: '#btn-shop' }, reward: { gems: 10 } },
   { id: 'raid', title: 'Первый набег', text: 'Откройте «Карту мира» и разгромите лагерь разбойников рядом с замком.',

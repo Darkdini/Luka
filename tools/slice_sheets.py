@@ -266,6 +266,8 @@ def backgrounds():
         ("loading_battle.png", "bg/loading.jpg", 1920),
         ("world_map.png", "bg/world_map.jpg", 2400),
         ("base_bg.png", "bg/base.jpg", 2400),
+        ("splash_vertical.png", "bg/splash.jpg", 1400),
+        ("campaign_vertical.png", "bg/campaign.jpg", 1800),
     ]:
         img = Image.open(os.path.join(SRC, src)).convert("RGB")
         path = os.path.join(OUT, dst)
@@ -348,6 +350,11 @@ def main():
             [["fx_levelup", "fx_confetti", "fx_star", "fx_sparkle"],
              ["fx_rays", "fx_arrow", "fx_coins", "fx_magic"]],
             "fx", 320, alpha=True)
+    manifest.update(sheet("city_sheet.png", 4, 2,
+                          [["plot", "plot_locked", "road", "road_t"],
+                           ["road_cross", "gate", "fountain", "market"]],
+                          "city", 380, light=196, max_sat=14))
+    manifest.update(sheet("plaza.png", 1, 1, [["plaza"]], "city", 900, light=196, max_sat=14))
     ui_kit()
     army_camp_gif()
     backgrounds()

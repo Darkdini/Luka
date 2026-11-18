@@ -17,6 +17,7 @@ const LIST = [
   ...['chest_wood', 'chest_silver', 'chest_gold', 'chest_royal', 'gems_small', 'gems_bag', 'gold_pile', 'bread_basket'].map((n) => `rewards/${n}`),
   ...['fx_levelup', 'fx_confetti', 'fx_star', 'fx_sparkle', 'fx_rays', 'fx_arrow', 'fx_coins', 'fx_magic'].map((n) => `fx/${n}`),
   ...['icon_gold', 'icon_food', 'icon_gem', 'star', 'star_empty', 'trophy'].map((n) => `ui/${n}`),
+  ...['plot', 'plot_locked', 'road', 'road_t', 'road_cross', 'gate', 'fountain', 'market', 'plaza'].map((n) => `city/${n}`),
   ...['pad_s', 'pad_m', 'pad_l', 'pad_wood', 'pad_marble', 'road', 'road_cross', 'stairs'].map((n) => `pads/${n}`),
 ];
 

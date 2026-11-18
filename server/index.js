@@ -5,8 +5,9 @@ import express from 'express';
 import { WebSocketServer } from 'ws';
 import { RACES, DONATE_PACKS } from '../shared/config.js';
 import { db, getPlayer, getPlayerByName, savePlayer } from './db.js';
+import { newCaptcha, checkCaptcha } from './captcha.js';
 import { hashPassword, checkPassword, makeToken, readToken, rateLimit } from './auth.js';
-import { newPlayerState, tick, actions, view, GameError } from './game.js';
+import { newPlayerState, tick, actions, view, GameError, wallBuildings } from './game.js';
 import { findSpot, placeUnplaced, region, findPlayer, startAttack, finishAttack, leaderboard, profile } from './world.js';
 import { AVATARS, avatarUnlocked, titlesOf } from '../shared/achievements.js';
 
@@ -42,9 +43,18 @@ function auth(req) {
 }
 
 // --- Регистрация и вход ---------------------------------------------------------
+app.get('/api/captcha', wrap((req) => {
+  if (!rateLimit('cap:' + req.ip, 40, 600e3)) throw new GameError('Слишком много запросов, подождите');
+  const c = newCaptcha();
+  // только для автотестов: CAPTCHA_TEST=1 отдаёт ответ (в бою не включать!)
+  return process.env.CAPTCHA_TEST === '1' ? c : { id: c.id, svg: c.svg };
+}));
+
 app.post('/api/register', wrap((req) => {
+  const { username, password, castleName, race, captchaId, captcha, website } = req.body || {};
+  if (website) throw new GameError('Ошибка регистрации'); // поле-ловушка: люди его не видят
+  if (!checkCaptcha(captchaId, captcha)) throw new GameError('Неверный код с картинки — попробуйте ещё раз');
   if (!rateLimit('reg:' + req.ip, 5, 3600e3)) throw new GameError('Слишком много регистраций, попробуйте позже');
-  const { username, password, castleName, race } = req.body || {};
   if (typeof username !== 'string' || !/^[A-Za-zА-Яа-яЁё0-9_]{3,16}$/.test(username)) throw new GameError('Имя: 3–16 букв, цифр или _');
   if (typeof password !== 'string' || password.length < 6 || password.length > 72) throw new GameError('Пароль: от 6 символов');
   const cname = String(castleName || '').trim().slice(0, 24);
@@ -100,7 +110,10 @@ app.get('/api/player/:id', wrap((req) => {
   auth(req);
   const d = getPlayer(Number(req.params.id));
   if (!d) throw new GameError('Игрок не найден');
-  return { id: d.id, name: d.castle_name, owner: d.username, race: d.race, trophies: d.trophies, buildings: d.state.buildings.filter((b) => !b.type.startsWith('trap_')), decor: d.state.decor };
+  tick(d.state);
+  const cl = d.state.buildings.find((b) => b.type === 'castle')?.level || 1;
+  return { id: d.id, name: d.castle_name, owner: d.username, race: d.race, trophies: d.trophies,
+    buildings: [...d.state.buildings.filter((b) => !b.type.startsWith('trap_')), ...wallBuildings(d.state.wallLevel, cl)], decor: d.state.decor };
 }));
 
 app.get('/api/profile/:id', wrap((req) => { auth(req); return profile(req.params.id, isOnline); }));

@@ -1,43 +1,55 @@
-// Экран поселения: отрисовка своей базы, выбор/перенос/постройка зданий.
-import { BUILDINGS, BUILD_MIN, BUILD_MAX, collectorCap, RACES } from '/shared/config.js';
+// Экран поселения: город с ячейками и дорогами. Всё делается нажатиями —
+// удобно пальцем на телефоне: ячейка → здание, «Переместить» → ячейка.
+import { BUILDINGS, collectorCap, RACES } from '/shared/config.js';
+import { PLOTS, PLOT, CASTLE_POS, ringOpen, inPlot, isRoad, wallTiles, isPlotType, RING_UNLOCK, cityRect, X0, PITCH } from '/shared/city.js';
 import { iso, TW, TH } from './scene.js';
 import { img } from './assets.js';
+
+const castleLvl = (base) => base.buildings.find((b) => b.type === 'castle')?.level || 1;
 
 export class Village {
   constructor(scene, app) {
     this.scene = scene;
     this.app = app;
     this.me = null;
-    this.sel = null;        // { kind: 'b'|'d', id }
-    this.ghost = null;      // { type, x, y, id?, move? }
+    this.sel = null;        // { kind: 'b'|'d'|'w', id }
+    this.placing = null;    // { mode: 'plot'|'road'|'move', type, id }
     this.hits = [];
     this.t = 0;
   }
+
+  get ghost() { return this.placing; } // совместимость (стрелка советника)
 
   setMe(me) {
     this.me = me;
     this.offset = me.now - Date.now();
     const base = this.visit || me;
-    this.walls = new Set(base.buildings.filter((b) => b.type === 'wall').map((b) => b.x * 100 + b.y));
+    const cl = castleLvl(base);
+    const wl = this.visit ? (base.buildings.find((b) => b.type === 'wall')?.level || 0) : me.wallLevel;
+    this.wallList = this.visit ? base.buildings.filter((b) => b.type === 'wall') : (wl ? wallTiles(cl).map(([x, y], i) => ({ id: 'w' + i, type: 'wall', level: wl, x, y })) : []);
+    this.walls = new Set(this.wallList.map((b) => b.x * 100 + b.y));
+    // ворота — посередине каждой стороны стены
+    const r = cityRect(cl), mid = Math.round((r.x0 + r.x1) / 2);
+    this.gates = this.wallList.length ? [[mid, r.y0 - 1], [mid, r.y1 + 1], [r.x0 - 1, mid], [r.x1 + 1, mid]] : [];
+    this.gateSet = new Set(this.gates.map(([x, y]) => x * 100 + y));
     if (this.sel && !this.findSel()) this.sel = null;
   }
 
   now() { return Date.now() + this.offset; }
   findSel() {
     if (!this.sel) return null;
+    if (this.sel.kind === 'w') return this.wallObj();
     return this.sel.kind === 'b' ? this.me.buildings.find((b) => b.id === this.sel.id) : this.me.decor.find((d) => d.id === this.sel.id);
   }
+  wallObj() { return this.me.wallLevel ? { id: 'wall', type: 'wall', level: this.me.wallLevel, x: 0, y: 0 } : null; }
 
   enter() {
     const s = this.scene;
     s.on('tap', (p, g) => this.tap(p, g));
-    s.on('down', (p, g) => this.down(p, g));
-    s.on('drag', (p, g) => this.dragTo(g));
-    s.on('drop', (p, g) => this.drop(g));
+    s.on('down', null); s.on('drag', null); s.on('drop', null);
     s.on('hover', null); s.on('hold', null); s.on('up', null);
   }
 
-  // --- Попадание по объектам -------------------------------------------------
   hitTest(p) {
     const w = this.scene.toWorld(p.x, p.y);
     for (let i = this.hits.length - 1; i >= 0; i--) {
@@ -47,138 +59,140 @@ export class Village {
     return null;
   }
 
-  tileFree(type, x, y, ignoreId) {
-    const size = BUILDINGS[type].size;
-    if (x < BUILD_MIN || y < BUILD_MIN || x + size > BUILD_MAX || y + size > BUILD_MAX) return false;
-    for (const b of this.me.buildings) {
-      if (b.id === ignoreId) continue;
-      const s = BUILDINGS[b.type].size;
-      if (x < b.x + s && x + size > b.x && y < b.y + s && y + size > b.y) return false;
-    }
-    for (const d of this.me.decor) if (d.x >= x && d.x < x + size && d.y >= y && d.y < y + size) return false;
-    return true;
+  // --- Ячейки ------------------------------------------------------------------
+  plotState(p) {
+    const me = this.me, cl = castleLvl(me);
+    if (!ringOpen(p.ring, cl)) return 'locked';
+    if (me.buildings.some((b) => isPlotType(b.type) && b.x === p.x && b.y === p.y)) return 'built';
+    if (me.decor.some((d) => d.x >= p.x && d.x < p.x + PLOT && d.y >= p.y && d.y < p.y + PLOT)) return 'overgrown';
+    return 'free';
+  }
+  roadFree(x, y) {
+    return isRoad(x, y, castleLvl(this.me)) && !this.me.buildings.some((b) => b.type.startsWith('trap_') && b.x === x && b.y === y);
   }
 
   tap(p, g) {
     if (this.visit) return;
-    if (this.ghost && !this.ghost.move) { this.moveGhost(g); return; }
+    const gx = Math.floor(g.gx), gy = Math.floor(g.gy);
+    const pl = this.placing;
+    if (pl) {
+      if (pl.mode === 'road') {
+        if (this.roadFree(gx, gy)) this.place(pl.type, gx, gy);
+        else this.app.ui.toast('Ловушку ставят на свободную дорогу');
+        return;
+      }
+      const plot = inPlot(gx, gy) || this.plotByHit(p);
+      if (!plot) return;
+      const st = this.plotState(plot);
+      if (st === 'locked') { this.app.ui.toast(`Ячейка откроется на Цитадели ${RING_UNLOCK[plot.ring]} ур.`); return; }
+      if (st === 'overgrown') { this.app.ui.toast('Сначала расчистите заросли на ячейке'); return; }
+      if (pl.mode === 'move') { this.move(pl.id, plot); return; }
+      if (st === 'built') { this.app.ui.toast('Ячейка занята — выберите свободную'); return; }
+      this.place(pl.type, plot.x, plot.y);
+      return;
+    }
     const h = this.hitTest(p);
     if (h?.bubble) { this.app.collect(h.b.id); return; }
-    if (h) {
+    if (h?.wall) { this.sel = { kind: 'w' }; this.app.ui.select(this.wallObj(), 'b'); this.app.sfx('click'); return; }
+    if (h && (h.b || h.d)) {
       this.sel = h.b ? { kind: 'b', id: h.b.id } : { kind: 'd', id: h.d.id };
       this.app.ui.select(this.findSel(), this.sel.kind);
       this.app.sfx('click');
       return;
     }
+    // пустая ячейка → сразу магазин «построить здесь»
+    const plot = inPlot(gx, gy);
+    if (plot) {
+      const st = this.plotState(plot);
+      if (st === 'free') { this.sel = null; this.app.ui.select(null); this.app.ui.openShop('eco', plot); this.app.sfx('click'); return; }
+      if (st === 'locked') { this.app.ui.toast(`🔒 Ячейка откроется на Цитадели ${RING_UNLOCK[plot.ring]} ур.`); return; }
+    }
     this.sel = null;
     this.app.ui.select(null);
   }
 
-  down(p, g) {
-    if (this.visit) return false;
-    if (this.ghost) {
-      const size = BUILDINGS[this.ghost.type].size;
-      if (g.gx >= this.ghost.x - 1 && g.gx < this.ghost.x + size + 1 && g.gy >= this.ghost.y - 1 && g.gy < this.ghost.y + size + 1) {
-        this.dragOff = { dx: g.gx - this.ghost.x, dy: g.gy - this.ghost.y };
-        return true;
-      }
-      return false;
-    }
-    const b = this.sel?.kind === 'b' && this.findSel();
-    if (!b) return false;
-    const size = BUILDINGS[b.type].size;
-    if (g.gx >= b.x && g.gx < b.x + size && g.gy >= b.y && g.gy < b.y + size) {
-      this.ghost = { type: b.type, x: b.x, y: b.y, id: b.id, level: b.level, move: true };
-      this.dragOff = { dx: g.gx - b.x, dy: g.gy - b.y };
-      return true;
-    }
-    return false;
+  plotByHit(p) {
+    const h = this.hitTest(p);
+    if (h?.b && isPlotType(h.b.type)) return PLOTS.find((q) => q.x === h.b.x && q.y === h.b.y) || null;
+    return null;
   }
 
-  dragTo(g) {
-    if (!this.ghost) return;
-    const x = Math.floor(g.gx - this.dragOff.dx + 0.5), y = Math.floor(g.gy - this.dragOff.dy + 0.5);
-    this.ghost.x = x; this.ghost.y = y;
-  }
-
-  async drop() {
-    const gh = this.ghost;
-    if (!gh?.move) return;
-    const b = this.me.buildings.find((v) => v.id === gh.id);
-    this.ghost = null;
-    if (!b || (b.x === gh.x && b.y === gh.y)) return;
-    if (!this.tileFree(b.type, gh.x, gh.y, b.id)) { this.app.ui.toast('Здесь нельзя поставить'); return; }
-    const ox = b.x, oy = b.y;
-    b.x = gh.x; b.y = gh.y; // оптимистично
-    this.setMe(this.me);
-    try { await this.app.act('move', { id: b.id, x: gh.x, y: gh.y }); } catch { b.x = ox; b.y = oy; }
-  }
-
-  moveGhost(g) {
-    const size = BUILDINGS[this.ghost.type].size;
-    this.ghost.x = Math.floor(g.gx - size / 2 + 0.5);
-    this.ghost.y = Math.floor(g.gy - size / 2 + 0.5);
-  }
-
-  startPlacing(type) {
-    const size = BUILDINGS[type].size;
-    const c = this.scene.toGrid(this.scene.w / 2, this.scene.h / 2);
-    let best = null, bd = 1e9;
-    for (let y = BUILD_MIN; y <= BUILD_MAX - size; y++) for (let x = BUILD_MIN; x <= BUILD_MAX - size; x++) {
-      const d = (x - c.gx) ** 2 + (y - c.gy) ** 2;
-      if (d < bd && this.tileFree(type, x, y)) { bd = d; best = { x, y }; }
-    }
-    if (!best) { this.app.ui.toast('Нет свободного места'); return; }
+  // Режим выбора места: подсвечиваем подходящие ячейки или дороги
+  startPlacing(type, plot) {
+    const def = BUILDINGS[type];
     this.sel = null;
     this.app.ui.select(null);
-    this.ghost = { type, ...best, level: 1 };
-    this.app.ui.placing(true);
+    if (plot && isPlotType(type)) { this.place(type, plot.x, plot.y); return; }
+    this.placing = { mode: def.cat === 'trap' ? 'road' : 'plot', type };
+    const free = PLOTS.filter((q) => this.plotState(q) === 'free');
+    if (this.placing.mode === 'plot' && !free.length) { this.placing = null; this.app.ui.toast('Нет свободных ячеек — расчистите заросли или улучшите Цитадель'); return; }
+    this.app.ui.placing(true, this.placing.mode === 'road' ? 'Нажмите на дорогу, чтобы поставить ловушку' : `Выберите ячейку для «${def.name}»`);
   }
 
-  cancelPlacing() { this.ghost = null; this.app.ui.placing(false); }
+  startMove(b) {
+    this.placing = { mode: b.type.startsWith('trap_') ? 'road' : 'move', type: b.type, id: b.id };
+    this.app.ui.placing(true, 'Выберите ячейку — здания поменяются местами');
+  }
 
-  async confirmPlacing() {
-    const gh = this.ghost;
-    if (!gh || gh.move) return;
-    if (!this.tileFree(gh.type, gh.x, gh.y)) { this.app.ui.toast('Место занято'); return; }
+  cancelPlacing() { this.placing = null; this.app.ui.placing(false); }
+
+  async place(type, x, y) {
     try {
-      await this.app.act('place', { type: gh.type, x: gh.x, y: gh.y });
+      await this.app.act('place', { type, x, y });
       this.app.sfx('build');
-      const iso2 = iso(gh.x + 1, gh.y + 1);
-      this.scene.emit(iso2.x, iso2.y, 14, 'dust');
-      if (gh.type === 'wall') {
-        // стены удобно ставить цепочкой
-        const dirs = [[1, 0], [0, 1], [-1, 0], [0, -1]];
-        const prev = this.lastWall;
-        let nx = null;
-        if (prev) { const d = [gh.x - prev.x, gh.y - prev.y]; if (Math.abs(d[0]) + Math.abs(d[1]) === 1) nx = { x: gh.x + d[0], y: gh.y + d[1] }; }
-        this.lastWall = { x: gh.x, y: gh.y };
-        if (!nx || !this.tileFree('wall', nx.x, nx.y)) nx = dirs.map(([dx, dy]) => ({ x: gh.x + dx, y: gh.y + dy })).find((p) => this.tileFree('wall', p.x, p.y));
-        if (nx && this.app.ui.canBuildMore('wall')) { this.ghost = { type: 'wall', ...nx, level: 1 }; return; }
-      }
+      const size = BUILDINGS[type].size, c = iso(x + size / 2, y + size / 2);
+      this.scene.emit(c.x, c.y, 16, 'dust');
       this.cancelPlacing();
-    } catch { /* тост уже показан */ }
+    } catch { /* тост показан */ }
+  }
+
+  async move(id, plot) {
+    const b = this.me.buildings.find((v) => v.id === id);
+    if (!b) return this.cancelPlacing();
+    if (this.placing.mode === 'road') return;
+    try {
+      await this.app.act('move', { id, x: plot.x, y: plot.y });
+      this.app.sfx('build');
+    } catch { /* */ }
+    this.cancelPlacing();
   }
 
   // --- Кадр ----------------------------------------------------------------------
   frame(dt) {
-    const s = this.scene, c = s.ctx;
+    const s = this.scene;
     const me = this.visit || this.me;
     if (!me) return;
     this.t += dt;
     const now = this.now();
+    const cl = castleLvl(me);
     s.begin();
     s.drawBackground();
-    if (this.ghost) s.drawGrid(0.18, BUILD_MIN, BUILD_MAX);
-    // список для сортировки по глубине
+    const occ = new Set(me.buildings.filter((b) => isPlotType(b.type)).map((b) => b.x + ',' + b.y));
+    s.drawCity(cl, !this.visit, occ);
+    // подсветка доступных мест
+    const pl = this.placing;
+    if (pl && !this.visit) {
+      if (pl.mode === 'road') {
+        const r = cityRect(cl), cells = [];
+        for (let y = r.y0; y <= r.y1; y++) for (let x = r.x0; x <= r.x1; x++) if (this.roadFree(x, y)) cells.push([x, y, 1]);
+        s.highlight(cells, 'rgba(255,220,80,0.5)', this.t);
+      } else {
+        const cells = PLOTS.filter((q) => { const st = this.plotState(q); return st === 'free' || (pl.mode === 'move' && st === 'built'); }).map((q) => [q.x, q.y, PLOT]);
+        s.highlight(cells, pl.mode === 'move' ? 'rgba(120,180,255,0.45)' : 'rgba(90,255,120,0.45)', this.t);
+      }
+    }
     const items = [];
     for (const b of me.buildings) {
-      if (this.ghost?.move && this.ghost.id === b.id) continue;
+      if (b.type === 'wall') continue;
       const size = BUILDINGS[b.type].size;
-      items.push({ d: b.x + b.y + size * 2 - (BUILDINGS[b.type].cat === 'wall' ? 0.5 : 0), b });
+      items.push({ d: b.x + b.y + size * 2, b });
     }
-    for (const d of me.decor) items.push({ d: d.x + d.y + 2, dec: d });
-    if (this.ghost) items.push({ d: this.ghost.x + this.ghost.y + BUILDINGS[this.ghost.type].size * 2 + 0.1, ghost: this.ghost });
+    for (const w of this.wallList) items.push({ d: w.x + w.y + 1.5, wall: w });
+    for (const d of me.decor) {
+      const p = inPlot(d.x, d.y);
+      if (p && !ringOpen(p.ring, cl)) continue; // закрытые ячейки уже нарисованы заросшими
+      items.push({ d: d.x + d.y + 2, dec: d });
+    }
     this.updateLife(dt, me);
     for (const w of this.walkers) items.push({ d: w.x + w.y + 0.3, walker: w });
     for (const b of me.buildings) if (b.up) {
@@ -192,22 +206,13 @@ export class Village {
     for (const it of items) {
       if (it.walker) { this.drawWalker(it.walker); continue; }
       if (it.worker) { this.drawWorker(it.worker); continue; }
+      if (it.wall) { this.drawWall(it.wall, this.sel?.kind === 'w'); continue; }
       if (it.b) this.drawB(it.b, now, selObj === it.b);
       else if (it.dec) {
         if (selObj === it.dec) s.diamond(it.dec.x, it.dec.y, 1, 1, 'rgba(255,255,255,0.25)', '#fff');
         s.drawDecor(it.dec);
         const bot = iso(it.dec.x + 1, it.dec.y + 1);
         this.hits.push({ d: it.dec, x: bot.x - TW * 0.6, y: bot.y - TH * 3, w: TW * 1.2, h: TH * 3 });
-      } else if (it.ghost) {
-        const gh = it.ghost;
-        const ok = this.tileFree(gh.type, gh.x, gh.y, gh.id);
-        const size = BUILDINGS[gh.type].size;
-        s.diamond(gh.x, gh.y, size, size, ok ? 'rgba(80,255,120,0.35)' : 'rgba(255,60,60,0.45)', ok ? '#5f5' : '#f44');
-        s.drawBuilding({ type: gh.type, level: gh.level || 1, x: gh.x, y: gh.y }, { alpha: 0.85, lift: -6 - Math.sin(this.t * 6) * 3, walls: this.walls });
-        if (!gh.move) {
-          const top = iso(gh.x + size / 2, gh.y + size / 2);
-          s.label(BUILDINGS[gh.type].name, top.x, top.y - size * TH * 1.6, { size: 14 });
-        }
       }
     }
     // пузыри сбора и подписи поверх
@@ -216,6 +221,22 @@ export class Village {
     s.drawParticles(dt);
     this.drawFloats(dt);
     if (!this.visit) this.app.ui.tick(now);
+  }
+
+  drawWall(w, selected) {
+    const s = this.scene;
+    if (this.gateSet.has(w.x * 100 + w.y)) {
+      const im = img('city/gate');
+      if (im) {
+        const bot = iso(w.x + 1, w.y + 1), wd = TW * 2.1, h = im.height * wd / im.width;
+        s.ctx.drawImage(im, bot.x - wd / 2, bot.y - h + TH * 0.6, wd, h);
+        this.hits.push({ wall: true, x: bot.x - wd / 2, y: bot.y - h, w: wd, h });
+        return;
+      }
+    }
+    s.drawBuilding(w, { walls: this.walls, noPad: true, flash: selected && Math.sin(this.t * 8) > 0.6 });
+    const bot = iso(w.x + 1, w.y + 1);
+    this.hits.push({ wall: true, x: bot.x - TW * 0.5, y: bot.y - TH * 2, w: TW, h: TH * 2 });
   }
 
   // --- Жизнь в поселении ---------------------------------------------------------
@@ -244,22 +265,31 @@ export class Village {
     }
   }
 
-  // Случайная свободная точка у какого-нибудь здания (жители ходят «по делам»)
+  // Жители ходят по дорогам: от перекрёстка к соседнему перекрёстку
   randomSpot(me, from) {
-    for (let i = 0; i < 20; i++) {
-      const b = me.buildings[Math.floor(Math.random() * me.buildings.length)];
-      if (!b) return null;
-      const size = BUILDINGS[b.type].size;
-      const x = b.x + size + 0.3 + Math.random() * 0.6, y = b.y + Math.random() * size;
-      const tx = Math.floor(x), ty = Math.floor(y);
-      if (!this.tileFree('wall', tx, ty)) continue;
-      if (from) {
-        const mx = Math.floor((from.x + x) / 2), my = Math.floor((from.y + y) / 2);
-        if (Math.hypot(x - from.x, y - from.y) > 9 || !this.tileFree('wall', mx, my)) continue;
-      }
-      return { x, y };
+    const r = cityRect(castleLvl(me));
+    const nodes = [];
+    for (let k = -1; k < 8; k++) {
+      const v = X0 + k * PITCH + PLOT;
+      if (v >= r.x0 && v <= r.x1) nodes.push(v);
     }
-    return null;
+    const ok = (x, y) => nodes.includes(x) && nodes.includes(y) && isRoad(x, y, castleLvl(me));
+    if (!from) {
+      for (let i = 0; i < 30; i++) {
+        const x = nodes[Math.floor(Math.random() * nodes.length)], y = nodes[Math.floor(Math.random() * nodes.length)];
+        if (ok(x, y)) return { x: x + 0.5, y: y + 0.5 };
+      }
+      return null;
+    }
+    const fx = Math.floor(from.x), fy = Math.floor(from.y);
+    const dirs = [[PITCH, 0], [-PITCH, 0], [0, PITCH], [0, -PITCH]].filter(([dx, dy]) => {
+      if (!ok(fx + dx, fy + dy)) return false;
+      for (let k = 1; k < PITCH; k++) if (!isRoad(fx + Math.sign(dx) * k, fy + Math.sign(dy) * k, castleLvl(me))) return false;
+      return true;
+    });
+    if (!dirs.length) return null;
+    const [dx, dy] = dirs[Math.floor(Math.random() * dirs.length)];
+    return { x: fx + dx + 0.5, y: fy + dy + 0.5 };
   }
 
   drawWalker(w) {
@@ -385,7 +415,7 @@ export class Village {
       alpha: building ? 0.55 : 1,
       flash: selected && Math.sin(this.t * 8) > 0.6,
       lift: selected ? -4 : 0,
-      noPad: def.cat === 'wall',
+      noPad: true,
     });
     const im = img(s.spriteFor(b, this.walls).name);
     const bot = iso(b.x + size, b.y + size);

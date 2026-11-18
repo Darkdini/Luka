@@ -1,5 +1,5 @@
 // Сюжетная кампания: карта глав и диалоги в стиле визуальной новеллы.
-import { CHAPTERS, CHARACTERS, chapterById, chapterOpen } from '/shared/story.js';
+import { CHAPTERS, CHARACTERS, chapterById, chapterOpen, HOME_POS } from '/shared/story.js';
 import { fmt } from '/shared/config.js';
 import { url } from './assets.js';
 import { esc, avatarUrl } from './world.js';
@@ -26,13 +26,13 @@ export class Story {
     const st = this.stateLike();
     const done = CHAPTERS.filter((c) => st.story[c.id]?.stars > 0).length;
     $('#camp-progress').textContent = `Глав пройдено: ${done} / ${CHAPTERS.length}`;
-    // дорога между главами
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('viewBox', '0 0 100 100');
-    svg.setAttribute('preserveAspectRatio', 'none');
-    const pts = CHAPTERS.map((c) => `${c.pos[0] * 100},${c.pos[1] * 100}`).join(' ');
-    svg.innerHTML = `<polyline points="${pts}" fill="none" stroke="rgba(60,30,10,.7)" stroke-width=".7" stroke-dasharray="1.6 1.2" vector-effect="non-scaling-stroke" style="stroke-width:4px"/>`;
-    map.appendChild(svg);
+    // «вы здесь» — у родного хутора внизу карты
+    const home = document.createElement('div');
+    home.className = 'chapter home';
+    home.style.left = HOME_POS[0] * 100 + '%'; home.style.top = HOME_POS[1] * 100 + '%';
+    home.innerHTML = `<span class="ch-num">🏰</span><span class="ch-name">${esc(this.app.me.name)}</span>`;
+    map.appendChild(home);
+    let focus = null;
     for (const ch of CHAPTERS) {
       const s = st.story[ch.id] || { stars: 0 };
       const o = chapterOpen(st, ch);
@@ -45,7 +45,14 @@ export class Story {
         <span class="ch-stars">${'★'.repeat(s.stars)}${'☆'.repeat(3 - s.stars)}</span>`;
       el.onclick = () => this.card(ch);
       map.appendChild(el);
+      if (!focus && !s.stars) focus = el;
     }
+    // прокручиваем к текущей главе (карта идёт снизу вверх)
+    requestAnimationFrame(() => {
+      const box = $('#campaign');
+      const t = (focus || map.lastElementChild);
+      box.scrollTop = Math.max(0, t.offsetTop - box.clientHeight * 0.55);
+    });
   }
 
   card(ch) {

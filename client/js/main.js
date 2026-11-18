@@ -53,12 +53,18 @@ class App {
         <input type="radio" name="race" value="${k}" ${i === 0 ? 'checked' : ''}>
         <span class="race-name">${r.name}</span><span class="race-desc">${r.desc}</span>
       </label>`).join('');
+    const loadCaptcha = async () => {
+      try { const c = await api.captcha(); this.captchaId = c.id; $('#cap-img').innerHTML = c.svg; } catch (e) { $('#auth-err').textContent = e.message; }
+      const f = $('#auth-form'); if (f.captcha) f.captcha.value = '';
+    };
+    $('#cap-new').onclick = loadCaptcha;
     const tabs = document.querySelectorAll('#auth .auth-tab');
     tabs.forEach((t) => {
       t.onclick = () => {
         tabs.forEach((x) => x.classList.toggle('on', x === t));
         $('#auth').dataset.mode = t.dataset.mode;
         $('#auth-err').textContent = '';
+        if (t.dataset.mode === 'register') loadCaptcha();
       };
     });
     $('#auth-form').onsubmit = async (e) => {
@@ -71,7 +77,7 @@ class App {
       try {
         const data = { username: f.username.value.trim(), password: f.password.value };
         const r = reg
-          ? await api.register({ ...data, castleName: f.castle.value.trim(), race: f.race.value })
+          ? await api.register({ ...data, castleName: f.castle.value.trim(), race: f.race.value, captchaId: this.captchaId, captcha: f.captcha.value, website: f.website.value })
           : await api.login(data);
         setToken(r.token);
         await this.refresh();
@@ -81,6 +87,7 @@ class App {
         else if (this.me.dailyReady) setTimeout(() => this.engage.openDaily(), 700);
       } catch (err) {
         $('#auth-err').textContent = err.message;
+        if (reg) loadCaptcha();
       } finally { btn.disabled = false; }
     };
   }
@@ -131,7 +138,7 @@ class App {
     this.village.enter();
     this.engage?.music('village');
     this.wipe();
-    this.scene.cam = { x: 0, y: 22 * 32, z: Math.max(this.scene.minZ, 0.62) };
+    this.scene.cam = { x: 0, y: 22 * 32 + (this.scene.portrait ? 30 : 0), z: this.scene.defaultZoom('village') };
     this.scene.clampCam();
     this.setMe(this.me);
   }
@@ -230,7 +237,7 @@ class App {
       $('#visit-sub').textContent = `${d.owner} · 🏆 ${d.trophies}`;
       $('#visit-attack').onclick = () => this.attack({ kind: 'player', id: d.id });
       $('#visit-profile').onclick = () => this.ui.openProfile(d.id);
-      this.scene.cam = { x: 0, y: 22 * 32, z: Math.max(this.scene.minZ, 0.62) };
+      this.scene.cam = { x: 0, y: 22 * 32 + (this.scene.portrait ? 30 : 0), z: this.scene.defaultZoom('village') };
     } catch (e) { this.ui.toast(e.message, 'bad'); }
   }
 
@@ -251,7 +258,7 @@ class App {
       document.body.dataset.mode = 'battle';
       this.ui.cardsKey = null;
       this.battle.start(data);
-      this.scene.cam = { x: 0, y: 22 * 32 - 20, z: Math.max(this.scene.minZ, 0.85) };
+      this.scene.cam = { x: 0, y: 22 * 32 - 20, z: this.scene.defaultZoom('battle') };
       this.scene.clampCam();
       this.sfx('horn');
       this.engage.music('battle');
@@ -284,6 +291,8 @@ class App {
   // --- Звуки (синтез WebAudio, без файлов) ---------------------------------------------
   setSound(on) { this.sound = on; store.set('ck_sound', on ? '1' : '0'); }
   sfx(kind) {
+    const buzz = { coin: 12, levelup: [30, 40, 30], boom: 35, destroy: 18, star: [20, 30, 40], error: 25, quest: [15, 25, 15], win: [40, 60, 80] }[kind];
+    if (buzz && this.sound && navigator.vibrate) { try { navigator.vibrate(buzz); } catch { /* */ } }
     if (!this.sound) return;
     try {
       this.ac = this.ac || new AudioContext();

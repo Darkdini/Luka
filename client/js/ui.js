@@ -1,7 +1,7 @@
 // DOM-интерфейс поверх канваса: HUD, панели, модальные окна.
 import {
   BUILDINGS, TROOPS, SPELLS, HEROES, RACES, DONATE_PACKS, BUILDER_GEM_COST, DECOR_REMOVE_COST,
-  upgradeCost, upgradeTime, gemsForTime, gemsForResources, spriteFor, fmt, fmtTime, buildingHp,
+  upgradeCost, upgradeTime, wallCost, gemsForTime, gemsForResources, spriteFor, fmt, fmtTime, buildingHp,
   armyUsed, heroMaxLevel, heroUpgradeCost, heroUpgradeTime, heroLevelMul, troopLevelMul, forgeCost, forgeTime,
 } from '/shared/config.js';
 import { url } from './assets.js';
@@ -18,7 +18,7 @@ const SHOP_TABS = [
   { id: 'eco', name: 'Экономика', types: ['goldmine', 'farm', 'treasury', 'granary', 'builderhut'] },
   { id: 'army', name: 'Армия', types: ['barracks', 'armycamp', 'heroaltar', 'spelltower', 'forge'] },
   { id: 'def', name: 'Оборона', types: ['archertower', 'ballista', 'magetower', 'trebuchet'] },
-  { id: 'walls', name: 'Стены и ловушки', types: ['wall', 'trap_spikes', 'trap_barrel', 'trap_bear', 'trap_rune'] },
+  { id: 'walls', name: 'Стена и ловушки', types: ['wall', 'trap_spikes', 'trap_barrel', 'trap_bear', 'trap_rune'] },
   { id: 'gems', name: '💎 Сокровищница', types: [] },
 ];
 
@@ -41,7 +41,6 @@ export class UI {
     $('#w-story').onclick = () => app.story.open();
     $('#visit-back').onclick = () => app.goHome();
     $('#chat-log').addEventListener('click', (e) => { const n = e.target.closest('[data-pid]'); if (n) this.openProfile(+n.dataset.pid); });
-    $('#place-ok').onclick = () => app.village.confirmPlacing();
     $('#place-cancel').onclick = () => app.village.cancelPlacing();
     $('#world-back').onclick = () => app.goHome();
     $('#chat-close').onclick = () => this.toggleChat(false);
@@ -102,11 +101,11 @@ export class UI {
     $('#p-race').style.setProperty('--c', RACES[me.race]?.color || '#888');
     for (const r of ['gold', 'food']) {
       this.app.engage.count($(`#r-${r} .v`), Math.floor(me.res[r]));
-      $(`#r-${r} .cap`).textContent = 'макс. ' + fmt(me.caps[r]);
+      $(`#r-${r}`).title = `${r === 'gold' ? 'Золото' : 'Зерно'}: ${fmt(me.res[r])} из ${fmt(me.caps[r])}`;
       $(`#r-${r} .fill`).style.width = Math.min(100, me.res[r] / Math.max(1, me.caps[r]) * 100) + '%';
     }
     this.app.engage.count($('#r-gems .v'), me.res.gems);
-    $('#builders').innerHTML = `🔨 <b>${me.builders.total - me.builders.busy}</b>/${me.builders.total}`;
+    $('#builders').innerHTML = `🔨 ${me.builders.total - me.builders.busy}/${me.builders.total}`;
     $('#army-count').textContent = `${armyUsed(me.army)}/${me.armyCap}`;
     const unread = (me.reports || []).filter((r) => r.type === 'defense' && r.ts > (this.app.seenReports || 0)).length;
     $('#btn-reports .badge').textContent = unread || '';
@@ -144,7 +143,7 @@ export class UI {
     const acts = [];
     let title, sub = '';
     if (kind === 'd') {
-      title = 'Препятствие';
+      title = 'Заросли';
       sub = 'Расчистка приносит кристаллы';
       acts.push({ label: `Расчистить<small>${ico('gold')} ${DECOR_REMOVE_COST}</small>`, cls: 'green', fn: () => this.app.act('removeDecor', { id: obj.id }).then((r) => r.gems && this.toast(`Найдено кристаллов: ${r.gems} 💎`, 'good')) });
     } else {
@@ -155,17 +154,18 @@ export class UI {
       if (obj.up) {
         const left = (obj.up.end - me.now) / 1000;
         acts.push({ label: `Ускорить<small>${ico('gems')} ${gemsForTime(left)}</small>`, cls: 'gem', fn: () => this.confirmGems(gemsForTime(left), () => this.app.act('speedup', { id: obj.id })) });
+      } else if (obj.type === 'wall') {
+        const max = def.maxByCastle[castleLevel(me) - 1];
+        if (obj.level < max) acts.push({ label: `Улучшить всю стену<small>${ico('gold')} ${fmt(wallCost(obj.level + 1))}</small>`, cls: 'green', fn: () => this.app.act('wallUpgrade').then(() => this.toast(`🧱 Стена укреплена до ${this.app.me.wallLevel} ур.!`, 'good')) });
+        else acts.push({ label: 'Максимум', disabled: true, fn: () => {} });
       } else if (obj.type !== 'builderhut') {
         const max = obj.type === 'castle' ? 6 : def.maxByCastle[castleLevel(me) - 1];
         if (obj.level < max) {
           const cost = upgradeCost(obj.type, obj.level + 1);
           acts.push({ label: `Улучшить<small>${ico(def.res)} ${fmt(cost)}</small>`, cls: 'green', fn: () => this.openUpgrade(obj) });
-          if (def.cat === 'wall') {
-            const row = this.wallRow(obj);
-            if (row.length > 1) acts.push({ label: `Ряд ×${row.length}<small>${ico('gold')} ${fmt(cost * row.length)}</small>`, cls: 'green', fn: () => this.app.act('upgradeWalls', { ids: row.map((w) => w.id) }) });
-          }
         } else acts.push({ label: 'Максимум', disabled: true, fn: () => {} });
       }
+      if (obj.type !== 'castle' && obj.type !== 'wall') acts.push({ label: 'Переместить<small>↔</small>', fn: () => this.app.village.startMove(obj) });
       if (def.produces && obj.level) acts.push({ label: `Собрать<small>${ico(def.produces)}</small>`, fn: () => this.app.collect(obj.id) });
       if (obj.type === 'barracks' || obj.type === 'armycamp') acts.push({ label: 'Обучить', cls: 'blue', fn: () => this.openArmy('troops') });
       if (obj.type === 'spelltower') acts.push({ label: 'Зелья', cls: 'blue', fn: () => this.openArmy('spells') });
@@ -196,8 +196,9 @@ export class UI {
     return best;
   }
 
-  placing(on) {
+  placing(on, hint = '') {
     $('#placebar').classList.toggle('show', on);
+    $('#place-hint').textContent = hint;
     $('#selbar').classList.remove('show');
   }
 
@@ -267,16 +268,28 @@ export class UI {
   }
 
   // --- Магазин --------------------------------------------------------------------
-  openShop(tab) {
+  openShop(tab, plot) {
     const me = this.app.me;
+    this.shopPlot = plot || null;
     this.modalKind = 'shop';
     const cl = castleLevel(me);
-    const tabs = SHOP_TABS.map((t) => `<button class="tab ${t.id === tab ? 'on' : ''}" data-tab="${t.id}">${t.name}</button>`).join('');
+    // с выбранной ячейкой показываем только то, что на неё ставится
+    const tabList = plot ? SHOP_TABS.filter((t) => t.id !== 'walls' && t.id !== 'gems') : SHOP_TABS;
+    const tabs = tabList.map((t) => `<button class="tab ${t.id === tab ? 'on' : ''}" data-tab="${t.id}">${t.name}</button>`).join('');
     let body;
     if (tab === 'gems') body = this.gemShop();
     else {
       const cards = SHOP_TABS.find((t) => t.id === tab).types.map((type) => {
         const def = BUILDINGS[type];
+        if (type === 'wall') {
+          const lvl = me.wallLevel || 0, max = def.maxByCastle[cl - 1];
+          const lockedW = !max || lvl >= max;
+          return `<div class="card ${lockedW ? 'locked' : ''}" data-wall="1">
+            <div class="c-img"><img src="${url('buildings/' + spriteFor('wall', Math.max(1, lvl + (lockedW ? 0 : 1))))}" alt=""></div>
+            <div class="c-name">${def.name}</div><div class="c-count">ур. ${lvl}</div>
+            ${lockedW ? `<div class="c-lock">${max ? 'Улучшите Цитадель' : 'Цитадель 2 ур.'}</div>` : `<div class="c-cost">${ico('gold')} ${fmt(wallCost(lvl + 1))}</div><div class="c-time">${lvl ? 'улучшить' : 'возвести'} вокруг города</div>`}
+          </div>`;
+        }
         const n = countOf(me, type), lim = def.countByCastle[cl - 1];
         const next = def.countByCastle.findIndex((c) => c > n) + 1;
         const isHut = type === 'builderhut';
@@ -294,13 +307,20 @@ export class UI {
       }).join('');
       body = `<div class="cards">${cards}</div>`;
     }
-    const box = this.modal('Магазин', `<div class="tabs">${tabs}</div>${body}`, [], 'wide');
-    box.querySelectorAll('.tab').forEach((b) => { b.onclick = () => this.openShop(b.dataset.tab); });
+    const box = this.modal(plot ? 'Построить на ячейке' : 'Магазин', `<div class="tabs">${tabs}</div>${body}`, [], 'wide');
+    box.querySelectorAll('.tab').forEach((b) => { b.onclick = () => this.openShop(b.dataset.tab, this.shopPlot); });
     box.querySelectorAll('.card[data-type]').forEach((c) => {
       c.onclick = () => {
         if (c.classList.contains('locked')) return;
         this.closeModal();
-        this.app.village.startPlacing(c.dataset.type);
+        this.app.village.startPlacing(c.dataset.type, this.shopPlot);
+      };
+    });
+    box.querySelectorAll('.card[data-wall]').forEach((c) => {
+      c.onclick = () => {
+        if (c.classList.contains('locked')) return;
+        this.closeModal();
+        this.app.act('wallUpgrade').then((r) => { this.toast(r.wallLevel === 1 ? '🧱 Крепостная стена возведена!' : `🧱 Стена укреплена до ${r.wallLevel} ур.!`, 'good'); this.app.sfx('levelup'); });
       };
     });
     box.querySelectorAll('[data-pack]').forEach((b) => { b.onclick = () => this.app.buyPack(b.dataset.pack); });

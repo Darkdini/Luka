@@ -9,6 +9,7 @@ import { achievementStatus, leagueOf, titlesOf } from '../shared/achievements.js
 import { runBattle } from '../shared/sim.js';
 import { db, getPlayer, savePlayer } from './db.js';
 import { rng, tick, lootableBase, GameError, bumpDaily } from './game.js';
+import { PLOTS, CASTLE_POS, ringOpen, wallTiles, cityRect, isRoad } from '../shared/city.js';
 
 const fail = (m) => { throw new GameError(m); };
 
@@ -75,43 +76,29 @@ export function npcBase(level, seed) {
   const r = rng(seed);
   const cl = Math.max(1, Math.min(6, Math.ceil(level * 0.65)));
   const lv = (type) => Math.max(1, Math.min(BUILDINGS[type].maxByCastle[cl - 1] || 1, Math.ceil(level * 0.9)));
-  const blds = [];
-  let id = 1;
-  const occ = new Set();
-  const free = (x, y, s) => {
-    for (let yy = y - 1; yy < y + s + 1; yy++) for (let xx = x - 1; xx < x + s + 1; xx++) if (occ.has(xx * 100 + yy)) return false;
-    return x >= 3 && y >= 3 && x + s <= 41 && y + s <= 41;
-  };
-  const put = (type, x, y) => {
-    const s = BUILDINGS[type].size;
-    for (let yy = y; yy < y + s; yy++) for (let xx = x; xx < x + s; xx++) occ.add(xx * 100 + yy);
-    blds.push({ id: id++, type, level: type === 'castle' ? cl : lv(type), x, y });
-  };
-  const ring = (type, rad) => {
-    for (let t = 0; t < 60; t++) {
-      const a = r() * Math.PI * 2;
-      const x = Math.round(20 + Math.cos(a) * rad * (0.7 + r() * 0.5));
-      const y = Math.round(20 + Math.sin(a) * rad * (0.7 + r() * 0.5));
-      if (free(x, y, BUILDINGS[type].size)) { put(type, x, y); return; }
-    }
-  };
-  put('castle', 20, 20);
+  const blds = [{ id: 1, type: 'castle', level: cl, x: CASTLE_POS.x, y: CASTLE_POS.y }];
+  let id = 2;
+  const open = PLOTS.filter((p) => ringOpen(p.ring, cl));
+  // оборона — в первом кольце (ближе к площади), экономика — дальше
+  const order = [...open].sort((a, b) => a.ring - b.ring || r() - 0.5);
   const counts = (type) => BUILDINGS[type].countByCastle[cl - 1];
-  for (const t of ['archertower', 'ballista', 'magetower', 'trebuchet']) for (let i = 0; i < counts(t); i++) ring(t, 5 + r() * 2);
-  for (const t of ['treasury', 'granary']) for (let i = 0; i < counts(t); i++) ring(t, 6);
-  for (const t of ['goldmine', 'farm']) for (let i = 0; i < Math.min(3, counts(t)); i++) ring(t, 11);
-  for (const t of ['barracks', 'armycamp', 'builderhut']) ring(t, 12);
+  const want = [];
+  for (const t of ['archertower', 'ballista', 'magetower', 'trebuchet']) for (let i = 0; i < counts(t); i++) want.push(t);
+  for (const t of ['treasury', 'granary']) for (let i = 0; i < counts(t); i++) want.push(t);
+  for (const t of ['goldmine', 'farm']) for (let i = 0; i < Math.min(3, counts(t)); i++) want.push(t);
+  want.push('barracks', 'armycamp', 'builderhut');
+  want.slice(0, order.length).forEach((t, i) => blds.push({ id: id++, type: t, level: lv(t), x: order[i].x, y: order[i].y }));
   if (cl >= 2) {
-    const R = cl >= 4 ? 9 : 7;
     const wl = Math.max(1, Math.min(BUILDINGS.wall.maxByCastle[cl - 1], Math.ceil(level / 1.5)));
-    for (let i = -R; i <= R; i++) for (const [x, y] of [[21 + i, 21 - R], [21 + i, 21 + R], [21 - R, 21 + i], [21 + R, 21 + i]]) {
-      if (!occ.has(x * 100 + y) && !blds.some((b) => b.x === x && b.y === y)) {
-        occ.add(x * 100 + y);
-        blds.push({ id: id++, type: 'wall', level: wl, x, y });
-      }
-    }
+    for (const [x, y] of wallTiles(cl)) blds.push({ id: id++, type: 'wall', level: wl, x, y });
   }
-  for (const t of ['trap_spikes', 'trap_barrel', 'trap_bear']) for (let i = 0; i < counts(t); i++) ring(t, 3 + r() * 5);
+  const rect = cityRect(cl);
+  const roads = [];
+  for (let y = rect.y0; y <= rect.y1; y++) for (let x = rect.x0; x <= rect.x1; x++) if (isRoad(x, y, cl)) roads.push([x, y]);
+  for (const t of ['trap_spikes', 'trap_barrel', 'trap_bear']) for (let i = 0; i < counts(t); i++) {
+    const [x, y] = roads[Math.floor(r() * roads.length)];
+    if (!blds.some((b) => b.x === x && b.y === y)) blds.push({ id: id++, type: t, level: 1, x, y });
+  }
   const lootTotal = Math.round(400 * Math.pow(level, 1.7));
   const holders = blds.filter((b) => ['castle', 'treasury', 'granary', 'goldmine', 'farm'].includes(b.type));
   for (const b of holders) {
@@ -130,10 +117,10 @@ function npcDecor(seed) {
   const kinds = ['oak', 'pine', 'bush', 'rock_big', 'rocks', 'stump'];
   const out = [];
   for (let i = 0; i < 26; i++) {
-    const a = r() * Math.PI * 2, d = 15 + r() * 5;
-    out.push({ id: i, kind: kinds[Math.floor(r() * kinds.length)], x: Math.round(21 + Math.cos(a) * d), y: Math.round(21 + Math.sin(a) * d) });
+    const a = r() * Math.PI * 2, d = 19 + r() * 2.5;
+    out.push({ id: i, kind: kinds[Math.floor(r() * kinds.length)], x: Math.round(21.5 + Math.cos(a) * d), y: Math.round(21.5 + Math.sin(a) * d) });
   }
-  return out.filter((o) => o.x >= 1 && o.y >= 1 && o.x < 43 && o.y < 43);
+  return out.filter((o) => o.x >= 0 && o.y >= 0 && o.x < 44 && o.y < 44 && (o.x < 4 || o.y < 4 || o.x > 38 || o.y > 38));
 }
 
 // --- Атаки -------------------------------------------------------------------

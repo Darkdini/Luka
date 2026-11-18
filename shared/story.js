@@ -19,10 +19,11 @@ export const CHARACTERS = {
   shard: { name: 'Осколок Короны', img: 'decor/gems', color: '#47b8ff', filter: 'drop-shadow(0 0 18px #6cf) brightness(1.3)' },
 };
 
-// pos — точка на нарисованной карте кампании (доли ширины/высоты world_map.jpg)
+// pos — остановка на вертикальной карте кампании (доли ширины/высоты campaign.jpg)
+export const HOME_POS = [0.5313, 0.9151];
 export const CHAPTERS = [
   {
-    id: 1, title: 'Пепел на границе', place: 'Сторожевая башня', pos: [0.239, 0.595], castle: 1, level: 1, seed: 101,
+    id: 1, title: 'Пепел на границе', place: 'Сторожевая башня', pos: [0.5877, 0.8463], castle: 1, level: 1, seed: 101,
     reward: { gems: 25, gold: 2000, food: 2000 }, starGems: 10,
     intro: [
       ['narrator', 'Ночь над Валорией выдалась беззвёздной. Над пограничным трактом поднималось зарево — горели хутора.'],
@@ -42,7 +43,7 @@ export const CHAPTERS = [
     ],
   },
   {
-    id: 2, title: 'Лесная тень', place: 'Лесной хутор', pos: [0.389, 0.276], castle: 1, level: 2, seed: 202,
+    id: 2, title: 'Лесная тень', place: 'Лесной хутор', pos: [0.4495, 0.7548], castle: 1, level: 2, seed: 202,
     reward: { gems: 25, gold: 4000, food: 4000 }, starGems: 10,
     intro: [
       ['narrator', 'Следы разбойников уходят в Сумрачный лес — земли эльфов, куда люди не ходят без приглашения.'],
@@ -58,7 +59,7 @@ export const CHAPTERS = [
     ],
   },
   {
-    id: 3, title: 'Логово Клыка', place: 'Кристальная пещера', pos: [0.102, 0.446], castle: 2, level: 3, seed: 303,
+    id: 3, title: 'Логово Клыка', place: 'Кристальная пещера', pos: [0.6408, 0.7057], castle: 2, level: 3, seed: 303,
     reward: { gems: 40, gold: 8000, food: 8000 }, starGems: 15,
     intro: [
       ['narrator', 'Кристальная пещера сияет даже ночью. Здесь Кривой Клык устроил своё логово.'],
@@ -74,7 +75,7 @@ export const CHAPTERS = [
     ],
   },
   {
-    id: 4, title: 'Руны древних', place: 'Древние руины', pos: [0.658, 0.282], castle: 2, level: 3, seed: 404,
+    id: 4, title: 'Руны древних', place: 'Древние руины', pos: [0.5919, 0.5712], castle: 2, level: 3, seed: 404,
     reward: { gems: 40, gold: 12000, food: 12000 }, starGems: 15,
     intro: [
       ['narrator', 'Два осколка жгут ладонь, если держать их рядом. Лиэна говорит: только гномы помнят, как ковалась Корона.'],
@@ -90,7 +91,7 @@ export const CHAPTERS = [
     ],
   },
   {
-    id: 5, title: 'Золото мертвецов', place: 'Заброшенный рудник', pos: [0.873, 0.531], castle: 3, level: 4, seed: 505,
+    id: 5, title: 'Золото мертвецов', place: 'Заброшенный рудник', pos: [0.3507, 0.5144], castle: 3, level: 4, seed: 505,
     reward: { gems: 60, gold: 20000, food: 20000 }, starGems: 20,
     intro: [
       ['narrator', 'Заброшенный рудник на востоке когда-то кормил всю Валорию. Теперь из его штолен по ночам выходят мертвецы.'],
@@ -107,7 +108,7 @@ export const CHAPTERS = [
     ],
   },
   {
-    id: 6, title: 'Мятежная столица', place: 'Мятежная столица', pos: [0.508, 0.351], castle: 3, level: 5, seed: 606,
+    id: 6, title: 'Мятежная столица', place: 'Мятежная столица', pos: [0.7141, 0.4079], castle: 3, level: 5, seed: 606,
     reward: { gems: 60, gold: 30000, food: 30000 }, starGems: 20,
     intro: [
       ['narrator', 'В столице правит хаос. Мятежные лорды заперлись во дворце и делят трон, который им не принадлежит.'],
@@ -136,7 +137,7 @@ export const CHAPTERS = [
     ],
   },
   {
-    id: 7, title: 'Кровь короля', place: 'Гавань туманов', pos: [0.807, 0.84], castle: 4, level: 6, seed: 707,
+    id: 7, title: 'Кровь короля', place: 'Гавань туманов', pos: [0.3645, 0.3260], castle: 4, level: 6, seed: 707,
     reward: { gems: 80, gold: 45000, food: 45000 }, starGems: 25,
     intro: [
       ['narrator', 'Правда о вашем происхождении разносится по Валории быстрее ветра. Одни лорды присягают вам. Другие точат ножи.'],
@@ -152,7 +153,7 @@ export const CHAPTERS = [
     ],
   },
   {
-    id: 8, title: 'Ночь без звёзд', place: 'Чёрный форпост', pos: [0.721, 0.521], castle: 4, level: 7, seed: 808,
+    id: 8, title: 'Ночь без звёзд', place: 'Чёрный форпост', pos: [0.5494, 0.2560], castle: 4, level: 7, seed: 808,
     reward: { gems: 80, gold: 60000, food: 60000 }, starGems: 25,
     intro: [
       ['morvain', 'Здравствуй, племянник. Или мне звать тебя «ваше величество»? Ненадолго, впрочем.'],
@@ -169,7 +170,7 @@ export const CHAPTERS = [
     ],
   },
   {
-    id: 9, title: 'Врата Пепла', place: 'Врата Пепла', pos: [0.679, 0.128], castle: 5, level: 8, seed: 909,
+    id: 9, title: 'Врата Пепла', place: 'Врата Пепла', pos: [0.7035, 0.1782], castle: 5, level: 8, seed: 909,
     reward: { gems: 100, gold: 80000, food: 80000 }, starGems: 30,
     intro: [
       ['narrator', 'Дорога к Цитадели Тёмного лорда идёт через Врата Пепла — крепость, которую стережёт сама Изольда.'],
@@ -194,7 +195,7 @@ export const CHAPTERS = [
     ],
   },
   {
-    id: 10, title: 'Корона Семи Камней', place: 'Цитадель Тёмного лорда', pos: [0.873, 0.101], castle: 6, level: 9, seed: 1010,
+    id: 10, title: 'Корона Семи Камней', place: 'Цитадель Тёмного лорда', pos: [0.5080, 0.0945], castle: 6, level: 9, seed: 1010,
     reward: { gems: 200, gold: 150000, food: 150000 }, starGems: 50,
     intro: [
       ['narrator', 'Цитадель Тёмного лорда встречает вас пурпурной бурей. Шесть осколков горят над её шпилем — не хватает лишь седьмого.'],

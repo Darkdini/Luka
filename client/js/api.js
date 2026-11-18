@@ -25,6 +25,7 @@ async function req(method, url, body) {
 
 export const api = {
   register: (d) => req('POST', '/api/register', d),
+  captcha: () => req('GET', '/api/captcha'),
   login: (d) => req('POST', '/api/login', d),
   me: () => req('GET', '/api/me'),
   act: (action, args = {}) => req('POST', '/api/action', { ...args, action }),

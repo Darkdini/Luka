@@ -2,7 +2,14 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Короны и Крепости">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icons/icon-192.png">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
   <meta name="theme-color" content="#14213d">
   <title>Короны и Крепости</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -32,6 +39,9 @@
           <label>Название замка<input name="castle" maxlength="24" placeholder="Например, Северный Оплот"></label>
           <div class="race-title">Выберите расу</div>
           <div id="race-list"></div>
+          <div class="captcha"><div class="cap-row"><div id="cap-img"></div><button type="button" id="cap-new" class="btn sm" aria-label="Другая картинка">↻</button></div>
+            <label>Код с картинки<input name="captcha" autocomplete="off" autocapitalize="characters" maxlength="6" inputmode="text"></label></div>
+          <input class="hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
         </div>
         <div id="auth-err"></div>
         <button class="btn green big" type="submit"><span class="login-only">Войти</span><span class="reg-only">Основать королевство</span></button>
@@ -43,33 +53,40 @@
 
   <!-- HUD поселения -->
   <div id="hud">
-    <div id="hud-player" title="Мой профиль">
-      <div class="ava-wrap"><img id="p-ava" alt=""><div class="lvl-badge"><span id="p-level">1</span></div></div>
-      <div class="p-info">
-        <div id="p-name">—</div>
-        <div class="p-sub"><span id="p-race" class="race-chip"></span> <span class="tro"><span id="p-league"></span> 🏆 <b id="p-trophies">0</b></span></div>
+    <div id="topbar">
+      <div id="hud-res">
+        <div class="rbar" id="r-gold"><img src="/assets/ui/icon_gold.png" alt=""><b class="v">0</b><i class="fill"></i></div>
+        <div class="rbar" id="r-food"><img src="/assets/ui/icon_food.png" alt=""><b class="v">0</b><i class="fill"></i></div>
+        <div class="rbar gems" id="r-gems"><img src="/assets/ui/icon_gem.png" alt=""><b class="v">0</b><button id="btn-gems" class="plus" aria-label="Купить кристаллы">+</button></div>
+      </div>
+      <div id="toprow">
+        <div id="hud-player" title="Мой профиль">
+          <div class="ava-wrap"><img id="p-ava" alt=""><div class="lvl-badge"><span id="p-level">1</span></div></div>
+          <div class="p-info">
+            <div id="p-name">—</div>
+            <div class="p-sub"><span id="p-race" class="race-chip"></span><span class="tro"><span id="p-league"></span> 🏆 <b id="p-trophies">0</b></span></div>
+          </div>
+        </div>
+        <div class="chips">
+          <div id="shield" class="hidden" title="Защитный щит">🛡 <span></span></div>
+          <div id="builders" title="Свободные строители"></div>
+        </div>
       </div>
     </div>
-    <div id="shield" class="hidden">🛡 <span></span></div>
-    <div id="hud-res">
-      <div class="rbar" id="r-gold"><img src="/assets/ui/icon_gold.png" alt=""><div class="track"><div class="fill"></div></div><b class="v">0</b><i class="cap"></i></div>
-      <div class="rbar" id="r-food"><img src="/assets/ui/icon_food.png" alt=""><div class="track"><div class="fill"></div></div><b class="v">0</b><i class="cap"></i></div>
-      <div class="rbar gems" id="r-gems"><img src="/assets/ui/icon_gem.png" alt=""><b class="v">0</b><button id="btn-gems" class="plus" aria-label="Купить кристаллы">+</button></div>
-    </div>
-    <div id="builders" title="Свободные строители"></div>
     <div id="hud-side">
+      <button class="rbtn daily" id="btn-daily" title="Ежедневные награды">🎁</button>
+      <button class="rbtn emo" id="btn-ach" title="Достижения">🏅<span class="badge hidden"></span></button>
       <button class="rbtn" id="btn-chat" title="Чат"><img src="/assets/ui/btn_mail.png" alt="Чат"><span class="badge hidden"></span></button>
       <button class="rbtn" id="btn-top" title="Рейтинг"><img src="/assets/ui/btn_trophy.png" alt="Рейтинг"></button>
       <button class="rbtn" id="btn-reports" title="Отчёты"><img src="/assets/ui/btn_stats.png" alt="Отчёты"><span class="badge hidden"></span></button>
-      <button class="rbtn emo" id="btn-ach" title="Достижения">🏅<span class="badge hidden"></span></button>
       <button class="rbtn" id="btn-settings" title="Настройки"><img src="/assets/ui/btn_settings.png" alt="Настройки"></button>
-      <button class="rbtn daily" id="btn-daily" title="Ежедневные награды">🎁</button>
     </div>
-    <button id="btn-attack" class="big-action"><span class="ba-ico">🗺</span><span>Карта мира</span></button>
-    <button id="btn-story" class="story-action"><span class="ba-ico">📜</span><span>Сюжет</span></button>
-    <div id="hud-br">
-      <button id="btn-army" class="sq-action"><span class="ba-ico">🛡</span><span>Армия</span><small id="army-count"></small><small id="army-timer"></small></button>
-      <button id="btn-shop" class="sq-action shop"><span class="ba-ico">🏪</span><span>Магазин</span></button>
+    <div id="dock">
+      <button id="btn-attack" class="dbtn map"><span class="ba-ico">🗺</span><span>Карта</span></button>
+      <button id="btn-story" class="dbtn story"><span class="ba-ico">📜</span><span>Сюжет</span></button>
+      <i class="spacer"></i>
+      <button id="btn-army" class="dbtn army"><span class="ba-ico">🛡</span><span>Армия</span><small id="army-count"></small><small id="army-timer"></small></button>
+      <button id="btn-shop" class="dbtn shop"><span class="ba-ico">🏪</span><span>Магазин</span></button>
     </div>
     <div id="advisor" class="hidden">
       <img class="adv-ava" src="/assets/heroes/knight_portrait.png" alt="Советник">
@@ -81,7 +98,7 @@
       <button class="btn sm green adv-claim hidden">Забрать!</button>
     </div>
     <div id="selbar"></div>
-    <div id="placebar"><button id="place-cancel" class="round red" aria-label="Отмена">✖</button><button id="place-ok" class="round green" aria-label="Построить">✔</button></div>
+    <div id="placebar"><span id="place-hint"></span><button id="place-cancel" class="btn sm red" aria-label="Отмена">✖ Отмена</button></div>
   </div>
 
   <!-- HUD боя -->
@@ -116,7 +133,7 @@
 
   <!-- Сюжетная кампания -->
   <div id="campaign">
-    <div id="camp-map"><img src="/assets/bg/world_map.jpg" alt="Карта Валории" draggable="false"></div>
+    <div id="camp-map"><img src="/assets/bg/campaign.jpg" alt="Карта похода" draggable="false"></div>
     <div class="camp-top">
       <button id="camp-back" class="btn sm">⟵ Назад</button>
       <div class="camp-title"><b>Пепел Короны</b><span>Книга первая · <span id="camp-progress"></span></span></div>

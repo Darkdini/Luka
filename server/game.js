@@ -3,11 +3,12 @@
 import {
   BUILDINGS, TROOPS, SPELLS, HEROES, RACES, START, DECOR, DECOR_REMOVE_COST,
   BUILD_MIN, BUILD_MAX, BUILDER_GEM_COST, MAX_BUILDERS, GEMS_FREE, BATTLE,
-  upgradeCost, upgradeTime, gemsForTime, gemsForResources, castleLevelOf, countOf,
+  upgradeCost, upgradeTime, wallCost, gemsForTime, gemsForResources, castleLevelOf, countOf,
   storageCap, armyCapacity, armyUsed, spellCapacity, barracksLevel, collectorCap,
   heroMaxLevel, heroUpgradeCost, heroUpgradeTime, forgeCost, forgeTime,
 } from '../shared/config.js';
 import { achievementStatus } from '../shared/achievements.js';
+import { PLOTS, PLOT, CASTLE_POS, ringOpen, isRoad, wallTiles, plotAt, inPlot, isPlotType, cityRect } from '../shared/city.js';
 import { chapterById } from '../shared/story.js';
 import { TUTORIAL, STREAK, DAILY_BONUS_GEMS, questCtx, dailyQuests, today } from '../shared/quests.js';
 
@@ -54,28 +55,58 @@ export function newPlayerState(race, seed) {
     s.buildings.push(b);
     return b;
   };
-  add('castle', 20, 20);
-  add('builderhut', 16, 17);
-  add('builderhut', 26, 17);
-  add('goldmine', 15, 21);
-  add('farm', 26, 21);
-  add('treasury', 18, 25);
-  add('granary', 22, 25);
-  add('barracks', 20, 16);
-  add('armycamp', 27, 26);
-  add('archertower', 14, 25);
+  add('castle', CASTLE_POS.x, CASTLE_POS.y);
+  // стартовые здания — по ячейкам первого кольца (ближние к площади — первыми)
+  const start = ['barracks', 'goldmine', 'farm', 'archertower', 'treasury', 'granary', 'armycamp', 'builderhut', 'builderhut'];
+  start.forEach((t, i) => add(t, PLOTS[i].x, PLOTS[i].y));
   s.army = { swordsman: 10, crossbowman: 6 };
-  // Декор (деревья, камни) — расчищается за золото, приносит кристаллы
-  const r = rng(seed);
-  let tries = 0;
-  while (s.decor.length < 22 && tries++ < 500) {
-    const x = BUILD_MIN + Math.floor(r() * (BUILD_MAX - BUILD_MIN - 1));
-    const y = BUILD_MIN + Math.floor(r() * (BUILD_MAX - BUILD_MIN - 1));
-    if (Math.abs(x - 21) < 9 && Math.abs(y - 21) < 9) continue;
-    if (!areaFree(s, x, y, 1)) continue;
-    s.decor.push({ id: s.nextId++, kind: DECOR[Math.floor(r() * DECOR.length)], x, y });
-  }
+  s.wallLevel = 0;
+  s.city = 1;
+  s.decor = cityDecor(seed, s);
   return s;
+}
+
+// Декор: заросли на закрытых ячейках (расчистка = кристаллы) и лес за стеной
+const DECOR_KINDS = ['oak', 'pine', 'bush', 'rock_big', 'rocks', 'stump', 'mushrooms', 'log'];
+export function cityDecor(seed, s) {
+  const r = rng(seed);
+  const out = [];
+  const taken = new Set(s.buildings.map((b) => b.x * 100 + b.y));
+  for (const p of PLOTS) {
+    if (p.ring < 2 || taken.has(p.x * 100 + p.y)) continue;
+    const n = 1 + (r() < 0.5 ? 1 : 0);
+    for (let k = 0; k < n; k++) {
+      out.push({ id: s.nextId++, kind: DECOR_KINDS[Math.floor(r() * DECOR_KINDS.length)], x: p.x + (k ? 2 : Math.floor(r() * 2)), y: p.y + (k ? Math.floor(r() * 3) : 1 + Math.floor(r() * 2)) });
+    }
+  }
+  return out;
+}
+
+// Перевод старых сохранений на планировку с ячейками
+export function migrateCity(s) {
+  if (s.city) return;
+  const cl = castleLevelOf(s);
+  const walls = s.buildings.filter((b) => b.type === 'wall');
+  s.wallLevel = walls.reduce((m, b) => Math.max(m, b.level), 0);
+  const traps = s.buildings.filter((b) => b.type.startsWith('trap_'));
+  const rest = s.buildings.filter((b) => isPlotType(b.type));
+  const castle = s.buildings.find((b) => b.type === 'castle');
+  if (castle) { castle.x = CASTLE_POS.x; castle.y = CASTLE_POS.y; }
+  let pi = 0;
+  for (const b of rest) {
+    const p = PLOTS[pi++];
+    if (!p) break;
+    b.x = p.x; b.y = p.y;
+  }
+  const keep = new Set([castle, ...rest.slice(0, PLOTS.length)]);
+  // ловушки — на свободные клетки дорог
+  const roads = [];
+  const rect = cityRect(cl);
+  for (let y = rect.y0; y <= rect.y1; y++) for (let x = rect.x0; x <= rect.x1; x++) if (isRoad(x, y, cl)) roads.push([x, y]);
+  traps.forEach((t, i) => { const rd = roads[(i * 7) % Math.max(1, roads.length)]; if (rd) { t.x = rd[0]; t.y = rd[1]; keep.add(t); } });
+  s.buildings = s.buildings.filter((b) => keep.has(b));
+  s.city = 1;
+  s.decor = cityDecor(s.nextId * 31, s);
 }
 
 // Старые сохранения дополняются новыми полями
@@ -87,6 +118,8 @@ export function migrate(s) {
   s.story = s.story || {};
   s.npc = s.npc || {};
   s.tutorial = s.tutorial || 0;
+  s.wallLevel = s.wallLevel || 0;
+  migrateCity(s);
   s.streak = s.streak || { count: 0, last: 0 };
   ensureDaily(s);
   return s;
@@ -103,7 +136,7 @@ export function bumpDaily(s, key, n = 1) {
   d.c[key] = (d.c[key] || 0) + n;
 }
 function questContext(s) {
-  return questCtx({ buildings: s.buildings, stats: s.stats, story: s.story, achClaimed: Object.values(s.achievements).reduce((a, v) => a + v, 0) });
+  return questCtx({ buildings: s.buildings, stats: s.stats, story: s.story, achClaimed: Object.values(s.achievements).reduce((a, v) => a + v, 0), wallLevel: s.wallLevel });
 }
 function grant(s, r) {
   if (r.gems) s.res.gems += r.gems;
@@ -171,16 +204,19 @@ function addRes(s, res, amount) {
   return s.res[res] - before;
 }
 
-export function areaFree(s, x, y, size, ignoreId = null) {
-  if (x < BUILD_MIN || y < BUILD_MIN || x + size > BUILD_MAX || y + size > BUILD_MAX) return false;
-  for (const b of s.buildings) {
-    if (b.id === ignoreId) continue;
-    const bs = BUILDINGS[b.type].size;
-    if (x < b.x + bs && x + size > b.x && y < b.y + bs && y + size > b.y) return false;
-  }
-  for (const d of s.decor) if (d.x >= x && d.x < x + size && d.y >= y && d.y < y + size) return false;
-  return true;
+// Ячейка свободна: открыта, без здания и без зарослей
+export function plotFree(s, x, y, ignoreId = null) {
+  const p = plotAt(x, y);
+  if (!p || !ringOpen(p.ring, castleLevelOf(s))) return false;
+  if (s.buildings.some((b) => b.id !== ignoreId && isPlotType(b.type) && b.x === x && b.y === y)) return false;
+  return !s.decor.some((d) => d.x >= x && d.x < x + PLOT && d.y >= y && d.y < y + PLOT);
 }
+export function roadFree(s, x, y) {
+  if (!isRoad(x, y, castleLevelOf(s))) return false;
+  return !s.buildings.some((b) => b.type.startsWith('trap_') && b.x === x && b.y === y);
+}
+// совместимость (тесты, старый код)
+export function areaFree(s, x, y) { return plotFree(s, x, y); }
 
 // --- Действия игрока ------------------------------------------------------------
 export const actions = {
@@ -191,7 +227,9 @@ export const actions = {
     const cl = castleLevelOf(s);
     const limit = def.countByCastle[cl - 1];
     if (countOf(s, type) >= limit) fail('Достигнут лимит. Улучшите Цитадель');
-    if (!areaFree(s, x, y, def.size)) fail('Место занято');
+    if (type === 'wall') fail('Стену улучшают целиком');
+    if (def.cat === 'trap') { if (!roadFree(s, x, y)) fail('Ловушку ставят на свободную дорогу'); }
+    else if (!plotFree(s, x, y)) fail(inPlot(x, y) && s.decor.some((d) => inPlot(d.x, d.y) === inPlot(x, y)) ? 'Сначала расчистите ячейку' : 'Ячейка занята или закрыта');
     if (type === 'builderhut') {
       const n = countOf(s, 'builderhut');
       if (n >= MAX_BUILDERS) fail('Максимум строителей');
@@ -224,10 +262,16 @@ export const actions = {
     else b.up = { to, end: Date.now() + time * 1000, total: time };
   },
 
-  // Улучшить сразу ряд стен (выделение линии)
-  upgradeWalls(s, { ids }) {
-    if (!Array.isArray(ids) || ids.length > 60) fail('Неверный запрос');
-    for (const id of ids) actions.upgrade(s, { id });
+  // Крепостная стена: строится и улучшается целиком, мгновенно
+  wallUpgrade(s) {
+    const cl = castleLevelOf(s);
+    const max = BUILDINGS.wall.maxByCastle[cl - 1];
+    if (!max) fail('Стена откроется на Цитадели 2 ур.');
+    if (s.wallLevel >= max) fail('Сначала улучшите Цитадель');
+    pay(s, 'gold', wallCost(s.wallLevel + 1));
+    s.wallLevel++;
+    s.stats.upgrades++;
+    return { wallLevel: s.wallLevel };
   },
 
   speedup(s, { id }) {
@@ -239,10 +283,20 @@ export const actions = {
     tick(s);
   },
 
+  // Переставить здание в другую ячейку (если там здание — поменять местами)
   move(s, { id, x, y }) {
     const b = s.buildings.find((v) => v.id === id) || fail('Здание не найдено');
     x |= 0; y |= 0;
-    if (!areaFree(s, x, y, BUILDINGS[b.type].size, b.id)) fail('Место занято');
+    if (b.type.startsWith('trap_')) {
+      if (!roadFree(s, x, y)) fail('Нужна свободная дорога');
+      b.x = x; b.y = y; return;
+    }
+    if (!isPlotType(b.type)) fail('Это здание не переносится');
+    const p = plotAt(x, y);
+    if (!p || !ringOpen(p.ring, castleLevelOf(s))) fail('Ячейка закрыта');
+    if (s.decor.some((d) => d.x >= x && d.x < x + PLOT && d.y >= y && d.y < y + PLOT)) fail('Сначала расчистите ячейку');
+    const other = s.buildings.find((v) => v.id !== b.id && isPlotType(v.type) && v.x === x && v.y === y);
+    if (other) { other.x = b.x; other.y = b.y; }
     b.x = x; b.y = y;
   },
 
@@ -457,7 +511,13 @@ export function lootableBase(s) {
     }
     out.push({ id: b.id, type: b.type, level: b.level, x: b.x, y: b.y, loot, collector });
   }
+  out.push(...wallBuildings(s.wallLevel, castleLevelOf(s)));
   return out;
+}
+
+export function wallBuildings(level, castleLevel) {
+  if (!level) return [];
+  return wallTiles(castleLevel).map(([x, y], i) => ({ id: 100000 + i, type: 'wall', level, x, y }));
 }
 
 // Публичный вид состояния для клиента (+вычисляемые поля).
@@ -468,7 +528,7 @@ export function view(p) {
     realm: p.realm, plot: p.plot,
     res: s.res,
     caps: { gold: storageCap(s, 'gold'), food: storageCap(s, 'food') },
-    buildings: s.buildings, decor: s.decor,
+    buildings: s.buildings, decor: s.decor, wallLevel: s.wallLevel,
     builders: { total: builders(s), busy: busy(s) },
     army: s.army, training: s.training, armyCap: armyCapacity(s),
     spells: s.spells, brewing: s.brewing, spellCap: spellCapacity(s),

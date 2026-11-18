@@ -22,7 +22,7 @@ export class Engage {
   }
 
   ctx(me) {
-    return questCtx({ buildings: me.buildings, stats: me.stats, story: me.story, achClaimed: (me.achievements || []).reduce((a, x) => a + x.claimed, 0) });
+    return questCtx({ buildings: me.buildings, stats: me.stats, story: me.story, achClaimed: (me.achievements || []).reduce((a, x) => a + x.claimed, 0), wallLevel: me.wallLevel });
   }
 
   // --- Плавные счётчики ---------------------------------------------------------

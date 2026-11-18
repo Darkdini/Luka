@@ -79,10 +79,10 @@ export const RACES = {
 const D = (o) => ({ size: 3, tiers: 3, hp: 600, costMul: 1, timeMul: 1, res: 'gold', ...o });
 
 export const BUILDINGS = {
-  castle: D({ name: 'Цитадель', cat: 'castle', size: 4, tiers: 6, hp: 2000, costMul: 4, timeMul: 2,
+  castle: D({ name: 'Цитадель', cat: 'castle', size: 5, tiers: 6, hp: 2000, costMul: 4, timeMul: 2,
     maxByCastle: [1, 2, 3, 4, 5, 6], countByCastle: [1, 1, 1, 1, 1, 1], storage: [1500, 4000, 8000, 15000, 25000, 40000],
     desc: 'Сердце королевства. Улучшение открывает новые здания и уровни.' }),
-  builderhut: D({ name: 'Хижина строителя', cat: 'other', size: 2, tiers: 1, hp: 250, sprite: 'builderhut',
+  builderhut: D({ name: 'Хижина строителя', cat: 'other', size: 3, tiers: 1, hp: 250, sprite: 'builderhut',
     maxByCastle: [1, 1, 1, 1, 1, 1], countByCastle: [5, 5, 5, 5, 5, 5],
     desc: 'Каждая хижина — один строитель. Больше строителей — больше строек одновременно.' }),
   goldmine: D({ name: 'Золотой рудник', cat: 'resource', res: 'food', costMul: 0.6, timeMul: 0.7, hp: 450,
@@ -104,7 +104,7 @@ export const BUILDINGS = {
   barracks: D({ name: 'Казармы', cat: 'army', res: 'gold', tiers: 1, hp: 700,
     maxByCastle: [2, 4, 5, 6, 7, 8], countByCastle: [1, 1, 2, 2, 3, 3], queue: [10, 15, 20, 25, 30, 35, 40, 45],
     desc: 'Обучают войска. Уровень открывает новые типы воинов.' }),
-  armycamp: D({ name: 'Военный лагерь', cat: 'army', res: 'gold', size: 4, tiers: 1, hp: 500, costMul: 0.9,
+  armycamp: D({ name: 'Военный лагерь', cat: 'army', res: 'gold', size: 3, tiers: 1, hp: 500, costMul: 0.9,
     housing: [20, 30, 40, 50, 60, 70], maxByCastle: [1, 2, 3, 4, 5, 6], countByCastle: [1, 1, 2, 2, 3, 4],
     desc: 'Вмещает армию. Больше лагерей — больше воинов в атаке.' }),
   forge: D({ name: 'Кузница', cat: 'army', res: 'food', tiers: 1, hp: 650, costMul: 1.4,
@@ -132,9 +132,9 @@ export const BUILDINGS = {
     maxByCastle: [0, 0, 2, 4, 6, 8], countByCastle: [0, 0, 1, 1, 2, 3],
     def: { range: 5.5, interval: 1.6, dmg: 26, splash: 1.1, air: true, ground: true },
     desc: 'Магические заряды поражают группы врагов — и на земле, и в небе.' }),
-  wall: D({ name: 'Стена', cat: 'wall', size: 1, tiers: 4, hp: 350, costMul: 0.35, timeMul: 0,
-    maxByCastle: [0, 2, 3, 4, 6, 8], countByCastle: [0, 25, 50, 75, 100, 150],
-    desc: 'Задерживает наземные войска. Улучшается мгновенно.' }),
+  wall: D({ name: 'Крепостная стена', cat: 'wall', size: 1, tiers: 4, hp: 350, costMul: 0.35, timeMul: 0,
+    maxByCastle: [0, 2, 3, 4, 6, 8], countByCastle: [0, 1, 1, 1, 1, 1],
+    desc: 'Опоясывает город и растёт вместе с ним. Улучшается целиком и мгновенно.' }),
   trap_spikes: D({ name: 'Шипы', cat: 'trap', size: 1, tiers: 1, hp: 1, costMul: 0.3, timeMul: 0.2, sprite: 'trap_spikes',
     maxByCastle: [0, 1, 2, 2, 3, 3], countByCastle: [0, 2, 2, 3, 4, 4],
     trap: { radius: 1.2, dmg: 60, ground: true },
@@ -166,6 +166,10 @@ export const upgradeCost = (type, toLevel) => {
   if (b.cat === 'wall') return Math.round([50, 300, 1200, 4000, 10000, 22000, 45000, 80000][toLevel - 1] ?? 120000);
   return Math.round(COST_TABLE[Math.min(toLevel - 1, COST_TABLE.length - 1)] * b.costMul);
 };
+// Стена улучшается целиком: цена одной секции × коэффициент
+export const WALL_SEGMENTS_MUL = 30;
+export const wallCost = (toLevel) => upgradeCost('wall', toLevel) * WALL_SEGMENTS_MUL;
+
 export const upgradeTime = (type, toLevel) => {
   const b = BUILDINGS[type];
   if (b.cat === 'castle' && toLevel === 1) return 0;

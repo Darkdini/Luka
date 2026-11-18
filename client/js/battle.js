@@ -3,6 +3,7 @@ import { BUILDINGS, TROOPS, HEROES, SPELLS, BATTLE, GRID, fmt } from '/shared/co
 import { createBattle, step, canDeployAt, percent } from '/shared/sim.js';
 import { iso, TW, TH } from './scene.js';
 import { img } from './assets.js';
+import { inPlot, ringOpen } from '/shared/city.js';
 
 const UNIT_H = { swordsman: 1.3, crossbowman: 1.3, thief: 1.25, shieldbearer: 1.75, sapper: 1.3, battlemage: 1.5, priest: 1.6, ram: 1.9, griffin: 2.3, knight: 2.1, huntress: 2.0, runesmith: 1.9, sorceress: 2.0 };
 const TICK = 1 / BATTLE.tickRate;
@@ -31,6 +32,8 @@ export class Battle {
     this.lootMax = { gold: 0, food: 0 };
     for (const b of data.base.buildings) if (b.loot) { this.lootMax.gold += b.loot.gold; this.lootMax.food += b.loot.food; }
     this.walls = new Set(this.S.bld.filter((b) => b.cat === 'wall').map((b) => b.x * 100 + b.y));
+    this.castleLevel = this.S.bld.find((b) => b.cat === 'castle')?.level || 1;
+    this.occupied = new Set(this.S.bld.filter((b) => b.cat !== 'wall' && b.cat !== 'trap' && b.cat !== 'castle').map((b) => b.x + ',' + b.y));
     const s = this.scene;
     s.on('drag', (p, g) => { this.holding = g; });
     s.on('drop', () => { this.holding = null; });
@@ -43,6 +46,11 @@ export class Battle {
     });
     s.on('tap', (p, g) => { if (!this.sel) this.app.ui.toast('Выберите отряд внизу экрана'); });
     this.app.ui.battleHud(this);
+  }
+
+  lockedDecor(d) {
+    const p = inPlot(d.x, d.y);
+    return p && !ringOpen(p.ring, this.castleLevel);
   }
 
   select(card) { this.sel = card; this.app.ui.battleCards(this); }
@@ -145,7 +153,8 @@ export class Battle {
     const alpha = this.started && !S.over ? Math.min(1, this.acc / TICK) : 1;
     s.begin();
     s.drawBackground();
-    for (const d of this.data.base.decor || []) s.drawDecor(d);
+    s.drawCity(this.castleLevel, false, this.occupied);
+    for (const d of this.data.base.decor || []) if (!this.lockedDecor(d)) s.drawDecor(d);
     // зона высадки: подсвечиваем запретные клетки
     if (this.sel && this.sel.kind !== 'spell' && this.sel.kind !== 'ability' || this.showZone > 0) {
       this.showZone = Math.max(0, this.showZone - dt);
@@ -198,7 +207,7 @@ export class Battle {
   drawBld(b) {
     const s = this.scene;
     s.drawBuilding(b, {
-      dead: b.dead, walls: this.walls, noPad: b.cat === 'wall',
+      dead: b.dead, walls: this.walls, noPad: true,
       flash: this.flash.has('b' + b.i), frozen: b.frozen > 0,
       lift: this.flash.has('f' + b.i) ? 2 : 0,
     });

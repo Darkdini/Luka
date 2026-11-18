@@ -1,6 +1,7 @@
 // Изометрическая сцена: камера, ввод, отрисовка базы, юнитов и эффектов.
 import { BUILDINGS, GRID, spriteFor } from '/shared/config.js';
 import { img } from './assets.js';
+import { PLOTS, PLOT, PLAZA, RING_UNLOCK, ringOpen, cityRect, isRoad, inPlot, maxRing } from '/shared/city.js';
 
 export const TW = 64, TH = 32;
 export const iso = (gx, gy) => ({ x: (gx - gy) * TW / 2, y: (gx + gy) * TH / 2 });
@@ -29,11 +30,20 @@ export class Scene {
     this.fitZoom();
   }
 
+  get portrait() { return this.h > this.w; }
+
   fitZoom() {
-    const minZ = Math.max(this.w / (GRID * TW * 1.15), this.h / (GRID * TH * 1.35));
-    this.minZ = Math.max(0.25, minZ);
+    // в портрете база шире экрана: разрешаем отдалить до ~3/4 ширины базы
+    const minZ = this.portrait ? this.w / (GRID * TW * 0.72) : Math.max(this.w / (GRID * TW * 1.15), this.h / (GRID * TH * 1.35));
+    this.minZ = Math.max(0.18, minZ);
     this.maxZ = 1.6;
     this.cam.z = Math.max(this.minZ, Math.min(this.maxZ, this.cam.z));
+  }
+
+  // Удобный стартовый масштаб: на телефоне база видна целиком по ширине ядра
+  defaultZoom(kind) {
+    if (this.portrait) return Math.max(this.minZ, Math.min(0.7, this.w / (TW * (kind === 'battle' ? 20 : 16))));
+    return Math.max(this.minZ, kind === 'battle' ? 0.85 : 0.62);
   }
 
   toScreen(wx, wy) { return { x: (wx - this.cam.x) * this.cam.z + this.w / 2, y: (wy - this.cam.y) * this.cam.z + this.h / 2 }; }
@@ -132,7 +142,9 @@ export class Scene {
       this.shakeP *= 0.86;
     } else this.shakeP = 0;
     c.setTransform(1, 0, 0, 1, 0, 0);
-    c.fillStyle = '#2d6a2f';
+    const g = c.createLinearGradient(0, 0, 0, this.cv.height);
+    g.addColorStop(0, '#8fc3ea'); g.addColorStop(0.5, '#4f8f3a'); g.addColorStop(1, '#2a76b8');
+    c.fillStyle = g;
     c.fillRect(0, 0, this.cv.width, this.cv.height);
     c.setTransform(this.dpr * this.cam.z, 0, 0, this.dpr * this.cam.z,
       this.dpr * (this.w / 2 - this.cam.x * this.cam.z + sx), this.dpr * (this.h / 2 - this.cam.y * this.cam.z + sy));
@@ -146,6 +158,88 @@ export class Scene {
       const k = half / BG.halfW;
       c.drawImage(bg, -BG.cx * k, GRID * TH / 2 - BG.cy * k, bg.width * k, bg.height * k);
     }
+  }
+
+  // --- Город: дороги, ячейки, площадь (рисуется один раз в кэш) ---------------
+  // occupied — Set "x,y" ячеек, где стоят здания (под ними — каменный фундамент)
+  drawCity(castleLevel, own = true, occupied = new Set()) {
+    const key = castleLevel + (own ? 'o' : 'e') + [...occupied].sort().join('|');
+    if (!this.cityCache || this.cityCache.key !== key) this.cityCache = { key, cv: this.renderCity(castleLevel, own, occupied) };
+    const cc = this.cityCache.cv;
+    this.ctx.drawImage(cc.cv, cc.left, cc.top);
+  }
+
+  renderCity(cl, own, occupied) {
+    const left = -GRID * TW / 2 - TW, top = -TH * 2;
+    const cv = document.createElement('canvas');
+    cv.width = GRID * TW + TW * 2; cv.height = GRID * TH + TH * 4;
+    const c = cv.getContext('2d');
+    c.translate(-left, -top);
+    const R = cityRect(cl);
+    const rnd = (x, y, k) => { let h = (x * 374761393 + y * 668265263 + k * 97) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+    const tile = (x, y, fill) => {
+      const a = iso(x, y), b = iso(x + 1, y), d = iso(x + 1, y + 1), e = iso(x, y + 1);
+      c.beginPath(); c.moveTo(a.x, a.y - 0.5); c.lineTo(b.x + 0.7, b.y); c.lineTo(d.x, d.y + 0.5); c.lineTo(e.x - 0.7, e.y); c.closePath();
+      c.fillStyle = fill; c.fill();
+    };
+    // мощёные дороги
+    for (let y = R.y0; y <= R.y1; y++) for (let x = R.x0; x <= R.x1; x++) {
+      if (!isRoad(x, y, cl)) continue;
+      const v = rnd(x, y, 1);
+      tile(x, y, v > 0.5 ? '#b9aa90' : '#b2a389');
+      const o = iso(x + 0.5, y + 0.5);
+      for (let k = 0; k < 6; k++) {
+        const dx = (rnd(x, y, k + 2) - 0.5) * TW * 0.62, dy = (rnd(x, y, k + 9) - 0.5) * TH * 0.62;
+        if (Math.abs(dx) / (TW / 2) + Math.abs(dy) / (TH / 2) > 0.8) continue;
+        c.fillStyle = rnd(x, y, k + 20) > 0.5 ? '#9a8b72' : '#c8bba2';
+        c.beginPath(); c.ellipse(o.x + dx, o.y + dy, 6 + rnd(x, y, k) * 4, 3 + rnd(x, y, k + 5) * 2, 0, 0, Math.PI * 2); c.fill();
+      }
+    }
+    // бордюр по краю дорог
+    c.strokeStyle = 'rgba(80,66,48,0.55)'; c.lineWidth = 2;
+    for (let y = R.y0 - 1; y <= R.y1 + 1; y++) for (let x = R.x0 - 1; x <= R.x1 + 1; x++) {
+      if (!isRoad(x, y, cl)) continue;
+      const edge = (nx, ny, p1, p2) => { if (!isRoad(nx, ny, cl)) { c.beginPath(); c.moveTo(p1.x, p1.y); c.lineTo(p2.x, p2.y); c.stroke(); } };
+      edge(x - 1, y, iso(x, y), iso(x, y + 1)); edge(x + 1, y, iso(x + 1, y), iso(x + 1, y + 1));
+      edge(x, y - 1, iso(x, y), iso(x + 1, y)); edge(x, y + 1, iso(x, y + 1), iso(x + 1, y + 1));
+    }
+    // площадь Цитадели
+    const plaza = img('city/plaza') || img('pads/pad_l');
+    const drawPad = (im, x, y, size, k = 1.1) => {
+      if (!im) return;
+      const t = iso(x, y), w = size * TW * k, h = im.height * w / im.width;
+      c.drawImage(im, t.x - w / 2, t.y + size * TH / 2 - h * 0.43, w, h);
+    };
+    drawPad(plaza, PLAZA.x, PLAZA.y, PLAZA.size, 1.12);
+    // ячейки: открытые — каменные площадки, закрытые — заросшие с замком
+    const pad = img('city/plot') || img('pads/pad_m');
+    const locked = img('city/plot_locked');
+    for (const p of PLOTS) {
+      if (ringOpen(p.ring, cl)) {
+        if (occupied.has(p.x + ',' + p.y)) drawPad(pad, p.x, p.y, PLOT, 1.1);
+        else {
+          // свободная ячейка — едва заметная утоптанная площадка, без столбиков
+          const a = iso(p.x, p.y), b2 = iso(p.x + PLOT, p.y), d = iso(p.x + PLOT, p.y + PLOT), e = iso(p.x, p.y + PLOT);
+          c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(b2.x, b2.y); c.lineTo(d.x, d.y); c.lineTo(e.x, e.y); c.closePath();
+          c.fillStyle = 'rgba(150,125,80,0.22)'; c.fill();
+          c.setLineDash([7, 6]); c.strokeStyle = 'rgba(255,245,210,0.45)'; c.lineWidth = 2; c.stroke(); c.setLineDash([]);
+        }
+      }
+      else if (own && p.ring === maxRing(cl) + 1) {
+        // замок только на следующем кольце — понятно, что откроется дальше
+        if (locked) { c.globalAlpha = 0.55; drawPad(locked, p.x, p.y, PLOT, 1.0); c.globalAlpha = 1; }
+      }
+    }
+    return { cv, left, top };
+  }
+
+  // Подсветка ячеек/дорог в режиме выбора места
+  highlight(cells, color, t) {
+    const c = this.ctx;
+    c.save();
+    c.globalAlpha = 0.35 + 0.2 * Math.sin(t * 6);
+    for (const [x, y, size] of cells) this.diamond(x, y, size, size, color, '#fff');
+    c.restore();
   }
 
   drawGrid(alpha = 0.12, from = 0, to = GRID) {

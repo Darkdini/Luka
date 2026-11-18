@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { runBattle, createBattle, step } from '../shared/sim.js';
 import { npcBase } from '../server/world.js';
 import { newPlayerState, tick, actions, lootableBase } from '../server/game.js';
+import { PLOTS } from '../shared/city.js';
 
 const attacker = { army: { swordsman: 20, crossbowman: 10, shieldbearer: 2, sapper: 2 }, spells: { fireball: 1 }, heroes: { knight: { level: 3 } }, troopLevels: {}, race: 'humans' };
 const log = [];
@@ -38,7 +39,8 @@ test('экономика: стройка, сбор, обучение', () => {
   assert.ok(s.res.gold > 3000);
   actions.train(s, { k: 'swordsman', n: 2 });
   assert.equal(s.training.length, 2);
-  actions.place(s, { type: 'builderhut', x: 30, y: 33 });
+  assert.throws(() => actions.place(s, { type: 'builderhut', x: 30, y: 33 }), /Ячейка/);
+  actions.place(s, { type: 'builderhut', x: PLOTS[9].x, y: PLOTS[9].y });
   assert.equal(s.res.gems, 50);
   assert.ok(lootableBase(s).some((b) => b.loot.gold > 0));
 });
@@ -89,4 +91,18 @@ test('обучение и ежедневные награды', () => {
   assert.equal(d.day, 1);
   assert.throws(() => actions.daily(s), /уже получена/);
   assert.ok(s.daily.c.gold > 0, 'сбор засчитан в задание дня');
+});
+
+test('город: ячейки, обмен местами, стена', () => {
+  const s = newPlayerState('dwarves', 3);
+  const a = s.buildings.find((b) => b.type === 'goldmine'), b = s.buildings.find((v) => v.type === 'farm');
+  const [ax, ay] = [a.x, a.y];
+  actions.move(s, { id: a.id, x: b.x, y: b.y });   // поменялись местами
+  assert.deepEqual([b.x, b.y], [ax, ay]);
+  assert.throws(() => actions.wallUpgrade(s), /Цитадели 2/);
+  s.buildings.find((v) => v.type === 'castle').level = 2;
+  s.res.gold = 100000;
+  actions.wallUpgrade(s);
+  assert.equal(s.wallLevel, 1);
+  assert.ok(lootableBase(s).filter((v) => v.type === 'wall').length > 60);
 });

@@ -38,7 +38,7 @@
 
 ## 4. Квартал (база)
 
-- Рисованная ночная панорама, листается пальцем; большая часть квартала во тьме.
+- Город светлый (сумерки, тёплый свет, зелёная трава, красные крыши — как у референса); тьма только над ещё закрытыми зонами.
 - **Зоны** открываются починкой стен/ворот и уровнем Штаба («Зона расчищена»).
 - **Руины** — нажать, расчистить, получить ресурс; на их месте можно строить.
 - **Захваченные здания** — красная метка над зданием → бой героями → починка → новый союзник/функция.
@@ -94,7 +94,7 @@
 
 Промты на графику выдаются **перед каждым этапом**. Общий стиль:
 
-- Хвост: `hyper-realistic 3D CGI, Unreal Engine 5 render, cinematic lighting, realistic skin texture, detailed fabric and leather, dark gothic urban fantasy, modern day, night, cold moonlight with crimson and teal accents, AAA mobile strategy game key art, 8k, razor sharp details`
+- Хвост: `hyper-realistic 3D CGI, Unreal Engine 5 render, cinematic lighting, realistic skin texture, detailed fabric and leather, dark gothic urban fantasy, modern day, warm golden dusk light with soft moonlight, bright readable colors, rich greens and red roofs, not too dark, AAA mobile strategy game key art, 8k, razor sharp details`
 - Негатив: `anime, manga, cartoon, chibi, cel shading, stylized, painterly, flat colors, plastic skin, doll face, big eyes, oversaturated, text, logo, watermark, blurry, extra fingers, deformed hands`
 - Экономия генераций: несколько фигур/объектов на одном листе-сетке.
 - Листы-сетки — на однотонном фоне, здания — `building only, NO ground base`.

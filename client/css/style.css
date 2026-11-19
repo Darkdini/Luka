@@ -788,3 +788,14 @@ html, body { background: #07060a; }
 .fx-sign .fx-mentor { position: static; transform: none; text-align: center; margin-top: 4px; }
 .fx-sign { width: min(48vw, 240px); }
 .fx-hero { height: min(66vh, 600px); }
+/* светлее: картинки без лишнего затемнения, панели полупрозрачнее */
+#loading::before { background: linear-gradient(rgba(7,6,10,0), rgba(7,6,10,0) 60%, rgba(7,6,10,.7) 92%); }
+#loading, #agree, #intro, #factions, #auth { filter: brightness(1.12) saturate(1.08); }
+.fx-bg::after { background: linear-gradient(rgba(7,6,10,0), rgba(7,6,10,0) 65%, rgba(7,6,10,.75) 92%); }
+#intro::after { background: linear-gradient(transparent 70%, rgba(7,6,10,.8) 92%); }
+#agree { background: linear-gradient(rgba(7,6,10,.25), rgba(7,6,10,.55)), url(/assets/night/splash.jpg) center / cover; }
+#auth { background: linear-gradient(rgba(7,6,10,.2), rgba(7,6,10,.55)), url(/assets/night/splash.jpg) center top / cover; }
+.agree-box, #auth .auth-box, .fx-card { background: linear-gradient(rgba(38,33,40,.9), rgba(24,21,27,.9)); }
+.modal, .dlg-box, #advisor { background: linear-gradient(#2a2530, #1d1a22); }
+.card, .chip, .dq, .ach, .report, .pf-stat, .medal, .hero-card, .cal, .shop-hint, .ch-rewards, .ch-teaser, .unlocks { background: linear-gradient(#302a35, #231f28) !important; }
+#dialog { background: linear-gradient(rgba(7,6,10,0), rgba(7,6,10,.55)), url(/assets/night/splash.jpg) center / cover; }

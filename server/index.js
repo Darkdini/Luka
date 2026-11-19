@@ -59,7 +59,8 @@ app.post('/api/register', wrap((req) => {
   const bad = checkUsername(username) || checkPasswordRule(password) || checkCastleName(castleName);
   if (bad) throw new GameError(bad);
   const cname = String(castleName).trim().replace(/\s+/g, ' ');
-  if (!RACES[race]) throw new GameError('Выберите расу');
+  if (!Object.keys(RACES).includes(race)) throw new GameError('Выберите фракцию');
+  if (!req.body?.agree) throw new GameError('Нужно принять условия использования');
   if (getPlayerByName(username)) throw new GameError('Имя уже занято');
   const now = Date.now();
   const spot = findSpot(now);

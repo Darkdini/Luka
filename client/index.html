@@ -6,28 +6,83 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Короны и Крепости">
+  <meta name="apple-mobile-web-app-title" content="Чёрная Луна">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icons/icon-192.png">
   <link rel="apple-touch-icon" href="/icons/icon-192.png">
-  <meta name="theme-color" content="#14213d">
-  <title>Короны и Крепости</title>
+  <meta name="theme-color" content="#0b0a0e">
+  <title>Чёрная Луна</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;600;800;900&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;600;800;900&family=Cinzel:wght@600;700&display=swap">
   <link rel="stylesheet" href="/css/style.css">
 </head>
 <body data-mode="village">
   <!-- Загрузка -->
   <div id="loading">
-    <div class="logo"><span>Короны</span><small>и</small><span>Крепости</span></div>
-    <div class="load-bar"><div id="load-fill"></div></div>
-    <p id="load-tip">Готовим королевство…</p>
+    <img class="emblem" src="/assets/night/ui/emblem.png" alt="">
+    <div class="game-title">Чёрная Луна</div>
+    <div class="load-wrap">
+      <div class="load-bar"><div id="load-fill"></div></div>
+      <p id="load-stage">Пробуждение…</p>
+      <p id="load-tip"></p>
+    </div>
+    <div class="legal-links"><a href="/legal/privacy.html" target="_blank">Политика конфиденциальности</a> и <a href="/legal/terms.html" target="_blank">Условия использования</a></div>
+  </div>
+
+  <!-- Соглашение -->
+  <div id="agree" class="night-screen">
+    <div class="agree-box">
+      <h2>Условия использования</h2>
+      <div class="agree-text">
+        <p>Перед началом игры ознакомьтесь с <a href="/legal/terms.html" target="_blank">Пользовательским соглашением</a> и <a href="/legal/privacy.html" target="_blank">Политикой конфиденциальности</a>.</p>
+        <p>Нажимая «Принять», вы соглашаетесь с ними и даёте согласие на обработку данных, необходимых для работы игры:</p>
+        <ul>
+          <li>ник, название замка и пароль (хранится только в зашифрованном виде);</li>
+          <li>игровой прогресс, покупки и сообщения в чате;</li>
+          <li>IP-адрес — для защиты от массовых регистраций и взлома.</li>
+        </ul>
+        <p>Мы не продаём данные третьим лицам. Удалить аккаунт и данные можно по запросу в поддержку.</p>
+      </div>
+      <button class="nbtn gold" id="agree-ok">Принять</button>
+      <button class="nbtn ghost" id="agree-no">Отказаться</button>
+    </div>
+  </div>
+
+  <!-- Вступление -->
+  <div id="intro" class="night-screen">
+    <div class="intro-slide"></div>
+    <div class="intro-text"></div>
+    <button id="intro-skip" class="skip">Пропустить ›</button>
+    <div class="intro-dots"></div>
+  </div>
+
+  <!-- Выбор фракции -->
+  <div id="factions" class="night-screen">
+    <div class="fx-bg"></div>
+    <img class="fx-hero" alt="">
+    <div class="fx-sign">
+      <div class="fx-chain"></div>
+      <div class="fx-card">
+        <div class="fx-head"><img class="fx-crest-sm" alt=""><b class="fx-name"></b></div>
+        <div class="fx-house"></div>
+        <img class="fx-hq" alt="">
+        <div class="fx-sub">О фракции</div>
+        <p class="fx-desc"></p>
+        <div class="fx-sub">Бонус фракции</div>
+        <div class="fx-perks"></div>
+        <button class="nbtn gold" id="fx-pick">Выбрать</button>
+      </div>
+      <div class="fx-mentor"></div>
+    </div>
+    <div class="fx-tabs"></div>
+    <button class="fx-login" id="fx-login">Уже есть аккаунт? <b>Войти</b></button>
   </div>
 
   <!-- Вход / регистрация -->
-  <div id="auth" data-mode="login">
+  <div id="auth" data-mode="login" class="night-screen">
     <div class="auth-box">
-      <div class="logo small"><span>Короны</span><small>и</small><span>Крепости</span></div>
+      <img class="emblem sm" src="/assets/night/ui/emblem.png" alt="">
+      <div class="auth-faction reg-only"><img alt=""><div><span>Ваша фракция</span><b></b></div><button type="button" id="fx-change" class="link-btn">сменить</button></div>
       <div class="auth-tabs">
         <button class="auth-tab on" data-mode="login">Вход</button>
         <button class="auth-tab" data-mode="register">Регистрация</button>
@@ -36,15 +91,14 @@
         <label>Ник (английскими буквами)<input name="username" required minlength="5" maxlength="16" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Например, Arthur_77"><small class="hint reg-only">5–16 символов: A–Z, цифры и _</small></label>
         <label>Пароль<input name="password" type="password" required minlength="5" autocomplete="current-password"><small class="hint reg-only">от 5 символов</small></label>
         <div class="reg-only">
-          <label>Название замка<input name="castle" maxlength="24" placeholder="Например, Северный Оплот"></label>
-          <div class="race-title">Выберите расу</div>
-          <div id="race-list"></div>
-          <div class="captcha"><div class="cap-row"><div id="cap-img"></div><button type="button" id="cap-new" class="btn sm" aria-label="Другая картинка">↻</button></div>
+          <label>Название квартала<input name="castle" maxlength="24" placeholder="Например, Багровый Предел"></label>
+          <input type="hidden" name="race" value="vampires">
+          <div class="captcha"><div class="cap-row"><div id="cap-img"></div><button type="button" id="cap-new" class="nbtn steel sq" aria-label="Другая картинка">↻</button></div>
             <label>Код с картинки<input name="captcha" autocomplete="off" autocapitalize="characters" maxlength="6" inputmode="text"></label></div>
           <input class="hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
         </div>
         <div id="auth-err"></div>
-        <button class="btn green big" type="submit"><span class="login-only">Войти</span><span class="reg-only">Основать королевство</span></button>
+        <button class="nbtn gold big" type="submit"><span class="login-only">Войти</span><span class="reg-only">Вступить во фракцию</span></button>
       </form>
     </div>
   </div>
@@ -174,19 +228,6 @@
   <div id="modal-bg"><div id="modal" class="modal"></div></div>
   <div id="toasts"></div>
 
-  <script>
-    // Советы на экране загрузки
-    (function () {
-      var tips = ['Совет: собирайте ресурсы почаще — у рудников ограниченный склад.',
-        'Совет: Латники принимают огонь на себя — высаживайте их первыми.',
-        'Совет: Сапёры пробивают стены, открывая путь мечникам.',
-        'Легенда гласит: Корону Семи Камней ковали гномы горы Торн.',
-        'Совет: заходите каждый день — на 7-й день ждёт королевский сундук.',
-        'Совет: лагеря у центра мира богаче, но и опаснее.'];
-      var el = document.getElementById('load-tip');
-      el.textContent = tips[Math.floor(Math.random() * tips.length)];
-    })();
-  </script>
   <script type="module" src="/js/main.js"></script>
 </body>
 </html>

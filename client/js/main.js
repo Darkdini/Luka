@@ -1,6 +1,7 @@
 import { RACES, GAME_TITLE, fmt } from '/shared/config.js';
 import { api, token, setToken, store } from './api.js';
 import { loadAll } from './assets.js';
+import { agreement, intro, chooseFaction, showAuthScreen, hideScreens, loadingProgress, loadingTip } from './onboarding.js';
 import { Scene, setPanorama, PANO_K } from './scene.js';
 import { PANO } from '/shared/city.js';
 import { Village } from './village.js';
@@ -26,8 +27,11 @@ class App {
 
   async boot() {
     document.title = GAME_TITLE;
-    const bar = $('#load-fill');
-    await loadAll((k) => { bar.style.width = Math.round(k * 100) + '%'; });
+    loadingTip();
+    const t0 = performance.now();
+    await loadAll(loadingProgress);
+    // заставка видна хотя бы 1.5 с, даже если всё уже в кэше
+    await new Promise((r) => setTimeout(r, Math.max(0, 1500 - (performance.now() - t0))));
     this.scene = new Scene($('#cv'));
     this.village = new Village(this.scene, this);
     this.battle = new Battle(this.scene, this);
@@ -35,44 +39,51 @@ class App {
     this.ui = new UI(this);
     this.story = new Story(this);
     this.engage = new Engage(this);
-    $('#loading').classList.add('hide');
     if (token) {
       try {
-        await this.refresh(); this.enterGame();
+        await this.refresh();
+        $('#loading').classList.add('hide');
+        this.enterGame();
         if (this.me.dailyReady) setTimeout(() => this.engage.openDaily(), 900);
         return;
       } catch { setToken(null); }
     }
-    this.showAuth();
+    $('#loading').classList.add('hide');
+    await new Promise((r) => setTimeout(r, 450));
+    await agreement();
+    if (store.get('cl_intro') !== '1') await intro((k) => this.sfx(k));
+    this.bindAuth();
+    this.pickFaction();
   }
 
-  // --- Вход и регистрация ------------------------------------------------------------
-  showAuth() {
-    $('#auth').classList.add('show');
-    const races = $('#race-list');
-    races.innerHTML = Object.entries(RACES).map(([k, r], i) => `
-      <label class="race" style="--c:${r.color}">
-        <input type="radio" name="race" value="${k}" ${i === 0 ? 'checked' : ''}>
-        <span class="race-name">${r.name}</span><span class="race-desc">${r.desc}</span>
-      </label>`).join('');
-    const loadCaptcha = async () => {
-      try { const c = await api.captcha(); this.captchaId = c.id; $('#cap-img').innerHTML = c.svg; } catch (e) { $('#auth-err').textContent = e.message; }
-      const f = $('#auth-form'); if (f.captcha) f.captcha.value = '';
-    };
-    $('#cap-new').onclick = loadCaptcha;
+  // --- Выбор фракции, вход и регистрация ---------------------------------------------
+  async pickFaction(initial) {
+    const r = await chooseFaction(initial || this.faction, (k) => this.sfx(k));
+    if (r.login) { showAuthScreen('login'); return; }
+    this.faction = r.faction;
+    showAuthScreen('register', r.faction);
+    this.loadCaptcha();
+  }
+
+  async loadCaptcha() {
+    try { const c = await api.captcha(); this.captchaId = c.id; $('#cap-img').innerHTML = c.svg; } catch (e) { $('#auth-err').textContent = e.message; }
+    const f = $('#auth-form'); if (f.captcha) f.captcha.value = '';
+  }
+
+  bindAuth() {
+    $('#cap-new').onclick = () => this.loadCaptcha();
+    $('#fx-change').onclick = () => this.pickFaction(this.faction);
     $('#auth-form').username.addEventListener('input', (e) => {
       if ($('#auth').dataset.mode !== 'register') return;
       const v = e.target.value, clean = v.replace(/[^A-Za-z0-9_]/g, '');
       if (v !== clean) { e.target.value = clean; $('#auth-err').textContent = 'Ник — только английские буквы, цифры и _'; }
       else $('#auth-err').textContent = '';
     });
-    const tabs = document.querySelectorAll('#auth .auth-tab');
-    tabs.forEach((t) => {
+    document.querySelectorAll('#auth .auth-tab').forEach((t) => {
       t.onclick = () => {
-        tabs.forEach((x) => x.classList.toggle('on', x === t));
-        $('#auth').dataset.mode = t.dataset.mode;
         $('#auth-err').textContent = '';
-        if (t.dataset.mode === 'register') loadCaptcha();
+        if (t.dataset.mode === 'register') this.pickFaction(this.faction);
+        else showAuthScreen('login');
       };
     });
     $('#auth-form').onsubmit = async (e) => {
@@ -89,33 +100,32 @@ class App {
       try {
         const data = { username: f.username.value.trim(), password: f.password.value };
         const r = reg
-          ? await api.register({ ...data, castleName: f.castle.value.trim(), race: f.race.value, captchaId: this.captchaId, captcha: f.captcha.value, website: f.website.value })
+          ? await api.register({ ...data, castleName: f.castle.value.trim(), race: f.race.value, agree: true, captchaId: this.captchaId, captcha: f.captcha.value, website: f.website.value })
           : await api.login(data);
         setToken(r.token);
         await this.refresh();
-        $('#auth').classList.remove('show');
+        hideScreens();
         this.enterGame();
         if (reg) this.welcome();
         else if (this.me.dailyReady) setTimeout(() => this.engage.openDaily(), 700);
       } catch (err) {
         $('#auth-err').textContent = err.message;
-        if (reg) loadCaptcha();
+        if (reg) this.loadCaptcha();
       } finally { btn.disabled = false; }
     };
   }
 
-  welcome() {
-    this.ui.modal('Добро пожаловать, правитель!', `
-      <div class="welcome">
-        <p>Ваш замок <b>${this.me.name}</b> основан на землях Валории.</p>
-        <ul>
-          <li>💰 Собирайте золото и зерно с рудников и мельниц — нажмите на значок над зданием.</li>
-          <li>🏗 Улучшайте <b>Цитадель</b>, чтобы открыть новые здания, войска и героев.</li>
-          <li>⚔ Обучайте армию в Казармах и атакуйте лагеря разбойников на карте мира.</li>
-          <li>📜 Сюжет «Пепел Короны» раскроет тайну вашей крови — и щедро наградит.</li>
-          <li>🛡 У вас 24 часа защитного щита новичка — успейте отстроить оборону!</li>
-        </ul>
-      </div>`, [{ label: 'Начать историю', cls: 'green', onClick: () => { this.ui.closeModal(); this.story.start(CHAPTERS[0]); } }]);
+  // Наставник фракции встречает игрока в новом квартале
+  async welcome() {
+    const f = RACES[this.me.race] ? Object.keys(RACES).find((k) => RACES[k] === RACES[this.me.race]) : 'vampires';
+    const lines = {
+      vampires: ['Мы на месте. Квартал разорён, но фундаменты целы — как и наше достоинство.', 'Дом Багровой Луны не прячется в руинах. Начнём с того, что вернём кварталу жизнь.'],
+      werewolves: ['Пришли. Пахнет гарью и чужаками.', 'Стая сильна, пока сыта. Наведём порядок — а потом найдём тех, кто здесь хозяйничал.'],
+      hunters: ['Вот он, наш квартал. Видал и похуже — правда, тогда я был моложе.', 'Проверь припасы, займи оборону. Твари ночью не спят — и мы не будем.'],
+      mages: ['Мы прибыли. Здесь сильные линии силы — кто-то очень постарался их запечатать.', 'Сначала порядок и припасы. Тайны подождут… но недолго.'],
+    }[f];
+    const who = 'mentor_' + f;
+    await this.story.play(lines.map((t) => [who, t]));
   }
 
   logout() {

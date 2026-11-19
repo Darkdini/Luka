@@ -7,6 +7,10 @@
 // арт из docs/ART_PROMPTS.md (лист сюжетных персонажей) — заменить img.
 export const CHARACTERS = {
   narrator: { name: '', img: null },
+  mentor_vampires: { name: 'Граф Себастьян Вэйл', img: 'night/factions/mentor_vampires', color: '#b3202c', full: true },
+  mentor_werewolves: { name: 'Вожак Рагна', img: 'night/factions/mentor_werewolves', color: '#c98a1c', full: true },
+  mentor_hunters: { name: 'Старый Грей', img: 'night/factions/mentor_hunters', color: '#6f7887', full: true },
+  mentor_mages: { name: 'Архивариус Элоиза', img: 'night/factions/mentor_mages', color: '#3f6fd8', full: true },
   you: { name: '{name}', img: 'avatar', side: 'right' },
   aldric: { name: 'Сэр Аларик', img: 'heroes/knight_portrait', color: '#3d76d8' },
   liena: { name: 'Лиэна', img: 'heroes/huntress_portrait', color: '#2f9e4f' },

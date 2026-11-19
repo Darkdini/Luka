@@ -123,7 +123,7 @@ function spawnUnit(S, kind, isHero, x, y) {
   if (base.melee && race.meleeDmg) dmgMul *= 1 + race.meleeDmg;
   const u = {
     id: S.nextId++, kind, isHero, x, y,
-    hp: Math.round(base.hp * mul), maxHp: Math.round(base.hp * mul),
+    hp: Math.round(base.hp * mul * (1 + (race.troopHp || 0))), maxHp: Math.round(base.hp * mul * (1 + (race.troopHp || 0))),
     dmg: (base.dmg || 0) * dmgMul, heal: (base.heal || 0) * mul,
     interval: base.interval, range: base.range, speed: base.speed,
     pref: base.target, air: !!base.air, splash: base.splash || 0,

@@ -259,7 +259,7 @@ export const actions = {
       s.buildings.push({ id: s.nextId++, type, level: 1, x, y, up: null });
       return;
     }
-    const time = upgradeTime(type, 1);
+    const time = Math.round(upgradeTime(type, 1) * (1 - (RACES[s.race]?.bonus.buildSpeed || 0)));
     if (time > 0 && !freeBuilder(s)) fail('Все строители заняты');
     pay(s, def.res, upgradeCost(type, 1));
     if (time > 0) { s.stats.upgrades++; bumpDaily(s, 'upgrades'); }
@@ -276,7 +276,7 @@ export const actions = {
     const max = b.type === 'castle' ? 6 : def.maxByCastle[cl - 1];
     if (b.level >= max) fail(b.type === 'castle' ? 'Максимальный уровень' : 'Сначала улучшите Цитадель');
     const to = b.level + 1;
-    const time = upgradeTime(b.type, to);
+    const time = Math.round(upgradeTime(b.type, to) * (1 - (RACES[s.race]?.bonus.buildSpeed || 0)));
     if (time > 0 && !freeBuilder(s)) fail('Все строители заняты');
     pay(s, def.res, upgradeCost(b.type, to));
     if (time > 0) { s.stats.upgrades++; bumpDaily(s, 'upgrades'); }
@@ -362,7 +362,7 @@ export const actions = {
     const nb = Math.max(1, s.buildings.filter((b) => b.type === 'barracks' && b.level > 0).length);
     let end = Math.max(Date.now(), s.training.length ? s.training[s.training.length - 1].end : 0);
     for (let i = 0; i < n; i++) {
-      end += t.time * 1000 / nb;
+      end += t.time * 1000 / nb * (1 - (RACES[s.race]?.bonus.trainSpeed || 0));
       s.training.push({ k, end });
     }
   },
@@ -393,7 +393,7 @@ export const actions = {
     const have = Object.values(s.spells).reduce((a, v) => a + v, 0) + s.brewing.length;
     if (have >= spellCapacity(s)) fail('Запас зелий полон');
     pay(s, 'food', sp.cost);
-    const end = Math.max(Date.now(), s.brewing.at(-1)?.end || 0) + sp.time * 1000;
+    const end = Math.max(Date.now(), s.brewing.at(-1)?.end || 0) + sp.time * 1000 * (1 - (RACES[s.race]?.bonus.brewSpeed || 0));
     s.brewing.push({ k, end });
   },
 

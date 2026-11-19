@@ -115,7 +115,7 @@ export class Story {
         if (ch.img) {
           port.src = ch.img === 'avatar' ? avatarUrl(this.app.me.avatar) : url(ch.img);
           port.style.filter = ch.filter || '';
-          port.className = 'show ' + (ch.side === 'right' ? 'right' : 'left');
+          port.className = 'show ' + (ch.side === 'right' ? 'right' : 'left') + (ch.full ? ' full' : '');
         } else port.className = '';
         dlg.dataset.side = ch.side === 'right' ? 'right' : 'left';
         dlg.classList.toggle('narr', !ch.img);

@@ -94,8 +94,9 @@
 
 Промты на графику выдаются **перед каждым этапом**. Общий стиль:
 
-- Хвост: `dark gothic urban fantasy, modern day, semi-realistic digital painting, cinematic moody lighting, night, cold moonlight with crimson and teal accents, highly detailed, sharp focus, premium mobile strategy game art`
-- Негатив: `cartoon, anime, chibi, 3d render, plastic, oversaturated, text, logo, watermark, blurry, extra fingers, deformed hands`
+- Хвост: `hyper-realistic 3D CGI, Unreal Engine 5 render, cinematic lighting, realistic skin texture, detailed fabric and leather, dark gothic urban fantasy, modern day, night, cold moonlight with crimson and teal accents, AAA mobile strategy game key art, 8k, razor sharp details`
+- Негатив: `anime, manga, cartoon, chibi, cel shading, stylized, painterly, flat colors, plastic skin, doll face, big eyes, oversaturated, text, logo, watermark, blurry, extra fingers, deformed hands`
+- Экономия генераций: несколько фигур/объектов на одном листе-сетке.
 - Листы-сетки — на однотонном фоне, здания — `building only, NO ground base`.
 
 ### Промты этапа 1 — см. сообщение в чате (дублируются в `docs/ART_PROMPTS.md` после утверждения).

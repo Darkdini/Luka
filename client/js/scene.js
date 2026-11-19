@@ -82,7 +82,7 @@ export class Scene {
   // Удобный стартовый масштаб: на телефоне база видна целиком по ширине ядра
   defaultZoom(kind) {
     if (PANO_ON && kind !== 'battle') return this.minZ * (this.portrait ? 1.1 : 1);
-    if (this.portrait) return Math.max(this.minZ, Math.min(0.7, this.w / (TW * (kind === 'battle' ? 20 : 16))));
+    if (this.portrait) return Math.max(this.minZ, Math.min(0.7, this.w / (TW * (kind === 'battle' ? 15 : 16))));
     return Math.max(this.minZ, kind === 'battle' ? 0.85 : 0.62);
   }
 

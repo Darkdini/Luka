@@ -242,6 +242,7 @@ function findPath(S, u, b) {
 // --- Урон -----------------------------------------------------------------
 function damageBuilding(S, b, dmg) {
   if (b.dead) return;
+  if (dmg >= 8 && b.cat !== 'wall') S.fx.push({ k: 'num', x: b.cx, y: b.cy, v: Math.round(Math.min(dmg, b.hp)), b: true });
   b.hp -= dmg;
   if (b.hp <= 0) destroyBuilding(S, b);
 }
@@ -260,6 +261,7 @@ function destroyBuilding(S, b) {
 
 function damageUnit(S, u, dmg) {
   if (u.hp <= 0) return;
+  if (dmg >= 8) S.fx.push({ k: 'num', x: u.x, y: u.y, v: Math.round(Math.min(dmg, u.hp)), u: true });
   u.hp -= dmg;
   if (u.hp <= 0) { u.hp = 0; S.fx.push({ k: 'die', x: u.x, y: u.y, kind: u.kind }); }
 }

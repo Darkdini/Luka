@@ -621,3 +621,14 @@ body.in-game[data-mode=battle] #battle-hud { display: block; }
 .shop-hint { display: flex; align-items: center; justify-content: space-between; gap: 8px; background: #fff1b8; border: 2px solid #c79a45; border-radius: 12px; padding: 8px 10px; margin-bottom: 10px; font-size: 13px; font-weight: 700; }
 .shop-hint .btn { flex: none; }
 #chat-log:empty::before { content: 'Пока тихо. Напишите первым — поприветствуйте соседей!'; display: block; color: #9aa6c4; text-align: center; margin-top: 40%; font-size: 14px; }
+
+/* бой на телефоне: цель слева, таймер и звёзды справа под кнопкой — без наложения */
+@media (max-width: 760px), (orientation: portrait) {
+  .bt-target { max-width: 56vw; gap: 0; }
+  .bt-target b { font-size: 13px; line-height: 1.15; }
+  .bt-loot-row { font-size: 11px; }
+  .bt-loot-row .ri { width: 14px; height: 14px; }
+  .bt-center { left: auto; right: 6px; transform: none; top: calc(50px + var(--sat)); min-width: 118px; }
+  #bt-timer.scout { font-size: 13px; }
+  .bt-progress { width: 100px; }
+}

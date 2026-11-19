@@ -142,6 +142,13 @@ export class Battle {
         case 'deploy': s.emit(p.x, p.y, 6, 'dust'); break;
         case 'die': s.emit(p.x, p.y - 10, 8, 'dust'); break;
         case 'fire': this.flash.set('f' + f.i, 0.12); break;
+        case 'num': {
+          // всплывающие цифры урона: здания — жёлтые, по нашим воинам — красные
+          if (f.u) { const hit = this.S.units.find((v) => Math.abs(v.x - f.x) < 0.01 && Math.abs(v.y - f.y) < 0.01); if (hit) this.flash.set('u' + hit.id, 0.1); }
+          (this.nums ||= []).push({ x: p.x + (Math.random() - 0.5) * 14, y: p.y - (f.b ? 46 : 30), v: f.v, t: 0, col: f.u ? '#ff6b5b' : '#ffe27a' });
+          if (this.nums.length > 60) this.nums.shift();
+          break;
+        }
       }
     }
     this.S.fx.length = 0;
@@ -196,12 +203,31 @@ export class Battle {
     }
     // HP-полоски зданий
     for (const b of S.bld) {
-      if (b.dead || b.cat === 'trap' || b.hp >= b.maxHp) continue;
+      if (b.dead || b.cat === 'trap' || b.cat === 'wall' || b.hp >= b.maxHp) continue; // у стен полосок нет — их видно по разрушению
       const p = iso(b.x + b.size / 2, b.y + b.size / 2);
       s.bar(p.x, p.y - b.size * TH * 1.5, b.cat === 'wall' ? 30 : 56, b.hp / b.maxHp, b.cat === 'wall' ? '#ccc' : '#ffb21e');
       if (b.hp < b.maxHp * 0.5 && b.cat !== 'wall' && Math.random() < 0.15) s.emit(p.x + (Math.random() - 0.5) * TW * b.size * 0.4, p.y - b.size * TH, 1, 'smoke');
     }
     s.drawParticles(dt);
+    this.drawNums(dt);
+  }
+
+  drawNums(dt) {
+    if (!this.nums?.length) return;
+    const c = this.scene.ctx, z = this.scene.cam.z;
+    c.save();
+    c.textAlign = 'center';
+    c.font = `900 ${15 / Math.max(0.35, z)}px Rubik, sans-serif`;
+    c.lineWidth = 4 / Math.max(0.35, z); c.strokeStyle = 'rgba(0,0,0,0.75)';
+    for (const n of this.nums) {
+      n.t += dt;
+      const k = n.t / 0.9;
+      c.globalAlpha = Math.max(0, 1 - k * k);
+      const y = n.y - k * 40 / Math.max(0.35, z);
+      c.strokeText('-' + n.v, n.x, y); c.fillStyle = n.col; c.fillText('-' + n.v, n.x, y);
+    }
+    c.restore();
+    this.nums = this.nums.filter((n) => n.t < 0.9);
   }
 
   drawBld(b) {
@@ -217,15 +243,22 @@ export class Battle {
     const s = this.scene, c = s.ctx;
     const p = iso(x, y);
     const im = img(u.isHero ? `heroes/${u.kind}` : `troops/${u.kind}`);
-    const H = (UNIT_H[u.kind] || 1.3) * TH * 1.35;
+    // при отдалённой камере (телефон) воины крупнее, чтобы армия читалась
+    const H = (UNIT_H[u.kind] || 1.3) * TH * 1.35 * Math.min(1.8, Math.max(1, 0.62 / this.scene.cam.z));
     const fly = u.air ? TH * 1.6 + Math.sin(this.t * 4 + u.id) * 4 : 0;
     // тень
     c.save();
     c.fillStyle = 'rgba(0,0,0,0.3)';
     c.beginPath(); c.ellipse(p.x, p.y, H * 0.28, H * 0.12, 0, 0, Math.PI * 2); c.fill();
     c.restore();
-    const walk = u.state === 'walk' ? Math.abs(Math.sin(this.t * 10 + u.id)) * 3 : 0;
-    const lunge = u.state === 'attack' && u.cool > u.interval * 0.7 ? 4 : 0;
+    // шаг: подпрыгивание + покачивание; удар: рывок вперёд с наклоном
+    const ph = this.t * 11 + u.id;
+    const walking = u.state === 'walk' && !u.air;
+    const walk = walking ? Math.abs(Math.sin(ph)) * 4 : 0;
+    const sway = walking ? Math.sin(ph) * 0.07 : 0;
+    const swing = u.state === 'attack' ? Math.max(0, (u.cool - u.interval * 0.6) / (u.interval * 0.4)) : 0;
+    const lunge = swing * 7;
+    const squash = walking ? 1 - Math.abs(Math.cos(ph)) * 0.05 : 1;
     if (im) {
       const w = im.width * H / im.height;
       c.save();
@@ -233,6 +266,9 @@ export class Battle {
       if (u.stun > 0) c.filter = 'grayscale(0.8)';
       c.translate(p.x + lunge * u.dir, p.y - fly - walk);
       if (u.dir < 0) c.scale(-1, 1);
+      c.rotate(sway + swing * 0.22);
+      c.scale(1 / squash, squash);
+      if (this.flash.has('u' + u.id)) c.filter = 'brightness(2.2) saturate(0.4)';
       c.drawImage(im, -w / 2, -H, w, H);
       c.restore();
     } else {

@@ -111,7 +111,7 @@ export class Engage {
     const p = $('#pointer');
     const app = this.app;
     const t = this.target;
-    const modalOpen = $('#modal-bg').classList.contains('show') || $('#dialog').classList.contains('show') || $('#chat').classList.contains('show') || $('#campaign').classList.contains('show');
+    const modalOpen = $('#modal-bg').classList.contains('show') || $('#dialog').classList.contains('show') || $('#chat').classList.contains('show') || $('#campaign').classList.contains('show') || $('#heroes')?.classList.contains('show') || $('#hbattle')?.classList.contains('show');
     if (!t || !this.me || app.mode !== 'village' || app.world?.open || modalOpen || app.village?.ghost) { p.classList.remove('show'); return; }
     let x, y;
     if (t.ui) {

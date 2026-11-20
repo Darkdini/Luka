@@ -10,6 +10,7 @@ import { WorldMap } from './world.js';
 import { UI } from './ui.js';
 import { Story } from './story.js';
 import { Engage } from './engage.js';
+import { Heroes } from './heroes.js';
 import { CHAPTERS, chapterOpen } from '/shared/story.js';
 import { checkUsername, checkPassword, checkCastleName } from '/shared/names.js';
 
@@ -39,6 +40,9 @@ class App {
     this.ui = new UI(this);
     this.story = new Story(this);
     this.engage = new Engage(this);
+    this.heroes = new Heroes(this);
+    $('#btn-heroes').onclick = () => this.heroes.open('list');
+    $('#btn-campaign').onclick = () => this.heroes.open('campaign');
     if (token) {
       try {
         await this.refresh();
@@ -174,6 +178,7 @@ class App {
     this.village.setMe(me);
     this.ui?.updateHud(me);
     this.engage?.update(me, prev && prev.id === me.id ? prev : null);
+    this.heroes?.badges();
   }
 
   async refresh() {

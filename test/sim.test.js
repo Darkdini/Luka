@@ -118,3 +118,28 @@ test('ники: латиница от 5 символов, без мата', () =
   for (const w of ['Hancock', 'Херсон', 'Команда', 'Shopper', 'Herald']) assert.ok(!hasProfanity(w), w);
   assert.equal(censor('привет сука'), 'привет ★★★★');
 });
+
+import { simulate } from '../shared/herobattle.js';
+import { stageEnemies } from '../shared/heroes.js';
+
+test('герои: найм, сборка, прокачка, кампания', () => {
+  const s = newPlayerState('humans', 11);
+  tick(s);
+  assert.ok(Object.keys(s.roster).length >= 4, 'стартовый отряд');
+  const r = actions.summon(s, { kind: 'normal', count: 1 });
+  assert.equal(r.results.length, 1);
+  s.items.book = 10;
+  const id = s.formation.find(Boolean);
+  const lv = actions.heroLevelUp(s, { id, max: true });
+  assert.ok(lv.level > 1);
+  const before = s.campaign.stage;
+  const f = actions.campaignFight(s);
+  assert.ok(f.battle.log.length > 5);
+  if (f.battle.winner === 'a') assert.equal(s.campaign.stage, before + 1);
+  const a = simulate([{ id: 'rowan' }], stageEnemies(1));
+  const b = simulate([{ id: 'rowan' }], stageEnemies(1));
+  assert.deepEqual(a, b, 'бой детерминирован');
+  s.frags.selene = 30;
+  actions.heroAssemble(s, { id: 'selene' });
+  assert.ok(s.roster.selene);
+});

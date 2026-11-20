@@ -8,6 +8,7 @@ import {
   heroMaxLevel, heroUpgradeCost, heroUpgradeTime, forgeCost, forgeTime,
 } from '../shared/config.js';
 import { achievementStatus } from '../shared/achievements.js';
+import { migrateHeroes, heroActions, heroView, HeroError } from './heroes.js';
 import { PLOTS, PLOT, CASTLE_POS, ringOpen, isRoad, wallTiles, plotAt, inPlot, isPlotType, cityRect } from '../shared/city.js';
 import { chapterById } from '../shared/story.js';
 import { TUTORIAL, STREAK, DAILY_BONUS_GEMS, questCtx, dailyQuests, today } from '../shared/quests.js';
@@ -125,6 +126,7 @@ export function fixPlots(s) {
 // Старые сохранения дополняются новыми полями
 const STAT_KEYS = ['attacks', 'wins', 'defenses', 'defWins', 'starsTotal', 'goldLooted', 'foodLooted', 'destroyed', 'npcWins', 'trained', 'cleared', 'trophiesMax', 'collectedGold', 'collectedFood', 'upgrades', 'speedups', 'mottoSet'];
 export function migrate(s) {
+  migrateHeroes(s);
   s.stats = s.stats || {};
   for (const k of STAT_KEYS) s.stats[k] = s.stats[k] || 0;
   s.achievements = s.achievements || {};
@@ -560,6 +562,7 @@ export function view(p) {
     dailyReady: s.streak.last !== today(),
     streak: s.streak,
     tutorial: s.tutorial,
+    ...heroView(s),
     daily: { ...ensureDaily(s), quests: dailyQuests(s.daily.day, castleLevelOf(s)) },
     reports: s.reports.slice(0, 20),
     stats: s.stats,
@@ -570,3 +573,8 @@ export function view(p) {
     now: Date.now(),
   };
 }
+
+// Герои: действия подключаются к общему списку; их ошибки — игровые
+Object.assign(actions, Object.fromEntries(Object.entries(heroActions({ pay, addRes })).map(([k, fn]) => [k, (s, a) => {
+  try { return fn(s, a); } catch (e) { if (e instanceof HeroError) throw new GameError(e.message); throw e; }
+}])));

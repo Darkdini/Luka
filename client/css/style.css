@@ -81,7 +81,7 @@ img { -webkit-user-drag: none; }
 .ri { width: 18px; height: 18px; vertical-align: -4px; object-fit: contain; }
 .ri.big { width: 30px; height: 30px; vertical-align: -8px; }
 .ri.huge { width: 56px; height: 56px; }
-.x { width: 38px; height: 38px; border: 0; background: url(/assets/ui/close.png) center/contain no-repeat; flex: none; }
+.x { width: 38px; height: 38px; border: 0; background: url(/assets/realm/kit/close.png) center/contain no-repeat; flex: none; }
 
 /* ---------- Модальные окна ---------- */
 #modal-bg { position: fixed; inset: 0; z-index: 50; display: none; align-items: center; justify-content: center; background: rgba(5,8,20,.55); padding: 16px; }
@@ -345,10 +345,8 @@ table.top tr[data-pid]:hover { background: rgba(255,255,255,.35); }
 
 #pointer { position: fixed; left: 0; top: 0; z-index: 45; pointer-events: none; display: none; }
 #pointer.show { display: block; }
-.ptr-arrow { position: absolute; left: -22px; top: -64px; width: 44px; height: 56px; animation: ptrBounce .8s ease-in-out infinite;
-  background: linear-gradient(#fff3a8, #f2a91e); clip-path: polygon(30% 0, 70% 0, 70% 55%, 100% 55%, 50% 100%, 0 55%, 30% 55%);
-  filter: drop-shadow(0 3px 3px rgba(0,0,0,.6)); }
-.ptr-arrow::after { content: ''; position: absolute; inset: 4px; background: linear-gradient(#ffe36a, #e08a10); clip-path: inherit; }
+.ptr-arrow { position: absolute; left: -26px; top: -66px; width: 52px; height: 60px; animation: ptrBounce .8s ease-in-out infinite;
+  background: url(/assets/realm/kit/pointer.png) center / contain no-repeat; filter: drop-shadow(0 3px 3px rgba(0,0,0,.6)); }
 @keyframes ptrBounce { 50% { transform: translateY(-12px); } }
 
 #wipe { position: fixed; inset: 0; z-index: 60; pointer-events: none; opacity: 0; background: radial-gradient(circle, rgba(20,30,60,.2), #0b1226 75%); }
@@ -360,7 +358,7 @@ table.top tr[data-pid]:hover { background: rgba(255,255,255,.35); }
 .rbar.bump .v { animation: bumpTxt .35s; }
 @keyframes bump { 50% { transform: scale(1.3); } }
 @keyframes bumpTxt { 50% { color: #fff6a0; transform: scale(1.12); } }
-.rdot { position: absolute; right: 4px; top: 4px; width: 16px; height: 16px; border-radius: 50%; background: #ff3b30; border: 2px solid #fff; box-shadow: 0 0 8px #ff3b30; animation: pulse 1.2s infinite; pointer-events: none; }
+.rdot { position: absolute; right: 4px; top: 4px; width: 18px; height: 18px; border-radius: 50%; background: url(/assets/realm/kit/dot_red.png) center / contain no-repeat; filter: drop-shadow(0 0 4px #ff3b30); animation: pulse 1.2s infinite; pointer-events: none; }
 #builders.idle { border-color: #7fe03c; box-shadow: 0 0 12px rgba(127,224,60,.6); }
 .rbtn.daily { animation: none; }
 .rbtn.daily:has(.rdot) { animation: pulse 1.2s infinite; }
@@ -1076,3 +1074,59 @@ html, body { background: #07060a; }
 .hb-rw img { width: 22px; height: 22px; object-fit: cover; object-position: top; border-radius: 4px; }
 .hb-end p { color: #d9ccb2; font-size: 13px; }
 .dbtn.camp { background: radial-gradient(circle at 50% 25%, #d8a85a, #7a4f18 75%); }
+
+/* ---- набор интерфейса (kit) ---- */
+img.ic { width: 1.35em; height: 1.35em; vertical-align: -0.35em; object-fit: contain; }
+.hs-back { width: 42px; height: 42px; border: 0; background: none; padding: 0; }
+.hs-back img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 2px 2px rgba(0,0,0,.6)); }
+.hs-back:active, .hv-nav:active, .hv-up:active, .hb-speed:active, .hb-skip:active { transform: scale(.92); }
+.hs-top { background: linear-gradient(#2a2118, rgba(20,16,12,.92)); border-bottom: 2px solid #8a6a33; box-shadow: 0 2px 8px rgba(0,0,0,.6); }
+.hs-res span { background: rgba(0,0,0,.45); border: 1px solid #5a4528; border-radius: 12px; padding: 1px 7px 1px 2px; }
+.hs-res img { width: 22px; height: 22px; }
+.hs-tabs { background: url(/assets/realm/kit/navbar.png) center / 100% 100%; border-top: 0; padding-top: 4px; }
+.hs-tabs img { width: 34px; height: 34px; }
+.hs-tabs span { text-shadow: 0 1px 2px #000; }
+.hs-tabs button.on img { filter: drop-shadow(0 0 6px #ffd34d); transform: translateY(-2px) scale(1.08); }
+.hv-nav { background: none; width: 40px; height: 60px; padding: 0; }
+.hv-nav img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 2px 3px rgba(0,0,0,.8)); }
+.hv-up { width: 40px; height: 40px; border: 0; background: none; padding: 0; }
+.hv-up img { width: 100%; height: 100%; object-fit: contain; }
+.hv-up.ready { border: 0; }
+img.h-up { position: absolute; right: 3px; bottom: 20px; width: 24px; height: 24px; z-index: 2; animation: pulse 1.2s infinite; }
+.hv-power { background: url(/assets/realm/kit/power.png) center / 100% 100%; border: 0; border-radius: 0; padding: 6px 22px 6px 50px; min-width: 150px; font-size: 18px; justify-content: center; }
+.hv-power img { display: none; }
+.hv-tabs { gap: 2px; padding: 4px 4px 0; background: #120f15; border-bottom: 2px solid #5a4528; }
+.hv-tabs button { background: url(/assets/realm/kit/tab_off.png) center / 100% 100%; color: #b3a587; text-shadow: 0 1px 2px #000; font-size: 14px; }
+.hv-tabs button.on { background: url(/assets/realm/kit/tab_on.png) center / 100% 100%; color: #fff4d6; box-shadow: none; text-shadow: 0 1px 3px #4a2c00, 0 0 6px #000; }
+.hv-tabs button img.ic { width: 18px; height: 18px; }
+.hd-bar { height: 18px; border: 0; border-radius: 0; background: url(/assets/realm/kit/bar_frame.png) center / 100% 100%; overflow: visible; }
+.hd-bar i { top: 3px; bottom: 3px; left: 3px; max-width: calc(100% - 6px); background: url(/assets/realm/kit/bar_gold.png) left center / auto 100% no-repeat; background-size: 100% 100%; border-radius: 6px; }
+.hd-bar span { line-height: 18px; }
+.hp-box, .sk-card, .cp-card, .cp-idle, .skm-next { border: 12px solid transparent; border-image: url(/assets/realm/kit/box.png) 40 fill / 12px stretch; background: none; border-radius: 0; }
+.hp-box, .sk-card { padding: 2px; }
+.cp-card, .cp-idle { padding: 0; }
+.skm-next { padding: 0 2px; }
+.hp-stat { display: flex; align-items: center; gap: 5px; font-size: 13px; padding: 2px 0; }
+.hp-stat img.ic { width: 26px; height: 26px; }
+.hp-stat span { flex: 1; color: #bfae8c; }
+.hp-stat b { font-size: 15px; }
+.hp-cols { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1.5fr); }
+.sk-ic { background: url(/assets/realm/kit/ring.png) center / contain no-repeat; }
+.sk-ic img { padding: 6%; }
+.sk-ic.off { background-image: url(/assets/realm/kit/ring_lock.png); }
+.sk-ic.off img { opacity: 0; }
+.gear-lock img { filter: none; }
+.hb-speed, .hb-skip { width: 44px; height: 44px; border: 0; background: none; padding: 0; }
+.hb-speed img, .hb-skip img { width: 100%; height: 100%; object-fit: contain; }
+.hb-hp i { background: url(/assets/realm/kit/bar_green.png) center / 100% 100%; }
+.hb-u.b .hb-hp i { background: url(/assets/realm/kit/bar_red.png) center / 100% 100%; }
+.hb-en i { background: url(/assets/realm/kit/bar_yellow.png) center / 100% 100%; }
+.hb-hp { height: 8px; border: 1px solid #3c3020; }
+.nbtn img.ic { width: 22px; height: 22px; }
+.cp-rw img.ic, .cp-acc img.ic { width: 18px; height: 18px; }
+.hp-skills { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; justify-items: center; }
+.hp-skills .sk-ic { width: 100%; max-width: 52px; height: auto; aspect-ratio: 1; }
+.hp-skills.wide { display: flex; }
+.hd-bar span { color: #fff; text-shadow: 0 0 3px #000, 0 1px 2px #000, 0 0 6px #000; }
+.hv-tabs button { white-space: nowrap; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 2px; }
+.hv-tabs button img.ic { width: 16px; height: 16px; }

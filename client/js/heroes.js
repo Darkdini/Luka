@@ -11,8 +11,14 @@ const $ = (s, r = document) => r.querySelector(s);
 const A = '/assets/realm/';
 const P = (id) => `${A}heroes/${id}_p.png`;
 const F = (id) => `${A}heroes/${id}.png`;
-const ICON = (n) => `${A}icons/${n}.png`;
-const ROLE_ICON = { tank: 'infantry', dmg: 'dmg', aoe: 'aoe', heal: 'heal', support: 'support' };
+// Набор интерфейса (kit) — единый стиль; рода войск пока из старого набора иконок
+const KIT = new Set(['atk', 'def', 'hp', 'spd', 'power_ic', 'gems', 'gold', 'book', 'ticket', 'frag', 'statue', 'chest', 'gift', 'padlock', 'tank', 'dmg', 'aoe', 'heal', 'support', 'assassin', 'lock', 'ring', 'ring_lock']);
+const ICON = (n) => (KIT.has(n) ? `${A}kit/${n}.png` : `${A}icons/${n}.png`);
+const I = (n, c = 'ic') => `<img class="${c}" src="${ICON(n)}" alt="">`;
+const ROLE_ICON = { tank: 'tank', dmg: 'dmg', aoe: 'aoe', heal: 'heal', support: 'support' };
+// ровные площадки (без мостов и стен)
+const ARENAS = [3, 7, 2, 6, 4, 8];
+const arenaOf = (n) => ARENAS[(n - 1) % ARENAS.length];
 const TROOP_ICON = { infantry: 'infantry', archer: 'archer', cavalry: 'cavalry' };
 const RACE_ORDER = ['humans', 'elves', 'dwarves', 'orcs'];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -24,14 +30,14 @@ export class Heroes {
     this.root = document.createElement('div');
     this.root.id = 'heroes';
     this.root.innerHTML = `
-      <div class="hs-top"><button class="hs-back" aria-label="Назад">‹</button><b class="hs-title">Герои</b>
-        <div class="hs-res"><span><img src="${ICON('book')}" alt=""><b data-i="book"></b></span><span><img src="${ICON('ticket')}" alt=""><b data-i="ticket"></b></span><span>💎<b data-i="gems"></b></span></div></div>
+      <div class="hs-top"><button class="hs-back" aria-label="Назад"><img src="${A}kit/back.png" alt=""></button><b class="hs-title">Герои</b>
+        <div class="hs-res"><span><img src="${ICON('book')}" alt=""><b data-i="book"></b></span><span><img src="${ICON('ticket')}" alt=""><b data-i="ticket"></b></span><span>${I('gems')}<b data-i="gems"></b></span></div></div>
       <div class="hs-body"></div>
       <nav class="hs-tabs">
-        <button data-t="list"><img src="${ICON('infantry')}" alt=""><span>Герои</span></button>
+        <button data-t="list"><img src="${ICON('tank')}" alt=""><span>Герои</span></button>
         <button data-t="team"><img src="${ICON('support')}" alt=""><span>Отряд</span></button>
-        <button data-t="tavern"><img src="${ICON('ticket')}" alt=""><span>Таверна</span></button>
-        <button data-t="campaign"><img src="${ICON('star')}" alt=""><span>Поход</span></button>
+        <button data-t="tavern"><img src="${ICON('chest')}" alt=""><span>Таверна</span></button>
+        <button data-t="campaign"><img src="${ICON('atk')}" alt=""><span>Поход</span></button>
       </nav>`;
     document.body.appendChild(this.root);
     this.root.querySelector('.hs-back').onclick = () => (this.detail ? this.show(this.tab) : this.close());
@@ -100,7 +106,7 @@ export class Heroes {
       return `<button class="h-card r-${h.rarity} ${own ? '' : 'locked'} ${ready ? 'ready' : ''}" data-h="${h.id}">
         <img class="h-face" src="${P(h.id)}" alt="" loading="lazy">
         <img class="h-crest" src="${A}races/crest_${h.race}.png" alt="">
-        ${own ? `<span class="h-lv">Ур. ${st.level}</span>${stars(st.stars)}${up ? '<span class="h-up">⬆</span>' : ''}` : `<span class="h-frag"><i style="width:${Math.min(100, fr / need * 100)}%"></i><b>${fr}/${need}</b></span>`}
+        ${own ? `<span class="h-lv">Ур. ${st.level}</span>${stars(st.stars)}${up ? `<img class="h-up" src="${A}kit/up.png" alt="">` : ''}` : `<span class="h-frag"><i style="width:${Math.min(100, fr / need * 100)}%"></i><b>${fr}/${need}</b></span>`}
         <span class="h-name"><img src="${ICON(ROLE_ICON[h.role])}" alt="">${esc(h.name)}</span>
         ${ready ? '<span class="h-ready">Собрать!</span>' : ''}
       </button>`;
@@ -149,7 +155,7 @@ export class Heroes {
           <div class="hp-btns"><button class="nbtn sm steel" data-a="lv1" ${lvl >= cap ? 'disabled' : ''}>+1</button><button class="nbtn sm" data-a="lvmax" ${lvl >= cap ? 'disabled' : ''}>Улучшить</button></div></div>
         <div class="hp-cols">
           <div class="hp-box"><div class="hd-sub">Параметры героя</div>
-            <div class="hp-stat">⚔ <b>${fmt(s.atk)}</b></div><div class="hp-stat">🛡 <b>${fmt(s.def)}</b></div><div class="hp-stat">❤ <b>${fmt(s.hp)}</b></div><div class="hp-stat">➶ <b>${s.spd}</b></div></div>
+            <div class="hp-stat">${I('atk')}<span>Атака</span><b>${fmt(s.atk)}</b></div><div class="hp-stat">${I('def')}<span>Защита</span><b>${fmt(s.def)}</b></div><div class="hp-stat">${I('hp')}<span>Здоровье</span><b>${fmt(s.hp)}</b></div><div class="hp-stat">${I('spd')}<span>Скорость</span><b>${s.spd}</b></div></div>
           <div class="hp-box"><div class="hd-sub">Навыки героя</div>
             <div class="hp-skills">${skills.map((k, i) => `<button class="sk-ic ${k.locked ? 'off' : ''}" data-sk="${i}"><img src="${skIcon(k)}" alt=""><span>Ур. ${k.lvl}</span></button>`).join('')}</div></div>
         </div>
@@ -163,22 +169,22 @@ export class Heroes {
         <div class="sk-card ${k.locked ? 'off' : ''}"><button class="sk-ic" data-sk="${i}"><img src="${skIcon(k)}" alt=""><span>Ур. ${k.lvl}</span></button>
           <b>${esc(k.name)}</b>
           ${!own || k.locked ? `<em class="bad">${k.locked ? `${AWAKEN_STARS}★` : 'Не нанят'}</em>` : k.lvl >= SKILL_MAX ? '<em>Максимум</em>' : `<button class="nbtn xs steel" data-sk="${i}">Улучшить</button>`}</div>`).join('')}</div>`;
-    const tabGear = '<div class="gear-lock"><img src="' + ICON('rune') + '" alt=""><b>Снаряжение</b><p class="muted">Оружие, доспехи и руны героя откроются с Кузницей (Цитадель 5).</p></div>';
+    const tabGear = '<div class="gear-lock"><img src="' + ICON('ring_lock') + '" alt=""><b>Снаряжение</b><p class="muted">Оружие, доспехи и руны героя откроются с Кузницей (Цитадель 5).</p></div>';
     body.innerHTML = `
       <div class="hv r-${d.rarity}" style="--rc:${rr.color}">
         <div class="hv-stage" style="background-image:url(${A}races/bg_${d.race}.jpg)">
           <img class="hv-full" src="${F(id)}" alt="">
-          <div class="hv-power"><img src="${ICON('dmg')}" alt="">${fmt(heroPower(id, lvl, sts, sk))}</div>
+          <div class="hv-power"><img src="${ICON('power_ic')}" alt="">${fmt(heroPower(id, lvl, sts, sk))}</div>
           <div class="hv-tags">${inTeam ? '<div class="hv-team">◆ В отряде</div>' : ''}
             <span><img src="${ICON(ROLE_ICON[d.role])}" alt="">${ROLES[d.role].name}</span>
             <span><img src="${ICON(TROOP_ICON[d.troop])}" alt="">${TROOP_TYPES[d.troop]}</span>
             <span><img src="${A}races/crest_${d.race}.png" alt="">${RACES[d.race].name}</span></div>
-          <button class="hv-nav prev" aria-label="Предыдущий">‹</button><button class="hv-nav next" aria-label="Следующий">›</button>
+          <button class="hv-nav prev" aria-label="Предыдущий"><img src="${A}kit/chev_l.png" alt=""></button><button class="hv-nav next" aria-label="Следующий"><img src="${A}kit/chev_r.png" alt=""></button>
           <div class="hv-name"><div><img src="${A}races/crest_${d.race}.png" alt=""><b>${esc(d.name)}</b></div>
             <span><span class="hd-rar">${rr.short}</span> ${esc(d.title)}</span>
-            ${own ? `<div class="hv-stars">${[0, 1, 2, 3, 4].map((i) => `<i class="${i < sts ? 'on' : ''}">★</i>`).join('')}<button class="hv-up ${starReady ? 'ready' : ''}" data-a="starview" ${sts >= 5 ? 'disabled' : ''}>⬆</button></div>` : ''}</div>
+            ${own ? `<div class="hv-stars">${[0, 1, 2, 3, 4].map((i) => `<i class="${i < sts ? 'on' : ''}">★</i>`).join('')}<button class="hv-up ${starReady ? 'ready' : ''}" data-a="starview" ${sts >= 5 ? 'disabled' : ''}><img src="${A}kit/${starReady ? 'up' : 'up_off'}.png" alt=""></button></div>` : ''}</div>
         </div>
-        <nav class="hv-tabs"><button data-ht="params" class="${this.heroTab === 'params' ? 'on' : ''}">Параметры</button><button data-ht="skills" class="${this.heroTab === 'skills' ? 'on' : ''}">Навыки</button><button data-ht="gear" class="${this.heroTab === 'gear' ? 'on' : ''}">Снаряжение 🔒</button></nav>
+        <nav class="hv-tabs"><button data-ht="params" class="${this.heroTab === 'params' ? 'on' : ''}">Параметры</button><button data-ht="skills" class="${this.heroTab === 'skills' ? 'on' : ''}">Навыки</button><button data-ht="gear" class="${this.heroTab === 'gear' ? 'on' : ''}">Снаряжение <img class="ic" src="${A}kit/padlock.png" alt=""></button></nav>
         <div class="hv-panel">${this.heroTab === 'skills' ? tabSkills : this.heroTab === 'gear' ? tabGear : tabParams}</div>
       </div>`;
     body.querySelectorAll('[data-ht]').forEach((b) => { b.onclick = () => this.openHero(id, b.dataset.ht); });
@@ -266,8 +272,8 @@ export class Heroes {
     body.innerHTML = `
       <div class="team-head"><div class="tp"><img src="${ICON('dmg')}" alt="">Сила отряда <b>${fmt(power)}</b></div>
         <div class="syn" title="Бонус за героев одной расы">${synRing}<span>${syn.bonus ? `${RACES[syn.race].name}: +${Math.round(syn.bonus * 100)}%` : 'Нет бонуса расы'}</span></div></div>
-      <div class="team-board" style="background-image:url(${A}arenas/1.jpg)">
-        <div class="row-l">⚔ Передний ряд — к врагу</div><div class="row front">${slot(0)}${slot(1)}</div>
+      <div class="team-board" style="background-image:url(${A}arenas/3.jpg)">
+        <div class="row-l">Передний ряд — к врагу</div><div class="row front">${slot(0)}${slot(1)}</div>
         <div class="row-l">Задний ряд</div><div class="row back">${slot(2)}${slot(3)}${slot(4)}</div>
       </div>
       <p class="muted small center">${this.pickSlot != null ? 'Выберите героя для этого места или нажмите на него ещё раз, чтобы убрать.' : 'Нажмите на место, чтобы поставить героя. Танков — вперёд, стрелков и лекарей — назад. 3+ героя одной расы дают бонус.'}</p>
@@ -317,7 +323,7 @@ export class Heroes {
         <div class="tv-card adv" style="background-image:url(${F('aerith')})">
           <div class="tv-in"><b>Продвинутый найм</b><span>Шанс эпических и легендарных героев. <em>Каждые 10 наймов — гарантия эпика!</em></span>
           <div class="tv-meta">До гарантии: <b>${Math.max(0, SUMMON.advanced.pity - sm.pity)}</b></div>
-          <div class="hd-btns"><button class="nbtn steel" data-k="advanced" data-n="1">×1 💎 ${SUMMON.advanced.gems}</button><button class="nbtn" data-k="advanced" data-n="10">×10 💎 ${fmt(SUMMON.advanced.gems10)}</button></div></div>
+          <div class="hd-btns"><button class="nbtn steel" data-k="advanced" data-n="1">×1 ${I('gems')} ${SUMMON.advanced.gems}</button><button class="nbtn" data-k="advanced" data-n="10">×10 ${I('gems')} ${fmt(SUMMON.advanced.gems10)}</button></div></div>
         </div>
       </div>`;
     body.querySelectorAll('[data-k]').forEach((b) => {
@@ -382,19 +388,19 @@ export class Heroes {
     const idle = c.idle;
     const body = this.root.querySelector('.hs-body');
     body.innerHTML = `
-      <div class="cp-map" style="background-image:url(${A}arenas/${1 + (ch % 8)}.jpg)">
+      <div class="cp-map" style="background-image:url(${A}arenas/${arenaOf(ch + 1)}.jpg)">
         <div class="cp-ch">Глава ${ch + 1}<b>${CHAPTER_NAMES[ch % CHAPTER_NAMES.length]}</b><span>Этап ${stageName(n)}</span></div>
         <div class="cp-path">${nodes}</div>
       </div>
       <div class="cp-card">
         <div class="cp-row"><b>Враг · этап ${stageName(n)}${n % 5 === 0 ? ' · БОСС' : ''}</b><span>Сила ${fmt(enemyPower)} <em class="${me.teamPower >= enemyPower ? 'ok' : 'bad'}">ваша ${fmt(me.teamPower)}</em></span></div>
         <div class="cp-enemies">${en.filter(Boolean).map((u) => `<div class="cp-e r-${HERO[u.id].rarity}"><img src="${P(u.id)}" alt=""><span>Ур. ${u.level}</span></div>`).join('')}</div>
-        <div class="cp-row"><b>Награда</b><span class="cp-rw"><img src="${ICON('book')}" alt="">×${rw.books} · 💎 ${rw.gems} · 🪙 ${fmt(rw.gold)}${rw.fragment ? ` · <img src="${ICON('frag')}" alt="">эпик` : ''}</span></div>
-        <button class="nbtn big" id="cp-fight">⚔ В бой</button>
+        <div class="cp-row"><b>Награда</b><span class="cp-rw"><img src="${ICON('book')}" alt="">×${rw.books} · ${I('gems')} ${rw.gems} · ${I('gold')} ${fmt(rw.gold)}${rw.fragment ? ` · <img src="${ICON('frag')}" alt="">эпик` : ''}</span></div>
+        <button class="nbtn big" id="cp-fight">${I('atk')} В бой</button>
       </div>
       <div class="cp-idle">
         <div><b>Добыча похода</b><span class="muted">${fmt(idle.rate.exp)} опыта и ${fmt(idle.rate.gold)} золота в час · до 12 ч</span>
-          <div class="cp-acc"><img src="${ICON('book')}" alt="">${fmt(idle.exp)} опыта · 🪙 ${fmt(idle.gold)} <span class="muted">(${fmtTime(idle.hours * 3600)})</span></div></div>
+          <div class="cp-acc"><img src="${ICON('book')}" alt="">${fmt(idle.exp)} опыта · ${I('gold')} ${fmt(idle.gold)} <span class="muted">(${fmtTime(idle.hours * 3600)})</span></div></div>
         <button class="nbtn sm" id="cp-idle" ${idle.exp + idle.gold > 0 ? '' : 'disabled'}>Забрать</button>
       </div>`;
     $('#cp-fight', body).onclick = async () => {
@@ -428,12 +434,12 @@ class HeroBattle {
 
   play(res, done) {
     const { battle } = res;
-    const arena = 1 + ((res.stage - 1) % 8);
+    const arena = arenaOf(res.stage);
     this.speed = 1;
     this.skip = false;
     this.el.innerHTML = `<div class="hb-arena" style="background-image:url(${A}arenas/${arena}.jpg)"></div>
       <div class="hb-top"><b>Этап ${stageName(res.stage)}</b><span class="hb-round">Раунд 1</span>
-        <button class="hb-speed">×1</button><button class="hb-skip">⏭</button></div>
+        <button class="hb-speed"><img src="${A}kit/x1.png" alt="×1"></button><button class="hb-skip"><img src="${A}kit/skip.png" alt="Пропустить"></button></div>
       <div class="hb-field"></div><div class="hb-cards"></div><div class="hb-ult"></div>`;
     this.el.classList.add('show');
     const field = this.el.querySelector('.hb-field');
@@ -449,7 +455,7 @@ class HeroBattle {
     }
     const cards = this.el.querySelector('.hb-cards');
     cards.innerHTML = battle.units.filter((u) => u.side === 'a').map((u) => `<div class="hb-c r-${HERO[u.id].rarity}" data-u="${u.uid}"><img src="${P(u.id)}" alt=""><div class="hb-hp"><i></i></div><div class="hb-en"><i></i></div></div>`).join('');
-    this.el.querySelector('.hb-speed').onclick = (e) => { this.speed = this.speed === 1 ? 2 : 1; e.target.textContent = '×' + this.speed; };
+    this.el.querySelector('.hb-speed').onclick = (e) => { this.speed = this.speed === 1 ? 2 : 1; e.currentTarget.querySelector('img').src = `${A}kit/x${this.speed}.png`; };
     this.el.querySelector('.hb-skip').onclick = () => { this.skip = true; };
     this.app.sfx('horn');
     this.run(battle.log).then(() => this.finish(res, done));
@@ -532,7 +538,7 @@ class HeroBattle {
       <div class="hb-end-in"><div class="hb-end-t">${win ? 'ПОБЕДА' : 'ПОРАЖЕНИЕ'}</div>
       ${win ? `<div class="hb-stars">${[0, 1, 2].map((i) => `<span class="${i < battle.stars ? 'on' : ''}">★</span>`).join('')}</div>` : ''}
       <div class="hb-mvp">MVP · <b>${esc(HERO[mvp.id].name)}</b> · ${fmt(mvp.v)} (${mvp.pct}%)</div>
-      ${win && reward ? `<div class="hb-rw"><span><img src="${ICON('book')}" alt="">×${reward.books}</span><span>💎 ${reward.gems}</span><span>🪙 ${fmt(reward.gold)}</span><span>Опыт отряду +${fmt(reward.exp)}</span>${reward.frag ? `<span><img src="${P(reward.frag.hero)}" alt="">×${reward.frag.n}</span>` : ''}</div>` : `<p>Усильте героев: книги опыта, звёзды и найм в таверне. Танков ставьте вперёд.</p>`}
+      ${win && reward ? `<div class="hb-rw"><span><img src="${ICON('book')}" alt="">×${reward.books}</span><span>${I('gems')} ${reward.gems}</span><span>${I('gold')} ${fmt(reward.gold)}</span><span>Опыт отряду +${fmt(reward.exp)}</span>${reward.frag ? `<span><img src="${P(reward.frag.hero)}" alt="">×${reward.frag.n}</span>` : ''}</div>` : `<p>Усильте героев: книги опыта, звёзды и найм в таверне. Танков ставьте вперёд.</p>`}
       <div class="muted">Нажмите, чтобы продолжить</div></div>`;
     this.el.appendChild(box);
     this.app.sfx(win ? 'win' : 'lose');

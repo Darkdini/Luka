@@ -306,7 +306,6 @@ export class Village {
     this.drawFog();
     // значки поверх
     if (!this.visit) for (const b of me.buildings) this.drawOverlay(b, now);
-    if (!this.visit) this.drawRuinHints();
     s.drawParticles(dt);
     this.drawFloats(dt);
     this.placeArc();
@@ -385,7 +384,7 @@ export class Village {
     c.restore();
     if (nz && !this.visit) {
       const p = iso(r.x1 + 3, r.y1 + 3);
-      s.label(`🔒 Новые земли — Цитадель ${nz.castle} ур.`, p.x, p.y, { size: 12, bg: 'rgba(30,24,16,0.8)', color: '#f2e2bd' });
+      s.label(`Новые земли · Цитадель ${nz.castle}`, p.x, p.y, { size: 10, bg: 'rgba(22,18,13,0.75)', color: '#d9ccb2' });
     }
   }
 
@@ -432,29 +431,28 @@ export class Village {
       return { x: x - R, y: y - R + bob, w: R * 2, h: R * 2 };
     };
     if (b.captured) {
-      const R = 24 / z, bob = Math.sin(this.t * 3 + b.id) * 4 / z;
-      const h = icon('enemy', cx, headY - R * 0.4, R, bob);
+      const R = 15 / z, bob = Math.sin(this.t * 2.5 + b.id) * 3 / z;
+      const h = icon('enemy', cx, headY + R, R, bob);
       this.hits.push({ b, ...h });
-      s.label('Захвачено', cx, headY + R * 1.1, { size: 11, bg: 'rgba(120,20,16,0.85)' });
       return;
     }
     // табличка уровня у левого угла плиты
     if (b.level > 0) {
       const lp = iso(b.x, b.y + size);
-      s.label(String(b.level), lp.x + TW * 0.35, lp.y - TH * 0.2, { size: 11, bg: 'rgba(30,24,16,0.85)', color: '#f2e2bd' });
-      if (!b.up && this.canUpgrade(b)) icon('upgrade', lp.x + TW * 0.35 + 18 / z, lp.y - TH * 0.2 - 22 / z, 10 / z, Math.sin(this.t * 4) * 2 / z);
+      if (this.scene.cam.z > 0.45) s.label(String(b.level), lp.x + TW * 0.35, lp.y - TH * 0.2, { size: 9, bg: 'rgba(22,18,13,0.8)', color: '#e9dcc0' });
+      if (!b.up && this.canUpgrade(b)) icon('upgrade', lp.x + TW * 0.35 + 13 / z, lp.y - TH * 0.2 - 16 / z, 7 / z, Math.sin(this.t * 3) * 1.5 / z);
     }
     if (b.level === 0 && !b.up) {
-      const R = 18 / z;
-      const h = icon('repair', cx, headY, R, Math.sin(this.t * 3 + b.id) * 3 / z);
+      const R = 13 / z;
+      const h = icon('repair', cx, headY + R, R, Math.sin(this.t * 2.5 + b.id) * 2 / z);
       this.hits.push({ b, ...h });
       return;
     }
     if (b.up) {
       const left = (b.up.end - now) / 1000;
       const frac = 1 - left / b.up.total;
-      s.bar(cx, headY - 4 / z, 90, frac, '#ffcc33');
-      s.label(left > 0 ? fmtShort(left) : 'Готово!', cx, headY - 8 / z, { size: 12 });
+      s.bar(cx, headY + 10 / z, 64, frac, '#e2bd72');
+      s.label(left > 0 ? fmtShort(left) : 'Готово', cx, headY + 6 / z, { size: 10, bg: 'rgba(22,18,13,0.8)', color: '#e9dcc0' });
       if (Math.random() < 0.06) s.emit(cx + (Math.random() - 0.5) * 40, r.y + r.h * 0.7, 2, 'dust');
       if (left <= 0 && !this.refreshing) { this.refreshing = true; this.app.refresh().finally(() => { this.refreshing = false; }); }
       return;
@@ -465,16 +463,16 @@ export class Village {
       const cur = Math.min(cap, (b.store || 0) + rate * (now - b.last) / 3600e3);
       b._cur = cur;
       if (cur >= Math.max(10, cap * 0.05)) {
-        const R = 20 / z, bob = Math.sin(this.t * 3 + b.id) * 4 / z;
-        const by = headY - R;
+        const R = 14 / z, bob = Math.sin(this.t * 2.5 + b.id) * 2.5 / z;
+        const by = headY + R;
         c.save();
         c.fillStyle = 'rgba(20,16,12,0.55)';
         c.beginPath(); c.arc(cx, by + bob, R * 1.12, 0, Math.PI * 2); c.fill();
         c.restore();
         const h = icon(RES_ICON[def.produces], cx, by, R, bob);
         // полоска наполнения под значком
-        c.fillStyle = 'rgba(0,0,0,0.6)'; c.fillRect(cx - R, by + R + bob + 3 / z, R * 2, 5 / z);
-        c.fillStyle = cur >= cap ? '#ff9a3a' : '#7fe03c'; c.fillRect(cx - R, by + R + bob + 3 / z, R * 2 * cur / cap, 5 / z);
+        c.fillStyle = 'rgba(0,0,0,0.6)'; c.fillRect(cx - R, by + R + bob + 2 / z, R * 2, 3 / z);
+        c.fillStyle = cur >= cap ? '#e2a04a' : '#8fc85a'; c.fillRect(cx - R, by + R + bob + 2 / z, R * 2 * cur / cap, 3 / z);
         this.hits.push({ b, bubble: true, x: h.x - 6 / z, y: h.y - 6 / z, w: h.w + 12 / z, h: h.h + 16 / z });
       }
     }

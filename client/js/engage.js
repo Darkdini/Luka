@@ -243,7 +243,7 @@ export class Engage {
       this.app.village.celebrate(b);
       this.app.sfx('levelup');
       if (b.type === 'castle') this.castleUp(b.level);
-      else this.app.ui.toast(was === 0 ? `🏗 ${def.name} построено!` : `⬆ ${def.name}: уровень ${b.level}!`, 'good');
+      else this.app.ui.toast(was === 0 ? `Построено: ${def.name}` : `${def.name}: уровень ${b.level}`, 'good');
     }
     for (const [k, h] of Object.entries(me.heroes || {})) {
       const p = prev.heroes?.[k];

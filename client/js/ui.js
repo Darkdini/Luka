@@ -40,7 +40,7 @@ export class UI {
     $('#hud-player').onclick = () => this.openProfile(app.me.id);
     $('#btn-ach').onclick = () => this.openAchievements();
     $('#btn-story').onclick = () => app.story.open();
-    $('#w-story').onclick = () => app.story.open();
+    $('#w-story')?.addEventListener('click', () => app.story.open());
     $('#visit-back').onclick = () => app.goHome();
     $('#chat-log').addEventListener('click', (e) => { const n = e.target.closest('[data-pid]'); if (n) this.openProfile(+n.dataset.pid); });
     $('#place-cancel').onclick = () => app.village.cancelPlacing();

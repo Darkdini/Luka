@@ -135,7 +135,7 @@ export function bumpDaily(s, key, n = 1) {
 function questContext(s) {
   return questCtx({ buildings: s.buildings, stats: s.stats, story: s.story, achClaimed: Object.values(s.achievements).reduce((a, v) => a + v, 0), wallLevel: s.wallLevel, summon: s.summon, campaign: s.campaign });
 }
-function grant(s, r) {
+export function grant(s, r) {
   if (r.gems) s.res.gems += r.gems;
   const got = { gems: r.gems || 0 };
   for (const k of RES_LIST) if (r[k]) got[k] = addRes(s, k, r[k]);

@@ -9,6 +9,7 @@ import { newCaptcha, checkCaptcha } from './captcha.js';
 import { checkUsername, checkPassword as checkPasswordRule, checkCastleName, hasProfanity, censor } from '../shared/names.js';
 import { hashPassword, checkPassword, makeToken, readToken, rateLimit } from './auth.js';
 import { newPlayerState, tick, actions, view, GameError, wallBuildings } from './game.js';
+import { processMarches, marchView, battleLog } from './march.js';
 import { findSpot, placeUnplaced, region, findPlayer, startAttack, finishAttack, leaderboard, profile } from './world.js';
 import { AVATARS, avatarUnlocked, titlesOf } from '../shared/achievements.js';
 
@@ -40,8 +41,12 @@ function auth(req) {
   const p = getPlayer(id);
   if (!p) throw new GameError('Игрок не найден');
   tick(p.state);
+  // служебные поля для походов (не сохраняются)
+  for (const [k, v] of Object.entries({ _pid: p.id, _x: p.wx, _y: p.wy, _name: p.castle_name })) Object.defineProperty(p.state, k, { value: v, enumerable: false, configurable: true });
+  processMarches(p);
   return p;
 }
+const viewMe = (p) => ({ ...view(p), ...marchView(p.state) });
 
 // --- Регистрация и вход ---------------------------------------------------------
 app.get('/api/captcha', wrap((req) => {
@@ -83,7 +88,7 @@ app.post('/api/login', wrap((req) => {
 app.get('/api/me', wrap((req) => {
   const p = auth(req);
   savePlayer(p);
-  return view(p);
+  return viewMe(p);
 }));
 
 app.post('/api/action', wrap((req) => {
@@ -94,7 +99,7 @@ app.post('/api/action', wrap((req) => {
   const extra = fn(p.state, args) || {};
   tick(p.state);
   savePlayer(p);
-  return { ...extra, me: view(p) };
+  return { ...extra, me: viewMe(p) };
 }));
 
 // --- Мир, атаки, рейтинг ----------------------------------------------------------
@@ -137,7 +142,7 @@ app.post('/api/profile', wrap((req) => {
     p.title = title;
   }
   db.prepare('UPDATE players SET motto = ?, avatar = ?, title = ? WHERE id = ?').run(p.motto, p.avatar, p.title, p.id);
-  return { me: view(p) };
+  return { me: viewMe(p) };
 }));
 
 app.post('/api/attack/start', wrap((req) => {
@@ -153,7 +158,7 @@ app.post('/api/attack/finish', wrap((req) => {
   const p = auth(req);
   const out = finishAttack(p, String(req.body?.battleId || ''), req.body?.log || [], notify);
   savePlayer(p);
-  return { result: out, me: view(p) };
+  return { result: out, me: viewMe(p) };
 }));
 
 // Музыка: какие треки лежат в client/assets/audio (клиент не запрашивает отсутствующие)
@@ -162,6 +167,11 @@ app.get('/api/audio', (req, res) => {
   try { list = fs.readdirSync(path.join(ROOT, 'client/assets/audio')).filter((f) => f.endsWith('.mp3')).map((f) => f.slice(0, -4)); } catch { /* нет папки */ }
   res.json(list);
 });
+
+app.get('/api/battle/:id', wrap((req) => {
+  const p = auth(req);
+  return battleLog(p.state, String(req.params.id)) || (() => { throw new GameError('Запись боя не найдена'); })();
+}));
 
 app.get('/api/top', wrap((req) => { const p = auth(req); return leaderboard(p.id); }));
 
@@ -181,7 +191,7 @@ app.post('/api/shop/buy', wrap((req) => {
   db.prepare('INSERT INTO purchases (player, pack, gems, price, status, ts) VALUES (?, ?, ?, ?, ?, ?)').run(p.id, pack.id, pack.gems, pack.price, 'dev', Date.now());
   tick(s);
   savePlayer(p);
-  return { me: view(p) };
+  return { me: viewMe(p) };
 }));
 
 // --- WebSocket: чат и уведомления -------------------------------------------------

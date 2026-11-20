@@ -58,7 +58,7 @@ def background(rgb):
     return out
 
 
-def extract(path, expect=None, gap=90, dil=7, glow=True, split=0, holes=False):
+def extract(path, expect=None, gap=90, dil=7, glow=True, split=0, holes=False, grid=None):
     """Возвращает список RGBA-картинок элементов листа (построчно, слева направо)."""
     rgb = np.array(Image.open(path).convert("RGB")).astype(float)
     bg = background(rgb)
@@ -84,6 +84,13 @@ def extract(path, expect=None, gap=90, dil=7, glow=True, split=0, holes=False):
         _, (iy, ix) = ndimage.distance_transform_edt(core == 0, return_indices=True)
         region = ndimage.binary_dilation(solid, iterations=dil)
         grp = np.where(region, core[iy, ix], 0)
+    if grid:  # ровная сетка: всё, что в ячейке, — один элемент
+        gc, gr = grid
+        h, w = solid.shape
+        region = ndimage.binary_dilation(solid | (soft > 0.25), iterations=dil)
+        yy, xx = np.mgrid[0:h, 0:w]
+        cell = (np.minimum(gr - 1, yy * gr // h) * gc + np.minimum(gc - 1, xx * gc // w) + 1)
+        grp = np.where(region, cell, 0)
     boxes = []
     for i, sl in enumerate(ndimage.find_objects(grp)):
         if (grp[sl] == i + 1).sum() < 1500:

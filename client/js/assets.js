@@ -36,6 +36,10 @@ export async function loadAll(onProgress) {
     Object.assign(CITY, await (await fetch('/assets/realm/city/manifest.json')).json());
   } catch { /* без города — запасные ромбы */ }
   const city = Object.keys(CITY).map((n) => `realm/city/${n}${n.startsWith('tex_') ? '.jpg' : ''}`);
+  try {
+    const wm = await (await fetch('/assets/realm/world/manifest.json')).json();
+    city.push(...Object.keys(wm).map((n) => `realm/world/${n}`), ...['meadow', 'steppe', 'snow', 'forest'].map((t) => `realm/world/tex_${t}.jpg`));
+  } catch { /* без карты */ }
   const all = [...LIST, ...city, 'bg/world_map.jpg', 'bg/grass.jpg'];
   let done = 0;
   await Promise.all(all.map((n) => new Promise((res) => {

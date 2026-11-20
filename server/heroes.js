@@ -207,7 +207,7 @@ export function heroActions({ pay, addRes }) {
   };
 }
 
-function gainExp(s, id, exp) {
+export function gainExp(s, id, exp) {
   const h = s.roster[id];
   const cap = maxHeroLevel(castleLevelOf(s));
   if (h.level >= cap) return;

@@ -661,7 +661,7 @@ class HeroBattle {
       <div class="hb-end-in"><div class="hb-end-t">${win ? 'ПОБЕДА' : 'ПОРАЖЕНИЕ'}</div>
       ${win ? `<div class="hb-stars">${[0, 1, 2].map((i) => `<span class="${i < battle.stars ? 'on' : ''}">★</span>`).join('')}</div>` : ''}
       <div class="hb-mvp">MVP · <b>${esc(HERO[mvp.id].name)}</b> · ${fmt(mvp.v)} (${mvp.pct}%)</div>
-      ${win && reward && res.rewardHtml ? `<div class="hb-rw">${res.rewardHtml}</div>` : win && reward ? `<div class="hb-rw"><span><img src="${ICON('book')}" alt="">×${reward.books}</span><span>${I('gems')} ${reward.gems}</span><span>${I('gold')} ${fmt(reward.gold)}</span><span>Опыт отряду +${fmt(reward.exp)}</span>${reward.frag ? `<span><img src="${P(reward.frag.hero)}" alt="">×${reward.frag.n}</span>` : ''}</div>` : `<p>Усильте героев: книги опыта, звёзды и найм в таверне. Танков ставьте вперёд.</p>`}
+      ${win && reward && res.rewardHtml != null ? `<div class="hb-rw">${res.rewardHtml}</div>` : win && reward ? `<div class="hb-rw"><span><img src="${ICON('book')}" alt="">×${reward.books}</span><span>${I('gems')} ${reward.gems}</span><span>${I('gold')} ${fmt(reward.gold)}</span><span>Опыт отряду +${fmt(reward.exp)}</span>${reward.frag ? `<span><img src="${P(reward.frag.hero)}" alt="">×${reward.frag.n}</span>` : ''}</div>` : `<p>Усильте героев: книги опыта, звёзды и найм в таверне. Танков ставьте вперёд.</p>`}
       <div class="muted">Нажмите, чтобы продолжить</div></div>`;
     this.el.appendChild(box);
     this.app.sfx(win ? 'win' : 'lose');

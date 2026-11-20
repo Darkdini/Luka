@@ -17,7 +17,7 @@ function makeSide(team, side) {
     if (!u || !HERO[u.id]) return null;
     const sk = u.skills || defaultSkills();
     const st = heroStats(u.id, u.level || 1, u.stars || 0, sk);
-    const k = 1 + syn.bonus;
+    const k = (1 + syn.bonus) * (u.mul || 1); // mul — сила войск, идущих с героем
     return {
       sk: skillNumbers(HERO[u.id].role, sk, HERO[u.id].assassin),
       uid: `${side}${slot}`, id: u.id, side, slot, front: slot < 2,

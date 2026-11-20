@@ -1,9 +1,13 @@
 // Карта континента: процедурный рельеф (кэш по чанкам), замки игроков
 // (подгружаются по видимой области), лагеря NPC, миникарта и поиск.
-import { RACES, fmtTime } from '/shared/config.js';
-import { WORLD, CENTER, BIOMES, terrainAt, campAt, hash01, CAMP_TYPES } from '/shared/worldgen.js';
-import { leagueOf } from '/shared/achievements.js';
+import { RACES, fmt, fmtTime } from '/shared/config.js';
+import { WORLD, CENTER, BIOMES, terrainAt, campAt, decorAt, hash01, SITE_TYPES } from '/shared/worldgen.js';
+import { siteMight, siteAmount, troopMight, marchSlots } from '/shared/march.js';
 import { img } from './assets.js';
+import { MarchUI } from './march.js';
+
+const W = (n) => img('realm/world/' + n);
+const WI = (n) => `/assets/realm/world/${n}.png`;
 
 const TW = 56, TH = 28;
 const CH = 16;                      // клеток в чанке
@@ -21,7 +25,7 @@ export class WorldMap {
     this.el = document.getElementById('world');
     this.cv = document.getElementById('wcv');
     this.ctx = this.cv.getContext('2d');
-    this.cam = { x: 0, y: isoY(CENTER, CENTER), z: 1.1 };
+    this.cam = { x: 0, y: isoY(CENTER, CENTER), z: 1 };
     this.chunks = new Map();
     this.camps = new Map();
     this.regions = new Map();    // key -> { t, players }
@@ -33,6 +37,7 @@ export class WorldMap {
     document.getElementById('w-home').onclick = () => this.flyTo(app.me.x, app.me.y);
     document.getElementById('w-search').onsubmit = (e) => { e.preventDefault(); this.search(); };
     document.getElementById('mini').addEventListener('pointerdown', (e) => this.miniClick(e));
+    this.march = new MarchUI(app, this);
   }
 
   get open() { return this.el.classList.contains('show'); }
@@ -128,15 +133,20 @@ export class WorldMap {
 
   renderChunk(cx, cy) {
     const x0 = cx * CH, y0 = cy * CH;
-    const left = isoX(x0, y0 + CH) - TW / 2, top = isoY(x0, y0) - TH * 3;
-    const w = CH * TW + TW, h = CH * TH + TH * 5;
+    const left = isoX(x0, y0 + CH) - TW / 2, top = isoY(x0, y0) - TH;
+    const w = CH * TW + TW, h = CH * TH + TH * 2;
     const cv = document.createElement('canvas');
     cv.width = w; cv.height = h;
     const c = cv.getContext('2d');
     c.translate(-left, -top);
-    const grass = img('bg/grass');
-    const pat = grass ? c.createPattern(grass, 'repeat') : null;
-    const deco = [];
+    const pats = {};
+    for (const [k, b] of Object.entries(BIOMES)) {
+      const t = W(b.tex);
+      if (!t) continue;
+      const p = c.createPattern(t, 'repeat');
+      p.setTransform(new DOMMatrix().scale(0.75));
+      pats[k] = p;
+    }
     for (let s = 0; s <= 2 * (CH - 1); s++) {
       for (let i = 0; i < CH; i++) {
         const j = s - i;
@@ -146,28 +156,14 @@ export class WorldMap {
         const t = terrainAt(x, y);
         const px = isoX(x, y), py = isoY(x, y);
         c.beginPath();
-        c.moveTo(px, py - 0.6); c.lineTo(px + TW / 2 + 0.8, py + TH / 2); c.lineTo(px, py + TH + 0.6); c.lineTo(px - TW / 2 - 0.8, py + TH / 2); c.closePath();
-        const land = !(t === 'water' || t === 'deep');
-        if (land && pat && t !== 'snow' && t !== 'desert') { c.fillStyle = pat; c.fill(); c.globalAlpha = t === 'grass' ? 0.25 : 0.55; }
-        c.fillStyle = shade(BIOMES[t].color, (hash01(x, y, 3) - 0.5) * 0.12);
+        c.moveTo(px, py - 1); c.lineTo(px + TW / 2 + 1.5, py + TH / 2); c.lineTo(px, py + TH + 1); c.lineTo(px - TW / 2 - 1.5, py + TH / 2); c.closePath();
+        c.fillStyle = pats[t] || BIOMES[t].color;
         c.fill();
-        c.globalAlpha = 1;
-        if (t === 'water' || t === 'deep') {
-          if (hash01(x, y, 8) > 0.7) { c.strokeStyle = 'rgba(255,255,255,0.25)'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(px - 8, py + TH / 2); c.quadraticCurveTo(px, py + TH / 2 - 4, px + 8, py + TH / 2); c.stroke(); }
-          // берег
-          for (const [dx, dy] of [[-1, 0], [0, -1]]) {
-            const n = terrainAt(x + dx, y + dy);
-            if (n !== 'water' && n !== 'deep') {
-              c.strokeStyle = 'rgba(240,225,170,0.85)'; c.lineWidth = 3; c.beginPath();
-              if (dx) { c.moveTo(px - TW / 2, py + TH / 2); c.lineTo(px, py); } else { c.moveTo(px, py); c.lineTo(px + TW / 2, py + TH / 2); }
-              c.stroke();
-            }
-          }
-        }
-        deco.push({ t, x, y, px, py });
+        // лёгкая неровность освещения
+        const v = hash01(x, y, 3) - 0.5;
+        if (Math.abs(v) > 0.3) { c.fillStyle = v > 0 ? 'rgba(255,240,200,0.05)' : 'rgba(0,0,0,0.05)'; c.fill(); }
       }
     }
-    for (const d of deco) drawDeco(c, d);
     return { cv, left, top };
   }
 
@@ -176,7 +172,12 @@ export class WorldMap {
     let list = this.camps.get(key);
     if (list) return list;
     list = [];
-    for (let y = cy * CH; y < (cy + 1) * CH; y++) for (let x = cx * CH; x < (cx + 1) * CH; x++) { const c = campAt(x, y); if (c) list.push(c); }
+    for (let y = cy * CH; y < (cy + 1) * CH; y++) for (let x = cx * CH; x < (cx + 1) * CH; x++) {
+      const c = campAt(x, y);
+      if (c) { list.push(c); continue; }
+      const d = decorAt(x, y);
+      if (d) list.push({ deco: d, x, y });
+    }
     this.camps.set(key, list);
     return list;
   }
@@ -216,7 +217,7 @@ export class WorldMap {
     for (let cy = cy0; cy <= cy1; cy++) for (let cx = cx0; cx <= cx1; cx++) {
       const ch = this.chunk(cx, cy);
       c.drawImage(ch.cv, ch.left, ch.top);
-      for (const cp of this.campsIn(cx, cy)) ents.push({ kind: 'camp', ...cp });
+      for (const cp of this.campsIn(cx, cy)) ents.push(cp.deco ? { kind: 'deco', ...cp } : { kind: 'camp', ...cp });
     }
     const rx0 = Math.floor(cx0 * CH / REG), rx1 = Math.floor((cx1 * CH + CH - 1) / REG);
     const ry0 = Math.floor(cy0 * CH / REG), ry1 = Math.floor((cy1 * CH + CH - 1) / REG);
@@ -224,14 +225,28 @@ export class WorldMap {
     for (let ry = ry0; ry <= ry1; ry++) for (let rx = rx0; rx <= rx1; rx++) {
       for (const p of this.ensureRegion(rx, ry)) { ents.push({ kind: 'player', ...p }); taken.add(p.x * 10000 + p.y); }
     }
-    ents.sort((a, b) => (a.x + a.y) - (b.x + b.y));
     this.hits = [];
     const now = Date.now();
+    this.drawMarchPaths(c, now);
+    for (const m of this.marchEnts(now)) ents.push(m);
+    ents.sort((a, b) => (a.x + a.y) - (b.x + b.y));
     for (const e of ents) {
-      if (e.kind === 'camp' && taken.has(e.x * 10000 + e.y)) continue;
-      this.drawEntity(c, e, now);
+      if ((e.kind === 'camp' || e.kind === 'deco') && taken.has(e.x * 10000 + e.y)) continue;
+      if (e.kind === 'deco') this.drawDeco(c, e);
+      else if (e.kind === 'march') this.drawMarch(c, e, now);
+      else this.drawEntity(c, e, now);
     }
     this.drawViewport();
+    this.march.tick(now);
+  }
+
+  drawDeco(c, e) {
+    const im = W(e.deco);
+    if (!im) return;
+    const px = isoX(e.x, e.y), py = isoY(e.x, e.y) + TH / 2;
+    const big = e.deco === 'd_village' || e.deco === 'd_mount' || e.deco === 'd_stones';
+    const w = TW * (big ? 2.6 : 2.1) * (0.9 + hash01(e.x, e.y, 12) * 0.2), h = im.height * w / im.width;
+    c.drawImage(im, px - w / 2, py - h * 0.78, w, h);
   }
 
   drawEntity(c, e, now) {
@@ -240,58 +255,108 @@ export class WorldMap {
     const me = this.app.me;
     const mine = e.kind === 'player' && e.id === me.id;
     const sel = this.sel && this.sel.kind === e.kind && (this.sel.id === e.id);
-    let im, w, color, label, sub;
+    let im, w, label;
     if (e.kind === 'player') {
-      im = img(`buildings/castle_${Math.min(6, Math.max(1, e.level))}`);
-      w = TW * (1.05 + Math.min(6, e.level) * 0.1);
-      color = RACES[e.race]?.color || '#888';
+      im = img(`realm/city/castle_${RACES[e.race] ? e.race : 'humans'}_${e.level >= 6 ? 2 : 1}`);
+      w = TW * (1.7 + Math.min(10, e.level) * 0.06);
       label = e.name;
-      sub = `🏆 ${e.trophies}`;
     } else {
-      const ct = CAMP_TYPES[e.type];
-      im = darkened(img(ct.sprite), ct.dark);
-      w = TW * (e.type === 'darklord' ? 3.2 : e.type === 'fort' ? 1.5 : 1.15);
-      color = e.type === 'darklord' || e.type === 'fort' ? '#5b1f7a' : '#6b4b2a';
+      const st = SITE_TYPES[e.type];
+      im = W(st.sprite);
+      w = TW * (e.type === 'throne' ? 4.2 : st.res ? 1.9 : 2.1);
       label = e.name;
-      const resp = me.npc?.[e.id] || this.app.npcLocal?.[e.id];
-      if (resp && resp > now) { e.respawn = resp; sub = `⏳ ${fmtTime((resp - now) / 1000)}`; }
+      const resp = me.npc?.[e.id];
+      if (resp && resp > now) e.respawn = resp; else e.respawn = 0;
     }
     if (sel || mine) {
       c.save();
-      c.strokeStyle = mine ? '#ffd84a' : '#fff'; c.lineWidth = 3 / z;
-      c.beginPath(); c.ellipse(px, py, w * 0.55, w * 0.27, 0, 0, Math.PI * 2); c.stroke();
+      c.strokeStyle = mine ? 'rgba(255,216,74,0.9)' : 'rgba(255,255,255,0.9)'; c.lineWidth = 2.5 / z;
+      c.beginPath(); c.ellipse(px, py, w * 0.5, w * 0.25, 0, 0, Math.PI * 2); c.stroke();
       c.restore();
     }
+    let h = TH;
     if (im) {
-      const h = im.height * w / im.width;
+      h = im.height * w / im.width;
       c.save();
-      if (e.respawn > now) c.globalAlpha = 0.5;
-      c.drawImage(im, px - w / 2, py - h + w * 0.12, w, h);
+      if (e.respawn > now) { c.globalAlpha = 0.45; c.filter = 'grayscale(.8)'; }
+      c.drawImage(im, px - w / 2, py - h * 0.82, w, h);
       c.restore();
-      this.hits.push({ e, x: px - w / 2, y: py - h, w, h: h + 6 });
+      this.hits.push({ e, x: px - w / 2, y: py - h * 0.82, w, h });
     }
-    // флажок уровня
-    const fy = py - (im ? im.height * w / im.width : TH) - 4;
+    if (z < 0.55 && !mine && !sel) return;
+    // табличка уровня
+    const ty = py - h * 0.82 - 2;
+    const enemy = e.kind === 'camp' && !SITE_TYPES[e.type].res;
     c.save();
-    if (z < 0.6 && !mine && !sel) { c.restore(); return; } // издалека — только постройки
-    c.fillStyle = color;
-    c.strokeStyle = e.kind === 'camp' ? '#c33' : '#f2c14e';
-    c.lineWidth = 2;
-    c.beginPath(); c.moveTo(px - 9, fy - 20); c.lineTo(px + 9, fy - 20); c.lineTo(px + 9, fy - 4); c.lineTo(px, fy + 2); c.lineTo(px - 9, fy - 4); c.closePath();
-    c.fill(); c.stroke();
-    c.fillStyle = '#fff'; c.font = '900 12px Rubik, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
-    c.fillText(e.level, px, fy - 11);
-    if (z >= 1.35 || mine || sel || (e.kind === 'camp' && e.type === 'darklord')) {
-      c.font = `800 ${Math.max(10, 11 / z * 0.8)}px Rubik, sans-serif`;
+    c.font = '800 11px Rubik, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+    const lv = String(e.level);
+    c.fillStyle = enemy ? 'rgba(120,24,18,0.9)' : e.kind === 'player' ? 'rgba(30,24,16,0.88)' : 'rgba(40,60,30,0.88)';
+    c.strokeStyle = '#c9a25a'; c.lineWidth = 1.2;
+    c.beginPath(); c.arc(px, ty, 9, 0, Math.PI * 2); c.fill(); c.stroke();
+    c.fillStyle = '#f2e2bd'; c.fillText(lv, px, ty + 0.5);
+    if (z >= 1.35 || mine || sel) {
+      c.font = '700 10px Rubik, sans-serif';
       const t = (mine ? '★ ' : '') + label;
       const tw = c.measureText(t).width + 10;
-      c.fillStyle = mine ? 'rgba(140,100,10,0.92)' : 'rgba(15,22,45,0.82)';
-      c.fillRect(px - tw / 2, py + 4, tw, 16);
-      c.fillStyle = '#fff'; c.fillText(t, px, py + 12);
-      if (sub) { c.font = '700 10px Rubik, sans-serif'; c.fillStyle = '#ffe9a8'; c.fillText(sub, px, py + 27); }
-      if (e.online) { c.fillStyle = '#5f5'; c.beginPath(); c.arc(px + tw / 2 + 5, py + 12, 4, 0, Math.PI * 2); c.fill(); }
+      c.fillStyle = mine ? 'rgba(110,80,20,0.9)' : 'rgba(22,18,13,0.8)';
+      c.fillRect(px - tw / 2, py + 2, tw, 14);
+      c.fillStyle = '#f2e2bd'; c.fillText(t, px, py + 9.5);
+      if (e.respawn > now) { c.fillStyle = '#d9ccb2'; c.fillText(fmtTime((e.respawn - now) / 1000), px, py + 23); }
     }
     c.restore();
+  }
+
+  // --- Походы на карте ------------------------------------------------------------------
+  serverNow() { return Date.now() + (this.app.me.now - this.app.fetchedAt); }
+  marchPos(m) {
+    const t = this.serverNow();
+    let k;
+    if (m.phase === 'go') k = Math.min(1, (t - m.start) / Math.max(1, m.arrive - m.start));
+    else if (m.phase === 'work') k = 1;
+    else k = (m.backFrom ?? 1) * Math.max(0, Math.min(1, (m.backAt - t) / Math.max(1, m.backAt - (m.backStart || m.backAt - m.travel * 1000))));
+    return { x: m.fx + (m.tx - m.fx) * k, y: m.fy + (m.ty - m.fy) * k, back: m.phase === 'back' };
+  }
+  marchEnts(now) {
+    return (this.app.me.marches || []).map((m) => { const p = this.marchPos(m); return { kind: 'march', m, x: p.x, y: p.y, back: p.back }; });
+  }
+  drawMarchPaths(c) {
+    const z = this.cam.z;
+    c.save();
+    c.setLineDash([8 / z, 6 / z]); c.lineWidth = 2.5 / z;
+    for (const m of this.app.me.marches || []) {
+      c.strokeStyle = m.kind === 'gather' ? 'rgba(140,220,110,0.85)' : 'rgba(255,120,90,0.85)';
+      c.beginPath();
+      c.moveTo(isoX(m.fx, m.fy), isoY(m.fx, m.fy) + TH / 2);
+      c.lineTo(isoX(m.tx, m.ty), isoY(m.tx, m.ty) + TH / 2);
+      c.stroke();
+    }
+    c.restore();
+  }
+  drawMarch(c, e) {
+    const m = e.m, race = this.app.me.race;
+    const im = W(`m_${m.kind === 'gather' ? 'gather' : 'army'}_${race}`) || W('m_army_humans');
+    const px = isoX(e.x, e.y), py = isoY(e.x, e.y) + TH / 2;
+    if (m.phase === 'work') {
+      // сбор: отряд стоит у объекта, кольцо прогресса
+      const t = this.serverNow(), k = Math.min(1, (t - m.arrive) / Math.max(1, m.workEnd - m.arrive));
+      c.save();
+      c.strokeStyle = 'rgba(0,0,0,.5)'; c.lineWidth = 4; c.beginPath(); c.arc(px, py - TH * 2.4, 11, 0, Math.PI * 2); c.stroke();
+      c.strokeStyle = '#8fe05a'; c.beginPath(); c.arc(px, py - TH * 2.4, 11, -Math.PI / 2, -Math.PI / 2 + k * Math.PI * 2); c.stroke();
+      c.restore();
+      return;
+    }
+    if (!im) return;
+    const w = TW * 1.25, h = im.height * w / im.width;
+    // направление движения на экране
+    const dx = isoX(m.tx, m.ty) - isoX(m.fx, m.fy);
+    const right = e.back ? dx < 0 : dx >= 0;
+    const bob = Math.sin(this.t * 10) * 1.2;
+    c.save();
+    c.translate(px, py + bob);
+    if (!right) c.scale(-1, 1);
+    c.drawImage(im, -w / 2, -h * 0.9, w, h);
+    c.restore();
+    this.hits.push({ e: { kind: 'march', id: m.id, m }, x: px - w / 2, y: py - h * 0.9, w, h });
   }
 
   tap(p) {
@@ -311,27 +376,36 @@ export class WorldMap {
     this.app.sfx('click');
     const me = this.app.me;
     const now = Date.now();
+    if (e.kind === 'march') { this.march.openMarch(e.m); return; }
     if (e.kind === 'player') {
       const mine = e.id === me.id;
-      const lg = leagueOf(e.trophies);
-      this.panel(`<div class="wp-head"><img class="wp-ava" src="${avatarUrl(e.avatar)}" alt=""><div>
+      this.panel(`<div class="wp-head"><img class="wp-ava" src="/assets/realm/city/castle_${RACES[e.race] ? e.race : 'humans'}_1.png" alt=""><div>
         <b>${esc(e.name)}</b> ${e.online ? '<span class="dot-on"></span>' : ''}<div class="muted">${esc(e.owner)}${e.title ? ' · ' + esc(e.title) : ''}</div>
-        <div><span class="race-chip" style="--c:${RACES[e.race]?.color}">${RACES[e.race]?.name}</span> <span class="race-chip" style="--c:${lg.color}">${lg.icon} ${lg.name}</span> 🏆 ${e.trophies} · ур. ${e.level}</div></div></div>`,
+        <div class="muted">${RACES[e.race]?.name || ''} · Цитадель ${e.level} · ${e.x}:${e.y}</div></div></div>`,
       [
-        { label: '👤 Профиль', cls: 'blue', fn: () => this.app.ui.openProfile(e.id) },
-        ...(mine ? [{ label: '🏰 Домой', cls: 'green', fn: () => this.app.goHome() }] : [
-          { label: '👁 Осмотреть', fn: () => this.app.visit(e.id) },
-          { label: '⚔ Атаковать', cls: 'red', fn: () => this.app.attack({ kind: 'player', id: e.id }) },
+        { label: 'Профиль', cls: 'steel', fn: () => this.app.ui.openProfile(e.id) },
+        ...(mine ? [{ label: 'Домой', fn: () => this.app.goHome() }] : [
+          { label: 'Осмотреть', cls: 'steel', fn: () => this.app.visit(e.id) },
+          { label: `<img class="ic" src="${WI('i_attack')}" alt=""> Налёт`, cls: 'red', fn: () => this.march.open({ kind: 'attack', player: e }) },
         ]),
       ]);
-    } else {
-      const ct = CAMP_TYPES[e.type];
-      const resp = e.respawn > now;
-      this.panel(`<div class="wp-head"><img class="wp-ava camp" src="/assets/${ct.sprite}.png" alt=""><div><b>${esc(e.name)}</b>
-        <div class="muted">Уровень ${e.level}${e.type === 'darklord' ? ' · главный враг Валории' : ''}</div>
-        ${resp ? `<div class="tc-warn">Восстанавливается: ${fmtTime((e.respawn - now) / 1000)}</div>` : '<div class="muted">Победа приносит добычу. Чем ближе к центру — тем богаче лагеря.</div>'}</div></div>`,
-      [{ label: '⚔ Атаковать', cls: 'red', disabled: resp, fn: () => this.app.attack({ kind: 'camp', id: e.id }) }]);
+      return;
     }
+    const st = SITE_TYPES[e.type];
+    const resp = e.respawn > now;
+    const going = (me.marches || []).some((m) => m.siteId === e.id);
+    let info;
+    if (st.res) info = `Запас: <b>${fmt(siteAmount(e.type, e.level))}</b> · отправьте отряд на сбор`;
+    else {
+      const mine = troopMight(me.troops, me.race, st.enemy);
+      info = `Сила врага <b>${fmt(siteMight(e.level))}</b> · ваша армия <b class="${mine >= siteMight(e.level) ? 'ok' : 'bad'}">${fmt(mine)}</b>`;
+    }
+    this.panel(`<div class="wp-head"><img class="wp-ava camp" src="${WI(st.sprite)}" alt=""><div><b>${esc(e.name)}</b>
+      <div class="muted">Уровень ${e.level} · ${e.x}:${e.y}</div>
+      ${resp ? `<div class="tc-warn">Восстанавливается: ${fmtTime((e.respawn - now) / 1000)}</div>` : `<div class="wp-info">${info}</div>`}</div></div>`,
+    [st.res
+      ? { label: `<img class="ic" src="${WI('i_gather')}" alt=""> Собрать`, cls: 'green', disabled: resp || going, fn: () => this.march.open({ kind: 'gather', site: e }) }
+      : { label: `<img class="ic" src="${WI('i_attack')}" alt=""> Атаковать`, cls: 'red', disabled: resp || going, fn: () => this.march.open({ kind: 'attack', site: e }) }]);
   }
 
   panel(html, buttons) {
@@ -418,39 +492,6 @@ export class WorldMap {
     const a = (sx - ox) / k, b = sy * 2 / k;  // a = x - y, b = x + y
     this.flyTo(Math.round((a + b) / 2), Math.round((b - a) / 2));
   }
-}
-
-// --- Отрисовка декора на клетке ------------------------------------------------
-function drawDeco(c, { t, x, y, px, py }) {
-  const r = hash01(x, y, 21);
-  const put = (name, scale, dx = 0, dy = 0) => {
-    const im = img(name);
-    if (!im) return;
-    const w = TW * scale, h = im.height * w / im.width;
-    c.drawImage(im, px - w / 2 + dx, py + TH * 0.75 - h + dy, w, h);
-  };
-  if (t === 'forest') { put(r > 0.5 ? 'decor/oak' : 'decor/bush', r > 0.5 ? 1.0 : 0.7, (r - 0.5) * 12); if (r > 0.7) put('decor/pine', 0.75, 12, 4); }
-  else if (t === 'pines') { put('decor/pine', 0.95, (r - 0.5) * 10); if (r > 0.4) put('decor/pine', 0.75, -12 + r * 6, 5); }
-  else if (t === 'mountain') drawMountain(c, px, py, r);
-  else if (t === 'hills') { if (r > 0.45) put(r > 0.8 ? 'decor/rock_big' : 'decor/rocks', 0.75, (r - 0.5) * 14); }
-  else if (t === 'meadow') { if (r > 0.6) put('decor/flowers', 0.6); }
-  else if (t === 'grass') { if (r > 0.94) put('decor/oak', 0.9); else if (r > 0.9) put('decor/bush', 0.6); }
-  else if (t === 'snow') { if (r > 0.85) put('decor/pine', 0.8); }
-  else if (t === 'swamp') {
-    c.fillStyle = 'rgba(40,70,60,0.55)'; c.beginPath(); c.ellipse(px + (r - 0.5) * 10, py + TH / 2, 10, 4, 0, 0, Math.PI * 2); c.fill();
-    if (r > 0.7) put('decor/stump', 0.5);
-  } else if (t === 'desert') { if (r > 0.9) put('decor/rocks', 0.6); }
-}
-
-function drawMountain(c, px, py, r) {
-  const h = TH * (2.2 + r * 1.6), w = TW * 0.62;
-  const bx = px + (r - 0.5) * 8, by = py + TH * 0.85;
-  c.fillStyle = '#7d7670';
-  c.beginPath(); c.moveTo(bx - w, by); c.lineTo(bx - w * 0.05, by - h); c.lineTo(bx + w, by); c.closePath(); c.fill();
-  c.fillStyle = '#a49c94';
-  c.beginPath(); c.moveTo(bx - w, by); c.lineTo(bx - w * 0.05, by - h); c.lineTo(bx - w * 0.2, by); c.closePath(); c.fill();
-  c.fillStyle = '#f4f7fb';
-  c.beginPath(); c.moveTo(bx - w * 0.05, by - h); c.lineTo(bx - w * 0.32, by - h * 0.62); c.lineTo(bx - w * 0.1, by - h * 0.7); c.lineTo(bx + w * 0.12, by - h * 0.58); c.lineTo(bx + w * 0.3, by - h * 0.62); c.closePath(); c.fill();
 }
 
 function shade(hex, k) {

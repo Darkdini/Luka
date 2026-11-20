@@ -1330,3 +1330,67 @@ img.h-up { position: absolute; right: 3px; bottom: 20px; width: 24px; height: 24
 .tr-w .tr-wt { width: 22px; height: 22px; }
 .tr-w b { flex: 1; color: #e9dcc0; font-weight: 600; } .tr-w span { color: #ff9a8a; font-weight: 800; }
 .tr-t small img.lk { width: 11px; height: 11px; vertical-align: -1px; opacity: .8; }
+
+/* =====================================================================
+   КАРТА МИРА И ПОХОДЫ
+   ===================================================================== */
+.btn.steel { background: linear-gradient(#3a3229, #1d1813); border: 1px solid #7a5f33; color: #e9dcc0; }
+.btn.red { background: linear-gradient(#a8392a, #6a1a12); border: 1px solid #d0644f; color: #fff1e6; box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 2px 0 #000; }
+.btn img.ic, .nbtn img.ic { width: 20px; height: 20px; vertical-align: -5px; }
+#world { background: #3a4a24; }
+#w-panel { background: rgba(22,18,13,.94); border: 1px solid #8a6a33; border-radius: 12px; color: #e9dcc0; box-shadow: 0 6px 16px rgba(0,0,0,.5); }
+.wp-ava { border: 1px solid #8a6a33; background: rgba(0,0,0,.3); }
+.wp-body b { color: #f2e2bd; font-family: var(--serif); }
+.wp-info { font-size: 12.5px; color: #d9ccb2; margin-top: 3px; }
+.wp-info b { font-family: inherit; font-size: 13px; } .wp-info b.ok { color: #8fe05a; } .wp-info b.bad { color: #ff8a70; }
+.tc-warn { color: #e2bd72; font-size: 12px; }
+
+/* список походов */
+#marches { position: fixed; right: 6px; top: calc(96px + var(--sat)); z-index: 30; display: none; flex-direction: column; gap: 4px; width: 132px; }
+#marches.show { display: flex; }
+#marches.on-world { top: calc(112px + var(--sat)); z-index: 60; }
+body[data-mode=battle] #marches, body[data-mode=visit] #marches { display: none !important; }
+.mq-h { font-size: 10px; color: #bfae8c; text-align: right; text-shadow: 0 1px 2px #000; }
+.mq { display: flex; align-items: center; gap: 5px; padding: 3px 6px 3px 3px; border-radius: 9px; border: 1px solid #6b5636; background: rgba(22,18,13,.88); color: #e9dcc0; text-align: left; }
+.mq > img { width: 26px; height: 26px; flex: none; }
+.mq > div { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.mq b { font-size: 10.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mq-t { font-size: 11px; font-weight: 800; color: #f2e2bd; }
+.mq i { display: block; height: 3px; background: rgba(0,0,0,.6); border-radius: 2px; overflow: hidden; margin-top: 2px; }
+.mq u { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #a8792f, #e2bd72); }
+
+/* окно отправки похода */
+.modal.march-sheet { align-self: flex-end; width: 100%; max-width: 640px; border-radius: 18px 18px 0 0; }
+.modal.march-sheet .m-body { display: flex; flex-direction: column; gap: 6px; }
+.ms-sub { font-size: 11.5px; color: #a08b62; }
+.ms-heroes { display: flex; gap: 5px; overflow-x: auto; padding-bottom: 4px; }
+.ms-h { flex: none; width: 54px; border: 2px solid var(--rc, #555); border-radius: 8px; padding: 0; background: #141017; position: relative; overflow: hidden; opacity: .55; }
+.ms-h img { width: 100%; height: 62px; object-fit: cover; object-position: top; display: block; }
+.ms-h span { display: block; font-size: 9.5px; color: #e9dcc0; background: rgba(0,0,0,.7); }
+.ms-h.on { opacity: 1; box-shadow: 0 0 0 2px #ffd34d, 0 0 10px rgba(255,211,77,.6); }
+.ms-h.busy { filter: grayscale(1); opacity: .35; }
+.ms-head { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: #d9ccb2; }
+.ms-head span { flex: 1; } .ms-head b { color: #f2e2bd; }
+.ms-troops { display: flex; flex-direction: column; gap: 2px; max-height: 30vh; overflow-y: auto; }
+.ms-t { display: flex; align-items: center; gap: 5px; padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,.05); }
+.ms-t > img:first-child { width: 34px; height: 40px; object-fit: contain; }
+.ms-tier { width: 22px; height: 22px; }
+.ms-tn { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ms-tn b { font-size: 11.5px; color: #e9dcc0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ms-tn input { width: 100%; accent-color: #d9b26a; margin: 2px 0 0; }
+.ms-tv { min-width: 64px; text-align: right; font-size: 13px; font-weight: 800; color: #f2e2bd; }
+.ms-tv small { color: #8b7f6a; font-weight: 600; font-size: 10px; }
+.ms-row { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; padding: 2px 0; }
+.ms-row span { display: flex; align-items: center; gap: 5px; color: #d9ccb2; }
+.ms-row b { color: #f2e2bd; } .ms-row b.ok { color: #8fe05a; } .ms-row b.bad { color: #ff8a70; }
+.ms-row img.ic { width: 20px; height: 20px; }
+.ms-hint { font-size: 11px; color: #e2bd72; }
+.ms-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.ms-chip { display: flex; align-items: center; gap: 3px; font-size: 11.5px; background: rgba(0,0,0,.35); border: 1px solid #5a4528; border-radius: 8px; padding: 2px 6px 2px 2px; }
+.ms-chip img { width: 18px; height: 18px; }
+.ms-hrow { display: flex; gap: 4px; }
+.ms-hp { width: 40px; height: 48px; object-fit: cover; object-position: top; border-radius: 6px; border: 2px solid #555; }
+.ms-hp.r-common { border-color: #5fae4a; } .ms-hp.r-rare { border-color: #3f7fd8; } .ms-hp.r-epic { border-color: #9a52d6; } .ms-hp.r-legendary { border-color: #e0a83a; }
+#w-q { background: rgba(22,18,13,.85); border: 1px solid #6b5636; color: #e9dcc0; border-radius: 8px; }
+.world-top .online { color: #d9ccb2; text-shadow: 0 1px 2px #000; font-size: 11px; }
+#mini { background: rgba(22,18,13,.8); border: 1px solid #8a6a33; border-radius: 8px; }

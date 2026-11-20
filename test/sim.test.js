@@ -187,3 +187,38 @@ test('войска: обучение в лагерях, ступени, уско
   tick(s, Date.now() + 3600e3);
   assert.equal(s.troops.infantry1, 70);
 });
+
+import { processMarches } from '../server/march.js';
+import { campAt as siteAt } from '../shared/worldgen.js';
+
+test('походы: атака лагеря, сбор ресурсов, отзыв', () => {
+  const s = newPlayerState('humans', 31);
+  const p = { id: -1, wx: 600, wy: 340, castle_name: 'Тест', state: s };
+  for (const [k, v] of Object.entries({ _pid: -1, _x: 600, _y: 340, _name: 'Тест' })) Object.defineProperty(s, k, { value: v, enumerable: false });
+  // ближайшие разбойники и ресурс
+  let bandits = null, res = null;
+  for (let r = 1; r < 120 && !(bandits && res); r++) for (let dx = -r; dx <= r; dx++) for (let dy = -r; dy <= r; dy++) {
+    const c = siteAt(600 + dx, 340 + dy);
+    if (!c) continue;
+    if (!bandits && c.type === 'bandits' && c.level <= 2) bandits = c;
+    if (!res && c.type === 'wood') res = c;
+  }
+  assert.ok(bandits && res, 'рядом есть цели');
+  const heroes = s.formation.filter(Boolean);
+  assert.throws(() => actions.march(s, { kind: 'attack', siteId: bandits.id, heroes: [], troops: { infantry1: 10 } }), /герой/);
+  actions.march(s, { kind: 'attack', siteId: bandits.id, heroes, troops: { infantry1: 60, archer1: 20 } });
+  assert.equal(s.troops.infantry1, 0);
+  assert.throws(() => actions.march(s, { kind: 'gather', siteId: res.id, heroes: heroes.slice(0, 1), troops: { archer1: 10 } }), /другом походе/);
+  actions.march(s, { kind: 'gather', siteId: res.id, heroes: [], troops: { archer1: 20 } });
+  assert.throws(() => actions.march(s, { kind: 'gather', siteId: res.id, heroes: [], troops: { archer1: 1 } }), /Все отряды|Столько/);
+  console.log('разбойники ур.', bandits.level);
+  const wood = s.res.wood;
+  // через сутки всё разрешилось и вернулось
+  processMarches(p, Date.now() + 864e5);
+  processMarches(p, Date.now() + 2 * 864e5);
+  assert.equal(s.marches.length, 0);
+  assert.ok(s.res.wood > wood, 'дерево собрано');
+  assert.ok(s.troops.infantry1 + (s.wounded.infantry1 || 0) > 0);
+  assert.equal(s.battleLogs.length, 1);
+  assert.equal(s.battleLogs[0].win, true, 'стартовый отряд бьёт разбойников 1 ур.');
+});

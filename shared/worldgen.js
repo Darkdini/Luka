@@ -30,24 +30,17 @@ function fbm(x, y, s, oct = 4) {
   return v / n;
 }
 
-// --- Биомы ---------------------------------------------------------------
+// --- Биомы: луга в середине, снега на севере, степь на юге, лесные пятна ---
 export const BIOMES = {
-  water: { name: 'Озеро', color: '#2f7fc4', build: false },
-  deep: { name: 'Море', color: '#1f5f9e', build: false },
-  grass: { name: 'Луга', color: '#7cbf3a', build: true },
-  meadow: { name: 'Цветущий луг', color: '#8fcf48', build: true },
-  forest: { name: 'Лес', color: '#3f8f2a', build: true },
-  pines: { name: 'Хвойный лес', color: '#2f6f2a', build: false },
-  hills: { name: 'Холмы', color: '#9a9a6a', build: true },
-  mountain: { name: 'Горы', color: '#8a8580', build: false },
-  snow: { name: 'Снежные равнины', color: '#e8eef4', build: true },
-  desert: { name: 'Пустошь', color: '#e0c27a', build: true },
-  swamp: { name: 'Топи', color: '#5f7a4a', build: false },
+  meadow: { name: 'Луга', color: '#7f9a3e', tex: 'tex_meadow', build: true },
+  steppe: { name: 'Степь', color: '#c79a3c', tex: 'tex_steppe', build: true },
+  snow: { name: 'Снежные равнины', color: '#e4e8ec', tex: 'tex_snow', build: true },
+  forest: { name: 'Лесная чаща', color: '#4f5e2c', tex: 'tex_forest', build: true },
 };
 
 const cache = new Map();
 export function terrainAt(x, y) {
-  if (x < 0 || y < 0 || x >= WORLD || y >= WORLD) return 'pines';
+  if (x < 0 || y < 0 || x >= WORLD || y >= WORLD) return 'forest';
   const k = x * WORLD + y;
   const c = cache.get(k);
   if (c) return c;
@@ -58,53 +51,81 @@ export function terrainAt(x, y) {
 }
 
 function computeTerrain(x, y) {
-  const nx = x / WORLD, ny = y / WORLD;
-  const dc = Math.hypot(nx - 0.5, ny - 0.5) * 2;           // 0 в центре, ~1 у края
-  // сплошная суша: без морей, озёр и гор
-  const e = fbm(x / 34, y / 34, 11) * 1.05;
-  void dc;
-  const m = fbm(x / 24, y / 24, 77);
-  const temp = ny + (fbm(x / 50, y / 50, 300) - 0.5) * 0.25; // север холодный, юг жаркий
-  if (temp < 0.16) return m > 0.55 ? 'pines' : 'snow';
-  if (temp > 0.86 && m < 0.55) return 'desert';
-  if (e > 0.62) return 'hills';
-  if (m > 0.66 && e < 0.42) return 'swamp';
-  if (m > 0.62) return 'pines';
-  if (m > 0.53) return 'forest';
-  return hash(x, y, 9) > 0.8 ? 'meadow' : 'grass';
+  const m = fbm(x / 26, y / 26, 77);
+  const temp = (y / WORLD) + (fbm(x / 60, y / 60, 300) - 0.5) * 0.3; // север холодный, юг жаркий
+  if (temp < 0.1) return 'snow';
+  if (temp > 0.9) return 'steppe';
+  if (m > 0.6) return 'forest';
+  return 'meadow';
 }
 
-export const buildable = (x, y) => BIOMES[terrainAt(x, y)].build;
-
-// --- Лагеря NPC ---------------------------------------------------------------
-export const CAMP_TYPES = {
-  bandits: { name: 'Лагерь разбойников', sprite: 'buildings/armycamp_1' },
-  ruins: { name: 'Древние руины', sprite: 'buildings/rubble_3' },
-  crystal: { name: 'Кристальная жила', sprite: 'decor/gems' },
-  mine: { name: 'Захваченный рудник', sprite: 'buildings/goldmine_2' },
-  fort: { name: 'Форпост Морвейна', sprite: 'buildings/castle_3', dark: true },
-  darklord: { name: 'Цитадель Тёмного лорда', sprite: 'buildings/castle_6', dark: true },
+// Природа на клетке (крупные кластеры): занимает клетку, замки рядом не ставятся
+const DECOR_BY = {
+  meadow: ['d_autumn', 'd_pines', 'd_boulders', 'd_hill', 'd_stones', 'd_pines', 'd_autumn', 'd_road'],
+  forest: ['d_pines', 'd_pines', 'd_autumn', 'd_hill', 'd_pines', 'd_boulders'],
+  steppe: ['d_boulders', 'd_hill', 'd_mount', 'd_stones', 'd_autumn', 'd_ford', 'd_village'],
+  snow: ['d_pines', 'd_mount', 'd_hill', 'd_boulders', 'd_pines', 'd_tower'],
 };
+export function decorAt(x, y) {
+  if (Math.abs(x - CENTER) <= 4 && Math.abs(y - CENTER) <= 4) return null;
+  const t = terrainAt(x, y);
+  const h = hash(x, y, 909);
+  const dens = t === 'forest' ? 0.12 : 0.022;
+  if (h > dens) return null;
+  if (siteRaw(x, y)) return null;
+  // не вплотную к другой природе (чтобы кластеры не слипались)
+  if (hash(x - 1, y, 909) <= dens || hash(x, y - 1, 909) <= dens) { if (t !== 'forest') return null; }
+  const list = DECOR_BY[t];
+  return list[Math.floor(hash(x, y, 910) * list.length)];
+}
+
+export const buildable = (x, y) => x >= 0 && y >= 0 && x < WORLD && y < WORLD && !decorAt(x, y);
+
+// --- Объекты карты: ресурсы и враги -------------------------------------------
+// res — что добывается; enemy — род войск врага (кого бьёт пехота/конница/стрелки)
+export const SITE_TYPES = {
+  food: { name: 'Хлебные поля', sprite: 's_food', res: 'food' },
+  wood: { name: 'Лесозаготовка', sprite: 's_wood', res: 'wood' },
+  stone: { name: 'Каменоломня', sprite: 's_stone', res: 'stone' },
+  iron: { name: 'Железный рудник', sprite: 's_iron', res: 'iron' },
+  mana: { name: 'Кристаллы маны', sprite: 's_mana', res: 'mana' },
+  gold: { name: 'Золотая жила', sprite: 's_gold', res: 'gold' },
+  bandits: { name: 'Лагерь разбойников', sprite: 's_bandits', enemy: 'infantry' },
+  raiders: { name: 'Крепость налётчиков', sprite: 's_raiders', enemy: 'cavalry' },
+  lair: { name: 'Логово чудовища', sprite: 's_lair', enemy: null },
+  tower: { name: 'Башня отступника', sprite: 's_tower', enemy: 'archer' },
+  throne: { name: 'Престол Морвейна', sprite: 's_city', enemy: null },
+};
+export const CAMP_TYPES = SITE_TYPES; // совместимость
+
+function siteRaw(x, y) {
+  if (x === CENTER && y === CENTER) return 'throne';
+  if (Math.abs(x - CENTER) <= 4 && Math.abs(y - CENTER) <= 4) return null;
+  const h = hash(x, y, 4242);
+  return h <= 0.022 ? 'site' : null;
+}
 
 export function campAt(x, y) {
-  if (x === CENTER && y === CENTER) return { id: 'darklord', x, y, type: 'darklord', level: 10, name: CAMP_TYPES.darklord.name };
-  if (Math.abs(x - CENTER) <= 3 && Math.abs(y - CENTER) <= 3) return null;
-  if (!buildable(x, y)) return null;
-  const h = hash(x, y, 4242);
-  if (h > 0.02) return null;
-  // не ставим лагеря вплотную друг к другу
+  const raw = siteRaw(x, y);
+  if (!raw) return null;
+  if (raw === 'throne') return { id: 'throne', x, y, type: 'throne', level: 15, name: SITE_TYPES.throne.name };
+  // не вплотную к соседнему объекту
   for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-    if ((dx || dy) && (dy < 0 || (dy === 0 && dx < 0)) && buildable(x + dx, y + dy) && hash(x + dx, y + dy, 4242) <= 0.02) return null;
+    if ((dx || dy) && (dy < 0 || (dy === 0 && dx < 0)) && siteRaw(x + dx, y + dy)) return null;
   }
   const dc = Math.hypot(x - CENTER, y - CENTER) / (WORLD / 2);
-  const level = Math.max(1, Math.min(9, Math.round((1 - dc) * 9 + (hash(x, y, 5) - 0.5) * 2)));
+  const level = Math.max(1, Math.min(10, Math.round((1 - dc) * 10 + (hash(x, y, 5) - 0.5) * 3)));
   const r = hash(x, y, 6);
-  const type = level >= 8 ? 'fort' : r < 0.55 ? 'bandits' : r < 0.72 ? 'ruins' : r < 0.86 ? 'mine' : 'crystal';
-  return { id: `c${x}_${y}`, x, y, type, level, name: CAMP_TYPES[type].name };
+  let type;
+  if (r < 0.58) {
+    const q = hash(x, y, 7);
+    type = q < 0.24 ? 'food' : q < 0.48 ? 'wood' : q < 0.68 ? 'stone' : q < 0.84 ? 'iron' : q < 0.93 ? 'gold' : 'mana';
+  } else type = level >= 8 ? (r < 0.9 ? 'lair' : 'tower') : level >= 5 ? (r < 0.8 ? 'raiders' : 'lair') : 'bandits';
+  return { id: `c${x}_${y}`, x, y, type, level, name: SITE_TYPES[type].name };
 }
 
 export function campById(id) {
-  if (id === 'darklord') return campAt(CENTER, CENTER);
+  if (id === 'throne' || id === 'darklord') return campAt(CENTER, CENTER);
   const m = /^c(\d+)_(\d+)$/.exec(id);
   return m ? campAt(+m[1], +m[2]) : null;
 }

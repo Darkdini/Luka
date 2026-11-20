@@ -6,12 +6,12 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Чёрная Луна">
+  <meta name="apple-mobile-web-app-title" content="Пепел Короны">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icons/icon-192.png">
   <link rel="apple-touch-icon" href="/icons/icon-192.png">
   <meta name="theme-color" content="#0b0a0e">
-  <title>Чёрная Луна</title>
+  <title>Пепел Короны</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;600;800;900&family=Cinzel:wght@600;700&display=swap">
   <link rel="stylesheet" href="/css/style.css">
@@ -19,11 +19,11 @@
 <body data-mode="village">
   <!-- Загрузка -->
   <div id="loading">
-    <img class="emblem" src="/assets/night/ui/emblem.png" alt="">
-    <div class="game-title">Чёрная Луна</div>
+    <img class="emblem" src="/assets/realm/ui/emblem.png" alt="">
+    <div class="game-title">Пепел Короны</div>
     <div class="load-wrap">
       <div class="load-bar"><div id="load-fill"></div></div>
-      <p id="load-stage">Пробуждение…</p>
+      <p id="load-stage">Разжигаем горн…</p>
       <p id="load-tip"></p>
     </div>
     <div class="legal-links"><a href="/legal/privacy.html" target="_blank">Политика конфиденциальности</a> и <a href="/legal/terms.html" target="_blank">Условия использования</a></div>
@@ -65,14 +65,14 @@
       <div class="fx-card">
         <div class="fx-head"><img class="fx-crest-sm" alt=""><b class="fx-name"></b></div>
         <div class="fx-house"></div>
+        <div class="fx-mentor"></div>
         <img class="fx-hq" alt="">
-        <div class="fx-sub">О фракции</div>
+        <div class="fx-sub">О расе</div>
         <p class="fx-desc"></p>
-        <div class="fx-sub">Бонус фракции</div>
+        <div class="fx-sub">Бонус расы</div>
         <div class="fx-perks"></div>
         <button class="nbtn gold" id="fx-pick">Выбрать</button>
       </div>
-      <div class="fx-mentor"></div>
     </div>
     <div class="fx-tabs"></div>
     <button class="fx-login" id="fx-login">Уже есть аккаунт? <b>Войти</b></button>
@@ -81,8 +81,8 @@
   <!-- Вход / регистрация -->
   <div id="auth" data-mode="login" class="night-screen">
     <div class="auth-box">
-      <img class="emblem sm" src="/assets/night/ui/emblem.png" alt="">
-      <div class="auth-faction reg-only"><img alt=""><div><span>Ваша фракция</span><b></b></div><button type="button" id="fx-change" class="link-btn">сменить</button></div>
+      <img class="emblem sm" src="/assets/realm/ui/emblem.png" alt="">
+      <div class="auth-faction reg-only"><img alt=""><div><span>Ваша раса</span><b></b></div><button type="button" id="fx-change" class="link-btn">сменить</button></div>
       <div class="auth-tabs">
         <button class="auth-tab on" data-mode="login">Вход</button>
         <button class="auth-tab" data-mode="register">Регистрация</button>
@@ -91,14 +91,14 @@
         <label>Ник (английскими буквами)<input name="username" required minlength="5" maxlength="16" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Например, Arthur_77"><small class="hint reg-only">5–16 символов: A–Z, цифры и _</small></label>
         <label>Пароль<input name="password" type="password" required minlength="5" autocomplete="current-password"><small class="hint reg-only">от 5 символов</small></label>
         <div class="reg-only">
-          <label>Название квартала<input name="castle" maxlength="24" placeholder="Например, Багровый Предел"></label>
-          <input type="hidden" name="race" value="vampires">
+          <label>Название крепости<input name="castle" maxlength="24" placeholder="Например, Северный Оплот"></label>
+          <input type="hidden" name="race" value="humans">
           <div class="captcha"><div class="cap-row"><div id="cap-img"></div><button type="button" id="cap-new" class="nbtn steel sq" aria-label="Другая картинка">↻</button></div>
             <label>Код с картинки<input name="captcha" autocomplete="off" autocapitalize="characters" maxlength="6" inputmode="text"></label></div>
           <input class="hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
         </div>
         <div id="auth-err"></div>
-        <button class="nbtn gold big" type="submit"><span class="login-only">Войти</span><span class="reg-only">Вступить во фракцию</span></button>
+        <button class="nbtn gold big" type="submit"><span class="login-only">Войти</span><span class="reg-only">Основать крепость</span></button>
       </form>
     </div>
   </div>

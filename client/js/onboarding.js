@@ -3,27 +3,27 @@ import { RACES } from '/shared/config.js';
 import { store } from './api.js';
 
 const $ = (s) => document.querySelector(s);
-const A = '/assets/night/';
+const A = '/assets/realm/';
 
 export const LOAD_TIPS = [
-  'Совет: расчищайте руины в квартале — под ними прячутся ресурсы.',
-  'Совет: герои одной фракции в отряде получают общий бонус.',
-  'Совет: улучшайте Стену, чтобы раньше узнавать о нападениях.',
-  'Совет: заходите каждый день — на седьмой ждёт особая награда.',
-  'Говорят, в ночь Чёрной Луны Пакт треснул не сам по себе…',
+  'Совет: расчищайте руины — под ними прячутся ресурсы.',
+  'Совет: герои одной расы в отряде получают общий бонус.',
+  'Совет: улучшайте Стену, чтобы враг не застал вас врасплох.',
+  'Совет: заходите каждый день — на седьмой ждёт королевский сундук.',
+  'Говорят, седьмой осколок Короны так и не нашли…',
 ];
-const STAGES = ['Пробуждение…', 'Чтение древних свитков…', 'Зажигаем фонари…', 'Сбор фракций…', 'Почти готово…'];
+const STAGES = ['Разжигаем горн…', 'Читаем летописи…', 'Поднимаем знамёна…', 'Созываем героев…', 'Почти готово…'];
 
 export const INTRO = [
-  'Тысячу лет Иные — вампиры, оборотни, охотники и маги — жили по Тайному Пакту: люди не должны знать о них.',
-  'В ночь Чёрной Луны затмение длилось семь часов. Небо раскололось, и город погрузился во тьму.',
-  'Из разломов хлынула Тьма. Пробудились твари, которых Пакт держал взаперти веками.',
-  'Пакт разорван. Фракции снова делят город — квартал за кварталом.',
-  'Тебе достался заброшенный квартал. Сделай его крепостью — или его заберут другие.',
-  'Выбери, под чьим знаменем ты встретишь рассвет.',
+  'Пятьсот лет люди, эльфы, гномы и орки жили в мире под властью Короны Семи Камней.',
+  'Но король Аурел убит в собственном тронном зале. Корона расколота, семь осколков разлетелись по Валории.',
+  'Из Пустошей поднялся некромант Морвейн. Мёртвые встают из могил под его знаменем.',
+  'Союзы рушатся. Деревни горят. Каждое королевство теперь само за себя.',
+  'Тебе досталась разорённая пограничная крепость — последний оплот на пути Тьмы.',
+  'Подними её из руин. Найди осколки. Выбери, под чьим знаменем ты встанешь.',
 ];
 
-export const FACTION_ORDER = ['vampires', 'werewolves', 'hunters', 'mages'];
+export const FACTION_ORDER = ['humans', 'elves', 'dwarves', 'orcs'];
 
 export function loadingProgress(k) {
   $('#load-fill').style.width = Math.round(k * 100) + '%';
@@ -93,7 +93,7 @@ export function chooseFaction(initial, sfx) {
   return new Promise((resolve) => {
     show('factions');
     const tabs = $('.fx-tabs');
-    tabs.innerHTML = FACTION_ORDER.map((k) => `<button data-f="${k}" style="--c:${RACES[k].color}"><img src="${A}factions/crest_${k}.png" alt=""><span>${RACES[k].name}</span></button>`).join('');
+    tabs.innerHTML = FACTION_ORDER.map((k) => `<button data-f="${k}" style="--c:${RACES[k].color}"><img src="${A}races/crest_${k}.png" alt=""><span>${RACES[k].name}</span></button>`).join('');
     let cur = null;
     const pick = (k) => {
       if (k === cur) return;
@@ -101,15 +101,15 @@ export function chooseFaction(initial, sfx) {
       const r = RACES[k];
       const root = $('#factions');
       root.style.setProperty('--c', r.color);
-      $('.fx-bg').style.backgroundImage = `url(${A}factions/bg_${k}.jpg)`;
+      $('.fx-bg').style.backgroundImage = `url(${A}races/bg_${k}.jpg)`;
       const hero = $('.fx-hero');
       hero.classList.remove('in'); void hero.offsetWidth;
-      hero.src = `${A}factions/mentor_${k}.png`;
+      hero.src = `${A}races/mentor_${k}.png`;
       hero.classList.add('in');
-      $('.fx-crest-sm').src = `${A}factions/crest_${k}.png`;
+      $('.fx-crest-sm').src = `${A}races/crest_${k}.png`;
       $('.fx-name').textContent = r.name;
       $('.fx-house').textContent = r.house;
-      $('.fx-hq').src = `${A}factions/hq_${k}.png`;
+      $('.fx-hq').src = `${A}races/hq_${k}.png`;
       $('.fx-desc').textContent = r.desc;
       $('.fx-perks').innerHTML = r.perks.map((p) => p.replace(/(\+\d+%)/, '<em>$1</em>')).map((p) => `<div>${p}</div>`).join('');
       $('.fx-mentor').innerHTML = `Наставник: <b>${r.mentor}</b>`;
@@ -133,7 +133,7 @@ export function chooseFaction(initial, sfx) {
     };
     $('#fx-pick').onclick = () => resolve({ faction: cur });
     $('#fx-login').onclick = () => resolve({ login: true });
-    pick(initial || 'vampires');
+    pick(initial || 'humans');
   });
 }
 
@@ -144,7 +144,7 @@ export function showAuthScreen(mode, faction) {
   if (faction) {
     $('#auth-form').race.value = faction;
     const r = RACES[faction];
-    $('.auth-faction img').src = `${A}factions/crest_${faction}.png`;
+    $('.auth-faction img').src = `${A}races/crest_${faction}.png`;
     $('.auth-faction b').textContent = `${r.name} · ${r.house}`;
     $('#auth').style.setProperty('--c', r.color);
   }

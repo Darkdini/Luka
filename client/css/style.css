@@ -652,7 +652,7 @@ html, body { background: #07060a; }
   text-transform: uppercase; text-shadow: 0 2px 0 #3a1a10, 0 0 24px rgba(179,32,44,.6); }
 
 /* загрузка */
-#loading { background: #07060a url(/assets/night/splash.jpg) center top / cover no-repeat; justify-content: flex-start; padding-top: calc(28px + var(--sat)); gap: 6px; }
+#loading { background: #07060a url(/assets/realm/splash.jpg) center top / cover no-repeat; justify-content: flex-start; padding-top: calc(28px + var(--sat)); gap: 6px; }
 #loading::before { background: linear-gradient(rgba(7,6,10,.15), rgba(7,6,10,0) 40%, rgba(7,6,10,.85) 88%); }
 #loading .emblem { width: min(32vw, 150px); }
 .load-wrap { position: absolute !important; left: 16px; right: 16px; bottom: calc(52px + var(--sab)); text-align: center; }
@@ -664,11 +664,11 @@ html, body { background: #07060a; }
 .legal-links a { color: #c9b896; }
 
 /* кнопки в стиле UI-кита */
-.nbtn { display: block; width: 100%; height: 52px; border: 0; background: url(/assets/night/ui/btn_gold.png) center / 100% 100% no-repeat; color: #2a1b08;
+.nbtn { display: block; width: 100%; height: 52px; border: 0; background: url(/assets/realm/ui/btn_gold.png) center / 100% 100% no-repeat; color: #2a1b08;
   font: 700 17px var(--font); letter-spacing: .5px; text-shadow: 0 1px 0 rgba(255,240,200,.5); cursor: pointer; }
-.nbtn:active { background-image: url(/assets/night/ui/btn_gold_pressed.png); transform: translateY(1px); }
-.nbtn.steel { background-image: url(/assets/night/ui/btn_steel.png); color: #e8eefc; text-shadow: 0 1px 1px #000; }
-.nbtn.steel:active { background-image: url(/assets/night/ui/btn_steel_pressed.png); }
+.nbtn:active { background-image: url(/assets/realm/ui/btn_gold_pressed.png); transform: translateY(1px); }
+.nbtn.steel { background-image: url(/assets/realm/ui/btn_steel.png); color: #e8eefc; text-shadow: 0 1px 1px #000; }
+.nbtn.steel:active { background-image: url(/assets/realm/ui/btn_steel_pressed.png); }
 .nbtn.ghost { background: none; border: 1px solid #6b5636; border-radius: 10px; color: #c9b896; height: 44px; font-size: 15px; }
 .nbtn.big { height: 58px; font-size: 18px; }
 .nbtn.sq { width: 52px; height: 52px; font-size: 22px; flex: none; }
@@ -676,7 +676,7 @@ html, body { background: #07060a; }
 .skip { position: absolute; top: calc(12px + var(--sat)); right: 12px; background: rgba(0,0,0,.4); border: 1px solid #6b5636; color: #e2d2b0; border-radius: 16px; padding: 6px 14px; font-size: 14px; z-index: 2; }
 
 /* соглашение */
-#agree { background: radial-gradient(ellipse at top, rgba(60,10,16,.5), rgba(7,6,10,.95)), url(/assets/night/splash.jpg) center / cover; }
+#agree { background: radial-gradient(ellipse at top, rgba(60,10,16,.5), rgba(7,6,10,.95)), url(/assets/realm/splash.jpg) center / cover; }
 .agree-box { position: absolute; left: 16px; right: 16px; top: 50%; transform: translateY(-50%); max-width: 460px; margin: 0 auto;
   background: linear-gradient(#1a1720, #0f0d13); border: 1px solid #6b5636; border-radius: 14px; padding: 18px 16px 14px; box-shadow: 0 0 0 3px rgba(0,0,0,.6), 0 20px 50px rgba(0,0,0,.8); display: flex; flex-direction: column; gap: 10px; }
 .agree-box h2 { margin: 0; text-align: center; font-family: var(--serif); color: var(--gold); font-size: 20px; }
@@ -732,7 +732,7 @@ html, body { background: #07060a; }
 .fx-login b { color: var(--gold); }
 
 /* вход / регистрация */
-#auth { background: linear-gradient(rgba(7,6,10,.55), rgba(7,6,10,.92)), url(/assets/night/splash.jpg) center top / cover; display: none; overflow-y: auto; padding: calc(16px + var(--sat)) 14px calc(16px + var(--sab)); }
+#auth { background: linear-gradient(rgba(7,6,10,.55), rgba(7,6,10,.92)), url(/assets/realm/splash.jpg) center top / cover; display: none; overflow-y: auto; padding: calc(16px + var(--sat)) 14px calc(16px + var(--sab)); }
 #auth.show { display: flex; align-items: center; justify-content: center; }
 #auth .auth-box { background: linear-gradient(#1a1720, #0f0d13); border: 1px solid #6b5636; border-radius: 14px; box-shadow: 0 0 0 3px rgba(0,0,0,.6), 0 20px 50px rgba(0,0,0,.8); width: min(420px, 100%); padding: 14px 16px; }
 #auth .logo { display: none; }
@@ -775,7 +775,7 @@ html, body { background: #07060a; }
 .dlg-box { background: linear-gradient(#1b1820, #100e14); color: var(--cream); border: 1px solid #6b5636; box-shadow: 0 0 0 3px #08070a, 0 12px 30px rgba(0,0,0,.7); }
 #dlg-name { background: linear-gradient(#2a2318, #15110c); border-color: #8a6a33; color: #f2e2bd; font-family: var(--serif); }
 .dlg-hint { color: #8b7f6a; }
-#dialog { background: linear-gradient(rgba(7,6,10,.2), rgba(7,6,10,.9)), url(/assets/night/splash.jpg) center / cover; }
+#dialog { background: linear-gradient(rgba(7,6,10,.2), rgba(7,6,10,.9)), url(/assets/realm/splash.jpg) center / cover; }
 #dlg-portrait.full { height: min(66vh, 620px); border-radius: 0; }
 /* правки после проверки */
 .nbtn { background: linear-gradient(#f1d79b, #c99a4c 45%, #8d6224 100%); border: 1px solid #f7e3b0; border-radius: 6px;
@@ -793,9 +793,20 @@ html, body { background: #07060a; }
 #loading, #agree, #intro, #factions, #auth { filter: brightness(1.12) saturate(1.08); }
 .fx-bg::after { background: linear-gradient(rgba(7,6,10,0), rgba(7,6,10,0) 65%, rgba(7,6,10,.75) 92%); }
 #intro::after { background: linear-gradient(transparent 70%, rgba(7,6,10,.8) 92%); }
-#agree { background: linear-gradient(rgba(7,6,10,.25), rgba(7,6,10,.55)), url(/assets/night/splash.jpg) center / cover; }
-#auth { background: linear-gradient(rgba(7,6,10,.2), rgba(7,6,10,.55)), url(/assets/night/splash.jpg) center top / cover; }
+#agree { background: linear-gradient(rgba(7,6,10,.25), rgba(7,6,10,.55)), url(/assets/realm/splash.jpg) center / cover; }
+#auth { background: linear-gradient(rgba(7,6,10,.2), rgba(7,6,10,.55)), url(/assets/realm/splash.jpg) center top / cover; }
 .agree-box, #auth .auth-box, .fx-card { background: linear-gradient(rgba(38,33,40,.9), rgba(24,21,27,.9)); }
 .modal, .dlg-box, #advisor { background: linear-gradient(#2a2530, #1d1a22); }
 .card, .chip, .dq, .ach, .report, .pf-stat, .medal, .hero-card, .cal, .shop-hint, .ch-rewards, .ch-teaser, .unlocks { background: linear-gradient(#302a35, #231f28) !important; }
-#dialog { background: linear-gradient(rgba(7,6,10,0), rgba(7,6,10,.55)), url(/assets/night/splash.jpg) center / cover; }
+#dialog { background: linear-gradient(rgba(7,6,10,0), rgba(7,6,10,.55)), url(/assets/realm/splash.jpg) center / cover; }
+
+/* «Пепел Короны»: кнопки из UI-кита, тёплый металл */
+.nbtn { background: url(/assets/realm/ui/btn_gold.png) center / 100% 100% no-repeat; border: 0; box-shadow: none; border-radius: 0; color: #2a1906; }
+.nbtn:active { background-image: url(/assets/realm/ui/btn_gold_pressed.png); }
+.nbtn.steel { background: url(/assets/realm/ui/btn_steel.png) center / 100% 100% no-repeat; border: 0; box-shadow: none; color: #eef3ff; }
+.nbtn.steel:active { background-image: url(/assets/realm/ui/btn_steel_pressed.png); }
+.nbtn.ghost { background: none; border: 1px solid #6b5636; border-radius: 10px; }
+#loading { background-position: center top; }
+
+.fx-card .fx-mentor { position: static; transform: none; font-size: 11px; color: #bfae8c; margin: 0; text-align: center; }
+#dialog { background: linear-gradient(rgba(7,6,10,.05), rgba(7,6,10,.55)), var(--dlg-bg, url(/assets/realm/splash.jpg)) center / cover; }

@@ -9,8 +9,9 @@ from PIL import Image, ImageFilter
 from scipy import ndimage
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SRC = os.path.join(ROOT, "art", "source", "night")
-OUT = os.path.join(ROOT, "client", "assets", "night")
+SET = next((a.split("=")[1] for a in sys.argv if a.startswith("--set=")), "realm")
+SRC = os.path.join(ROOT, "art", "source", SET)
+OUT = os.path.join(ROOT, "client", "assets", SET)
 DEBUG = "--debug" in sys.argv
 
 
@@ -59,51 +60,74 @@ def rgba(rgb, fg):
 
 
 def cut_columns(rgb, fg, n, names, folder, max_side, pad=6):
+    """Объекты листа: связные компоненты распределяются по колонкам по центру масс
+    (соседний меч или лук не попадёт в чужую вырезку)."""
     h, w = fg.shape
+    fg = ndimage.binary_opening(fg, iterations=1)
+    lab, k = ndimage.label(fg)
+    sizes = ndimage.sum(fg, lab, range(1, k + 1))
+    cms = ndimage.center_of_mass(fg, lab, range(1, k + 1))
+    groups = {i: [] for i in range(n)}
+    for j, (sz, (cy, cx)) in enumerate(zip(sizes, cms), start=1):
+        if sz < 400:
+            continue
+        groups[min(n - 1, int(cx / (w / n)))].append(j)
     for i, name in enumerate(names):
-        x0, x1 = int(i * w / n), int((i + 1) * w / n)
-        m = fg[:, x0:x1]
+        m = np.isin(lab, groups[i])
         ys, xs = np.where(m)
         y0, y1 = max(0, ys.min() - pad), min(h, ys.max() + pad)
-        a0, a1 = max(0, xs.min() - pad), min(x1 - x0, xs.max() + pad)
-        save_png(rgba(rgb[y0:y1, x0 + a0:x0 + a1], m[y0:y1, a0:a1]), f"{folder}/{name}.png", max_side)
+        x0, x1 = max(0, xs.min() - pad), min(w, xs.max() + pad)
+        save_png(rgba(rgb[y0:y1, x0:x1], m[y0:y1, x0:x1]), f"{folder}/{name}.png", max_side)
+
+
+UI_BOXES = {
+    "emblem": (32, 22, 411, 446),
+    "frame_iron_tall": (443, 15, 669, 448), "frame_blue": (701, 20, 942, 441), "frame_purple": (968, 15, 1225, 446),
+    "title_plate": (21, 456, 443, 607),
+    "btn_gold": (464, 473, 662, 541), "btn_steel": (464, 545, 662, 613),
+    "btn_gold_pressed": (697, 473, 880, 541), "btn_steel_pressed": (697, 545, 880, 613),
+    "ic_hero": (911, 463, 1010, 566), "ic_book": (911, 569, 1010, 672),
+    "ic_battle": (1021, 464, 1120, 566), "ic_quest": (1021, 569, 1120, 672),
+    "ic_settings": (1131, 463, 1230, 566), "ic_chest": (1131, 569, 1230, 672),
+    "banner_bar": (23, 618, 468, 744), "bar_empty": (23, 752, 476, 800), "bar_full": (32, 803, 476, 891),
+    "sign_chains": (498, 624, 916, 847),
+    "dot_red": (1000, 732, 1048, 786), "ic_close": (1100, 710, 1199, 814),
+    "frame_grey": (494, 878, 761, 1219), "frame_purple2": (787, 864, 1003, 1220), "frame_gold": (1016, 848, 1213, 1222),
+}
 
 
 def main():
-    # 1. Заставка: срезаем нарисованную полосу загрузки внизу
-    sp = load("splash.png")
-    save_jpg(sp[:1560], "splash.jpg", 1600)
+    names = ["humans", "elves", "dwarves", "orcs"]
+    # 1. Заставка
+    save_jpg(load("splash.png"), "splash.jpg", 1600)
 
-    # 2. Интро: 6 кадров в сетке 3x2 с чёрными рамками
+    # 2. Интро: 6 кадров 3x2
     it = load("intro_sheet.png")
-    xs = [(2, 382), (389, 761), (769, 1149)]
-    ys = [(1, 679), (687, 1364)]
+    xs = [(3, 383), (386, 766), (769, 1149)]
+    ys = [(1, 654), (684, 1349)]
     k = 1
     for (y0, y1) in ys:
         for (x0, x1) in xs:
             save_jpg(it[y0:y1, x0:x1], f"intro/{k}.jpg", 1400)
             k += 1
 
-    # 3. Фоны фракций
-    fb = load("faction_bgs.png")
-    for name, (x0, x1) in zip(["vampires", "werewolves", "hunters", "mages"],
-                              [(0, 466), (476, 936), (947, 1405), (1416, 1881)]):
-        save_jpg(fb[:, x0:x1], f"factions/bg_{name}.jpg", 1400)
+    # 3. Фоны рас
+    fb = load("race_bgs.png")
+    for name, (x0, x1) in zip(names, [(3, 470), (473, 939), (942, 1408), (1411, 1878)]):
+        save_jpg(fb[:, x0:x1], f"races/bg_{name}.jpg", 1400)
 
-    # 4. Наставники в полный рост
+    # 4. Наставники
     mt = load("mentors_sheet.png")
-    fg = ~bg_mask(mt, 26)
-    cut_columns(mt, fg, 4, ["mentor_vampires", "mentor_werewolves", "mentor_hunters", "mentor_mages"], "factions", 900)
+    fg = ~bg_mask(mt, 24)
+    cut_columns(mt, fg, 4, [f"mentor_{n}" for n in names], "races", 900)
 
-    # 5. Гербы (верхняя половина) и штабы (нижняя)
+    # 5. Гербы и главные здания
     ch = load("crests_hq.png")
     h = ch.shape[0]
-    fg = ~bg_mask(ch, 22)
-    names = ["vampires", "werewolves", "hunters", "mages"]
-    top = slice(0, h // 2)
-    bot = slice(h // 2, h)
-    cut_columns(ch[top], fg[top], 4, [f"crest_{n}" for n in names], "factions", 360)
-    cut_columns(ch[bot], fg[bot], 4, [f"hq_{n}" for n in names], "factions", 520)
+    fg = ~bg_mask(ch, 20)
+    top, bot = slice(0, h // 2), slice(h // 2, h)
+    cut_columns(ch[top], fg[top], 4, [f"crest_{n}" for n in names], "races", 360)
+    cut_columns(ch[bot], fg[bot], 4, [f"hq_{n}" for n in names], "races", 520)
 
     # 6. UI-кит: связные компоненты, сохраняем по рамкам
     ui = load("ui_kit.png")
@@ -118,25 +142,10 @@ def main():
     if DEBUG:
         for b in sorted(boxes, key=lambda b: (b[1] // 60, b[0])):
             print(b)
-    named = {
-        "emblem": (22, 14, 513, 410), "panel_tall": (523, 12, 794, 415), "title_plate": (834, 11, 1244, 281),
-        "sign_chains": (832, 292, 1244, 495),
-        "btn_gold": (26, 423, 357, 511), "btn_gold_pressed": (371, 426, 682, 510),
-        "btn_steel": (25, 520, 357, 609), "btn_steel_pressed": (371, 523, 681, 607),
-        "bar_frame": (703, 509, 1237, 616),
-        "ic_hero": (33, 626, 144, 752), "ic_battle": (170, 627, 280, 751), "ic_book": (307, 627, 417, 752),
-        "ic_settings": (444, 627, 554, 751), "ic_trophy": (580, 627, 690, 752), "ic_mail": (716, 626, 826, 752),
-        "ic_alliance": (845, 626, 954, 751), "ic_shop": (968, 627, 1076, 751), "ic_close": (1102, 663, 1225, 792),
-        "bar_empty": (38, 767, 534, 822), "bar_full": (558, 766, 1094, 822),
-        "frame_grey": (31, 836, 262, 1216), "frame_blue": (282, 835, 506, 1213),
-        "frame_purple": (526, 835, 747, 1217), "frame_gold": (766, 836, 989, 1216),
-        "divider": (1029, 844, 1072, 1186), "arrow": (1092, 1099, 1236, 1213),
-        "gem_red": (1143, 852, 1191, 909), "gem_blue": (1143, 909, 1191, 967),
-        "gem_purple": (1143, 967, 1191, 1025), "gem_gold": (1143, 1025, 1191, 1083),
-    }
+    named = UI_BOXES
     for name, (x0, y0, x1, y1) in named.items():
         save_png(rgba(ui[y0:y1, x0:x1], fg[y0:y1, x0:x1]), f"ui/{name}.png")
-    print("готово: заставка, 6 кадров интро, 4 фона, 4 наставника, 4 герба, 4 штаба, UI:", len(named))
+    print("готово:", SET, "UI:", len(named))
 
 
 if __name__ == "__main__":

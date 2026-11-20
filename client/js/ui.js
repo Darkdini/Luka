@@ -32,6 +32,9 @@ export class UI {
     $('#btn-shop').onclick = () => this.app.store.open('offers');
     $('#btn-army').onclick = () => this.openArmy('troops');
     $('#btn-attack').onclick = () => app.openWorld();
+    $('#btn-more').onclick = (e) => { e.stopPropagation(); $('#side-more').classList.toggle('show'); };
+    document.querySelectorAll('#side-more button').forEach((b) => b.addEventListener('click', () => $('#side-more').classList.remove('show')));
+    document.addEventListener('pointerdown', (e) => { if (!e.target.closest('#side-more, #btn-more')) $('#side-more').classList.remove('show'); });
     $('#btn-top').onclick = () => this.openTop();
     $('#btn-reports').onclick = () => this.openReports();
     $('#btn-chat').onclick = () => this.toggleChat();
@@ -118,11 +121,19 @@ export class UI {
     const unread = (me.reports || []).filter((r) => r.type === 'defense' && r.ts > (this.app.seenReports || 0)).length;
     $('#btn-reports .badge').textContent = unread || '';
     $('#btn-reports .badge').classList.toggle('hidden', !unread);
+    this.moreDot();
     const sh = me.shieldUntil - me.now;
     $('#shield').classList.toggle('hidden', sh <= 0);
     $('#shield').dataset.until = me.shieldUntil - me.now + Date.now();
     if (this.selObj) this.select(this.app.village.findSel(), this.selKind, true);
     if (this.modalKind) this.modalRefresh?.();
+  }
+
+  moreDot() {
+    const any = [...document.querySelectorAll('#side-more .badge')].some((b) => !b.classList.contains('hidden')) || $('#btn-story').classList.contains('glow');
+    let d = $('#btn-more .rdot');
+    if (any && !d) { d = document.createElement('span'); d.className = 'rdot'; $('#btn-more').appendChild(d); }
+    if (!any && d) d.remove();
   }
 
   tick() {

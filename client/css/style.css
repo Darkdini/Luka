@@ -1540,3 +1540,12 @@ body[data-mode=battle] #marches, body[data-mode=visit] #marches { display: none 
 .ev-post b { font-size: 12px; color: #e2bd72; }
 .ev-medal { width: 30px !important; height: 36px !important; object-fit: contain; flex: none; }
 .ev-cap span { display: none; } .ev-cap { justify-content: center; } .ev-cap b { font-size: 17px !important; }
+/* боковая колонка: 4 кнопки + меню «Ещё» */
+#btn-more img { filter: drop-shadow(0 2px 2px rgba(0,0,0,.6)); }
+#side-more { position: absolute; left: 40px; top: 0; display: none; flex-direction: column; gap: 3px; padding: 6px; background: rgba(22,18,13,.94); border: 1px solid #8a6a33; border-radius: 10px; box-shadow: 0 6px 16px rgba(0,0,0,.5); z-index: 8; }
+#side-more.show { display: flex; animation: fadeIn .15s; }
+.sm-b { position: relative; display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px 0 4px; border: 0; border-radius: 8px; background: none; color: #e9dcc0; font-size: 13px; font-weight: 600; white-space: nowrap; text-align: left; }
+.sm-b:active { background: rgba(255,255,255,.06); }
+.sm-b img { width: 28px; height: 28px; object-fit: contain; }
+.sm-b .badge { position: static; margin-left: auto; }
+#btn-story.glow { animation: none; } #btn-story.glow span:first-of-type::after { content: ' •'; color: #8fe05a; }

@@ -138,8 +138,9 @@ export class WorldMap {
 
   renderChunk(cx, cy) {
     const x0 = cx * CH, y0 = cy * CH;
-    const left = isoX(x0, y0 + CH) - TW / 2, top = isoY(x0, y0) - TH;
-    const w = CH * TW + TW, h = CH * TH + TH * 2;
+    const PAD = 2; // запас клеток: размытые края соседей ложатся одинаково во всех кусках
+    const left = isoX(x0 - PAD, y0 + CH + PAD), top = isoY(x0 - PAD, y0 - PAD);
+    const w = (CH + PAD * 2) * TW, h = (CH + PAD * 2) * TH;
     const cv = document.createElement('canvas');
     cv.width = w; cv.height = h;
     const c = cv.getContext('2d');
@@ -152,12 +153,9 @@ export class WorldMap {
       p.setTransform(new DOMMatrix().scale(1));
       pats[k] = p;
     }
-    for (let s = 0; s <= 2 * (CH - 1); s++) {
-      for (let i = 0; i < CH; i++) {
-        const j = s - i;
-        if (j < 0 || j >= CH) continue;
+    for (let j = -PAD; j < CH + PAD; j++) {
+      for (let i = -PAD; i < CH + PAD; i++) {
         const x = x0 + i, y = y0 + j;
-        if (x >= WORLD || y >= WORLD) continue;
         const t = terrainAt(x, y);
         const px = isoX(x, y), py = isoY(x, y);
         c.beginPath();
@@ -168,6 +166,21 @@ export class WorldMap {
         const v = hash01(x, y, 3) - 0.5;
         if (Math.abs(v) > 0.3) { c.fillStyle = v > 0 ? 'rgba(255,240,200,0.05)' : 'rgba(0,0,0,0.05)'; c.fill(); }
       }
+    }
+    // плавные переходы: у границы биома его земля «растекается» мягким пятном на соседей
+    // (вложенные полупрозрачные эллипсы той же текстуры — мягкий край без масок)
+    for (let j = -PAD; j < CH + PAD; j++) for (let i = -PAD; i < CH + PAD; i++) {
+      const x = x0 + i, y = y0 + j;
+      const t = terrainAt(x, y);
+      if (terrainAt(x + 1, y) === t && terrainAt(x - 1, y) === t && terrainAt(x, y + 1) === t && terrainAt(x, y - 1) === t) continue;
+      if (!pats[t]) continue;
+      const cxp = isoX(x, y) + (hash01(x, y, 31) - 0.5) * TW * 0.25, cyp = isoY(x, y) + TH / 2 + (hash01(x, y, 32) - 0.5) * TH * 0.25;
+      c.fillStyle = pats[t];
+      for (const k of [1.05, 0.85, 0.66, 0.48]) {
+        c.globalAlpha = 0.28;
+        c.beginPath(); c.ellipse(cxp, cyp, TW * 0.78 * k, TH * 0.78 * k, 0, 0, Math.PI * 2); c.fill();
+      }
+      c.globalAlpha = 1;
     }
     return { cv, left, top };
   }
@@ -221,7 +234,16 @@ export class WorldMap {
     const ents = [];
     for (let cy = cy0; cy <= cy1; cy++) for (let cx = cx0; cx <= cx1; cx++) {
       const ch = this.chunk(cx, cy);
+      // кусок рисуется строго в границах своих клеток
+      const X0 = cx * CH, Y0 = cy * CH;
+      c.save();
+      c.beginPath();
+      // на 1–2 пикселя шире: соседние куски одинаковы в перекрытии, шва не видно
+      c.moveTo(isoX(X0, Y0), isoY(X0, Y0) - 1.5); c.lineTo(isoX(X0 + CH, Y0) + 3, isoY(X0 + CH, Y0));
+      c.lineTo(isoX(X0 + CH, Y0 + CH), isoY(X0 + CH, Y0 + CH) + 1.5); c.lineTo(isoX(X0, Y0 + CH) - 3, isoY(X0, Y0 + CH));
+      c.closePath(); c.clip();
       c.drawImage(ch.cv, ch.left, ch.top);
+      c.restore();
       for (const cp of this.campsIn(cx, cy)) ents.push(cp.deco ? { kind: 'deco', ...cp } : { kind: 'camp', ...cp });
     }
     const rx0 = Math.floor(cx0 * CH / REG), rx1 = Math.floor((cx1 * CH + CH - 1) / REG);

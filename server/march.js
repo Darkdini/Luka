@@ -13,6 +13,7 @@ import { getPlayer, savePlayer } from './db.js';
 import { actions, GameError, grant, tick, bumpDaily } from './game.js';
 import { addWounded, migrateTroops } from './troops.js';
 import { gainExp } from './heroes.js';
+import { mods } from '../shared/meta.js';
 import { allyGift } from './alliance.js';
 
 const fail = (m) => { throw new GameError(m); };
@@ -57,17 +58,17 @@ function arrive(p, m) {
   const s = p.state;
   if (m.kind === 'gather') {
     const site = campById(m.siteId);
-    const take = Math.min(siteAmount(site.type, site.level), troopLoad(m.troops, s.race));
+    const take = Math.min(siteAmount(site.type, site.level), troopLoad(m.troops, s.race, mods(s)));
     m.take = take;
     m.phase = 'work';
-    m.workEnd = m.arrive + Math.round(take / gatherRate(site.level)) * 1000;
+    m.workEnd = m.arrive + Math.round(take / gatherRate(site.level, mods(s))) * 1000;
     s.npc[m.siteId] = m.workEnd + SITE_COOLDOWN_MIN * 60e3;
     return;
   }
   if (m.target === 'player') return raid(p, m);
   const site = campById(m.siteId);
   const enemy = siteMight(site.level);
-  const mine = troopMight(m.troops, s.race, SITE_TYPES[site.type].enemy);
+  const mine = troopMight(m.troops, s.race, SITE_TYPES[site.type].enemy, mods(s));
   const battle = simulate(arrange(heroTeam(s, m.heroes, mightMul(mine, enemy))), stageEnemies(siteStage(site.level)));
   const win = battle.winner === 'a';
   const ratio = enemy / Math.max(1, mine);
@@ -78,7 +79,7 @@ function arrive(p, m) {
   if (win) {
     reward = siteReward(site.level, site.type);
     m.loot = reward;
-    for (const id of m.heroes) gainExp(s, id, siteExp(site.level));
+    for (const id of m.heroes) gainExp(s, id, Math.round(siteExp(site.level) * (1 + (mods(s).exp || 0))));
     s.npc[m.siteId] = Date.now() + SITE_COOLDOWN_MIN * 60e3;
     s.stats.npcWins = (s.stats.npcWins || 0) + 1;
     bumpDaily(s, 'npc');
@@ -98,7 +99,7 @@ function raid(p, m) {
   tick(ds);
   migrateTroops(ds);
   if (ds.shieldUntil > m.arrive) { m.result = { win: false, note: 'Замок под защитным щитом — отряд вернулся' }; return; }
-  const mine = troopMight(m.troops, s.race), theirs = Math.max(200, troopMight(ds.troops, ds.race));
+  const mine = troopMight(m.troops, s.race, null, mods(s)), theirs = Math.max(200, troopMight(ds.troops, ds.race, null, mods(ds)));
   const defTeam = (ds.formation || []).map((id) => (id && ds.roster?.[id] ? { id, level: ds.roster[id].level, stars: ds.roster[id].stars, skills: ds.roster[id].skills, mul: mightMul(theirs, mine) } : null));
   const battle = simulate(arrange(heroTeam(s, m.heroes, mightMul(mine, theirs))), defTeam.some(Boolean) ? defTeam : stageEnemies(1));
   const win = battle.winner === 'a';
@@ -112,7 +113,7 @@ function raid(p, m) {
     // добыча: до 20% ресурсов сверх защищённых, но не больше груза отряда
     const prot = 2000 * castleLevelOf(ds);
     const avail = Object.fromEntries(['food', 'wood', 'stone', 'iron', 'gold'].map((r) => [r, Math.max(0, Math.floor(((ds.res[r] || 0) - prot) * 0.2))]));
-    const sum = Object.values(avail).reduce((a, v) => a + v, 0), cap = troopLoad(m.troops, s.race);
+    const sum = Object.values(avail).reduce((a, v) => a + v, 0), cap = troopLoad(m.troops, s.race, mods(s));
     const k = sum > cap ? cap / sum : 1;
     loot = Object.fromEntries(Object.entries(avail).map(([r, v]) => [r, Math.floor(v * k)]).filter(([, v]) => v > 0));
     for (const [r, v] of Object.entries(loot)) ds.res[r] -= v;
@@ -136,7 +137,7 @@ function home(s, m) {
   let died = {};
   if (m.wounded) died = addWounded(s, m.wounded);
   const got = m.loot ? grant(s, m.loot) : {};
-  if (m.kind === 'gather' && got[m.res]) { s.stats.gathered = (s.stats.gathered || 0) + got[m.res]; }
+  if (m.kind === 'gather' && got[m.res]) { s.stats.gathered = (s.stats.gathered || 0) + got[m.res]; bumpDaily(s, 'gather'); }
   const rep = { ts: Date.now(), type: m.kind === 'gather' ? 'gather' : 'march', target: m.targetName, win: m.result?.win, got, wounded: m.wounded || {}, died, note: m.result?.note };
   s.reports = [rep, ...(s.reports || [])].slice(0, 30);
   if (m.result?.battle) {
@@ -152,7 +153,7 @@ Object.assign(actions, {
     migrateTroops(s);
     s.marches ||= [];
     const cl = castleLevelOf(s);
-    if (s.marches.length >= marchSlots(cl)) fail(`Все отряды в походе (${s.marches.length}/${marchSlots(cl)})`);
+    if (s.marches.length >= marchSlots(cl, mods(s))) fail(`Все отряды в походе (${s.marches.length}/${marchSlots(cl, mods(s))})`);
     const kind = a.kind === 'gather' ? 'gather' : 'attack';
     const heroes = [...new Set((a.heroes || []).filter((id) => s.roster?.[id]))].slice(0, MAX_HEROES);
     if (!heroes.length && kind === 'attack') fail('Нужен хотя бы один герой — он поведёт отряд');
@@ -166,7 +167,7 @@ Object.assign(actions, {
       troops[k] = n;
     }
     if (!troopCount(troops)) fail('Возьмите в поход войска');
-    if (troopCount(troops) > marchCap(cl)) fail(`В поход — не больше ${marchCap(cl)} воинов`);
+    if (troopCount(troops) > marchCap(cl, mods(s))) fail(`В поход — не больше ${marchCap(cl, mods(s))} воинов`);
     let tx, ty, target, siteId = null, defId = null, targetName, res = null;
     const myX = s._x, myY = s._y;
     if (a.playerId) {
@@ -185,7 +186,7 @@ Object.assign(actions, {
       if (kind === 'attack' && isRes) fail('Ресурсы не атакуют — отправьте отряд на сбор');
       tx = site.x; ty = site.y; target = 'site'; siteId = site.id; targetName = `${site.name} · ур. ${site.level}`; res = SITE_TYPES[site.type].res || null;
     }
-    const travel = travelSec(Math.hypot(tx - myX, ty - myY), troops);
+    const travel = travelSec(Math.hypot(tx - myX, ty - myY), troops, mods(s));
     for (const [k, n] of Object.entries(troops)) s.troops[k] -= n;
     const now = Date.now();
     const m = { id: `${now.toString(36)}${Math.floor(Math.random() * 1e4)}`, kind, target, siteId, defId, targetName, res, heroes, troops,
@@ -226,7 +227,7 @@ Object.assign(actions, {
 export function marchView(s) {
   return {
     marches: (s.marches || []).map((m) => ({ ...m, result: m.result ? { win: m.result.win, note: m.result.note, title: m.result.title, hasBattle: !!m.result.battle } : null })),
-    marchSlots: marchSlots(castleLevelOf(s)), marchCap: marchCap(castleLevelOf(s)),
+    marchSlots: marchSlots(castleLevelOf(s), mods(s)), marchCap: marchCap(castleLevelOf(s), mods(s)),
     battleLogs: (s.battleLogs || []).map((b) => ({ id: b.id, ts: b.ts, title: b.title, win: b.win })),
   };
 }

@@ -223,7 +223,7 @@ export class Village {
       const camp = { barracks: 'infantry', range: 'archer', stables: 'cavalry', hospital: 'hospital' }[b.type];
       if (camp) add('train', camp === 'hospital' ? 'Лечение' : 'Обучить', () => this.app.troops.open(camp));
       if (b.type === 'forge') add('build', 'Кузница', () => this.app.ui.openArmy('forge'));
-      if (b.type === 'academy') add('research', 'Зелья', () => this.app.ui.openArmy('spells'));
+      if (b.type === 'academy') add('research', 'Наука', () => this.app.academy.open());
     }
     if (b.type !== 'castle') add('move', 'Переместить', () => this.startMove(b));
     this.arc.innerHTML = `<div class="arc-title"><b>${def.name}</b><span>${b.level ? `Ур. ${b.level}` : b.up ? 'Строится' : 'Разрушено'}</span></div>` +

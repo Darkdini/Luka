@@ -1,6 +1,6 @@
 // Союзы: создание, вступление (открытые и по заявке), ранги, чат, помощь в стройке, подарки.
 import { db, getPlayer, savePlayer } from './db.js';
-import { GameError, tick, grant } from './game.js';
+import { GameError, tick, grant, bumpDaily } from './game.js';
 import { hasProfanity } from '../shared/names.js';
 import { ALLY_CRESTS, ALLY_MAX, ALLY_COST, RANKS, HELP_MAX, helpCut, GIFT_TTL } from '../shared/alliance.js';
 import { castleLevelOf } from '../shared/config.js';
@@ -226,6 +226,7 @@ export function allyOp(p, body, { notify, allyBroadcast }) {
       s.helpN += paid;
       const got = paid ? grant(s, { gold: 50 * paid * castleLevelOf(s) }) : {};
       s.stats.allyHelps = (s.stats.allyHelps || 0) + done;
+      bumpDaily(s, 'help', done);
       return { helped: done, got };
     }
     case 'claimGifts': {

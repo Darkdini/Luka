@@ -238,7 +238,8 @@ test('союзы: создание, вступление, помощь, пода
   const a = mk('Глава'), b = mk('Воин');
   assert.throws(() => allyOp(a, { op: 'create', name: 'Ко', tag: 'K', crest: 'lion' }, io), /3 до 20/);
   a.state.res.gems = 500;
-  allyOp(a, { op: 'create', name: 'Стражи Рассвета' + Date.now() % 1000, tag: 'S' + (Date.now() % 100), crest: 'lion', open: true }, io);
+  const uid = Math.random().toString(36).slice(2, 5).toUpperCase();
+  allyOp(a, { op: 'create', name: 'Стражи ' + uid + Date.now() % 100000, tag: 'T' + uid, crest: 'lion', open: true }, io);
   sp(a);
   assert.equal(a.state.res.gems, 300);
   allyOp(b, { op: 'join', id: a.ally }, io);
@@ -261,4 +262,39 @@ test('союзы: создание, вступление, помощь, пода
   assert.ok(g.got.gems > 0);
   allyOp(b, { op: 'leave' }, io);
   assert.equal(b.ally, null);
+});
+
+import { applyPurchase } from '../server/meta.js';
+import { grant } from '../server/game.js';
+import { mods } from '../shared/meta.js';
+
+test('этап 6: академия, VIP, пропуск, покупки', () => {
+  const s = newPlayerState('elves', 55);
+  assert.throws(() => actions.research(s, { id: 'agri' }), /Академию/);
+  s.buildings.push({ id: 8000, type: 'academy', level: 2, x: 14, y: 26, up: null });
+  assert.throws(() => actions.research(s, { id: 'mining' }), /Академии 3/);
+  actions.research(s, { id: 'agri' });
+  assert.throws(() => actions.research(s, { id: 'logging' }), /уже исследует/);
+  tick(s, Date.now() + 864e5);
+  assert.equal(s.tech.agri, 1);
+  assert.ok(mods(s).food > 0.05);
+  // VIP: ежедневный сундук раз в день
+  const g0 = s.res.gems;
+  actions.vipDaily(s);
+  assert.ok(s.res.gems > g0);
+  assert.throws(() => actions.vipDaily(s), /уже получен/);
+  // пропуск: опыт за действия, награда ступени 1
+  s.pass.xp = 150;
+  actions.passClaim(s, { level: 1 });
+  assert.throws(() => actions.passClaim(s, { level: 1 }), /Уже/);
+  assert.throws(() => actions.passClaim(s, { level: 1, gold: true }), /золотой/);
+  applyPurchase(s, 'pass', grant);
+  actions.passClaim(s, { level: 1, gold: true });
+  // набор с воинами и строителем
+  applyPurchase(s, 'army', grant);
+  assert.equal(s.troops.infantry2, 300);
+  applyPurchase(s, 'builder', grant);
+  assert.equal(s.builders, 3);
+  assert.throws(() => applyPurchase(s, 'builder', grant), /уже куплен/);
+  assert.ok(s.vip.pts > 1000);
 });

@@ -6,6 +6,7 @@ import { Scene, iso } from './scene.js';
 import { CityUI } from './cityui.js';
 import { Troops } from './troops.js';
 import { Alliance } from './alliance.js';
+import { Store, Academy } from './store.js';
 import { RES_GEN } from '/shared/config.js';
 import { Village } from './village.js';
 import { Battle } from './battle.js';
@@ -47,6 +48,8 @@ class App {
     this.cityUi = new CityUI(this);
     this.troops = new Troops(this);
     this.ally = new Alliance(this);
+    this.store = new Store(this);
+    this.academy = new Academy(this);
     $('#btn-ally').onclick = () => this.ally.open();
     $('#btn-army').onclick = () => this.troops.open();
     $('#btn-build').onclick = () => { this.village.cancelPlacing(); this.cityUi.openBuild(); };
@@ -189,6 +192,8 @@ class App {
     this.engage?.update(me, prev && prev.id === me.id ? prev : null);
     this.heroes?.badges();
     this.troops?.refresh();
+    this.store?.refresh();
+    this.academy?.refresh();
   }
 
   async refresh() {

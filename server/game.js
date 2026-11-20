@@ -10,6 +10,8 @@ import {
 import { achievementStatus } from '../shared/achievements.js';
 import { migrateHeroes, heroActions, heroView, HeroError, teamOf } from './heroes.js';
 import { migrateTroops, tickTroops, troopActions, troopView, TroopError } from './troops.js';
+import { migrateMeta, tickMeta, metaActions, metaView, MetaError, passXp } from './meta.js';
+import { mods } from '../shared/meta.js';
 import { CASTLE_POS, CAPTURED, STARTER, wallTiles, cityRect, fits, blockedBy, autoPlace, genRuins, inCity, RUIN_SIZE } from '../shared/city.js';
 import { stageEnemies, HERO } from '../shared/heroes.js';
 import { simulate } from '../shared/herobattle.js';
@@ -107,6 +109,7 @@ const STAT_KEYS = ['liberated', 'ruinsCleared', 'attacks', 'wins', 'defenses', '
 export function migrate(s) {
   migrateHeroes(s);
   migrateTroops(s);
+  migrateMeta(s);
   s.stats = s.stats || {};
   for (const k of STAT_KEYS) s.stats[k] = s.stats[k] || 0;
   s.achievements = s.achievements || {};
@@ -131,6 +134,7 @@ export function ensureDaily(s) {
 export function bumpDaily(s, key, n = 1) {
   const d = ensureDaily(s);
   d.c[key] = (d.c[key] || 0) + n;
+  passXp(s, key, n);
 }
 function questContext(s) {
   return questCtx({ buildings: s.buildings, stats: s.stats, story: s.story, achClaimed: Object.values(s.achievements).reduce((a, v) => a + v, 0), wallLevel: s.wallLevel, summon: s.summon, campaign: s.campaign });
@@ -148,12 +152,13 @@ export function grant(s, r) {
 export function tick(s, now = Date.now()) {
   migrate(s);
   const raceBonus = RACES[s.race]?.bonus.goldRate || 0;
+  const md = mods(s);
   for (const b of s.buildings) {
     const def = BUILDINGS[b.type];
     if (def.produces && b.level > 0) {
       // во время улучшения здание не работает (как и положено стройке)
       if (!b.up) {
-        const rate = rateOf(b.type, b.level) * (1 + raceBonus);
+        const rate = rateOf(b.type, b.level) * (1 + raceBonus + (md[def.produces] || 0));
         b.store = Math.min(collectorCap(b), (b.store || 0) + rate * Math.max(0, now - b.last) / 3600e3);
       }
       b.last = now;
@@ -179,6 +184,7 @@ export function tick(s, now = Date.now()) {
   }
   for (const h of Object.values(s.heroes)) if (h.up && h.up.end <= now) { h.level = h.up.to; h.up = null; }
   tickTroops(s, now);
+  tickMeta(s, now);
   clampRes(s);
   return s;
 }
@@ -213,7 +219,7 @@ function addRes(s, res, amount) {
 }
 
 // --- Действия игрока ------------------------------------------------------------
-const buildTime = (s, type, to) => Math.round(upgradeTime(type, to) * (1 - (RACES[s.race]?.bonus.buildSpeed || 0)));
+const buildTime = (s, type, to) => Math.round(upgradeTime(type, to) * Math.max(0.3, 1 - (RACES[s.race]?.bonus.buildSpeed || 0) - (mods(s).build || 0)));
 
 export const actions = {
   // Новое здание в свободном месте сетки
@@ -569,6 +575,7 @@ export function view(p) {
     tutorial: s.tutorial,
     ...heroView(s),
     ...troopView(s),
+    ...metaView(s),
     daily: { ...ensureDaily(s), quests: dailyQuests(s.daily.day, castleLevelOf(s)) },
     reports: s.reports.slice(0, 20),
     stats: s.stats,
@@ -588,4 +595,9 @@ Object.assign(actions, Object.fromEntries(Object.entries(heroActions({ pay, addR
 // Войска: действия и ошибки — игровые
 Object.assign(actions, Object.fromEntries(Object.entries(troopActions({ pay, payCost, bumpDaily })).map(([k, fn]) => [k, (s, a) => {
   try { return fn(s, a); } catch (e) { if (e instanceof TroopError) throw new GameError(e.message); throw e; }
+}])));
+
+// Академия, VIP, пропуск: действия и ошибки — игровые
+Object.assign(actions, Object.fromEntries(Object.entries(metaActions({ pay, payCost, grant })).map(([k, fn]) => [k, (s, a) => {
+  try { return fn(s, a); } catch (e) { if (e instanceof MetaError) throw new GameError(e.message); throw e; }
 }])));

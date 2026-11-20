@@ -29,7 +29,7 @@ export class UI {
     this.app = app;
     this.lastTick = 0;
     $('#modal-bg').addEventListener('click', (e) => { if (e.target.id === 'modal-bg') this.closeModal(); });
-    $('#btn-shop').onclick = () => this.openShop('gems');
+    $('#btn-shop').onclick = () => this.app.store.open('offers');
     $('#btn-army').onclick = () => this.openArmy('troops');
     $('#btn-attack').onclick = () => app.openWorld();
     $('#btn-top').onclick = () => this.openTop();
@@ -287,6 +287,8 @@ export class UI {
   // --- Магазин --------------------------------------------------------------------
   openShop(tab, plot) {
     if (tab !== 'gems') { this.app.cityUi.openBuild(); return; }
+    this.app.store.open('gems'); return;
+    // eslint-disable-next-line no-unreachable
     const me = this.app.me;
     this.shopPlot = plot || null;
     this.pendingKind = 'shop';

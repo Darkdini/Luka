@@ -8,7 +8,8 @@ import { db, getPlayer, getPlayerByName, savePlayer } from './db.js';
 import { newCaptcha, checkCaptcha } from './captcha.js';
 import { checkUsername, checkPassword as checkPasswordRule, checkCastleName, hasProfanity, censor } from '../shared/names.js';
 import { hashPassword, checkPassword, makeToken, readToken, rateLimit } from './auth.js';
-import { newPlayerState, tick, actions, view, GameError, wallBuildings } from './game.js';
+import { newPlayerState, tick, actions, view, GameError, wallBuildings, grant } from './game.js';
+import { applyPurchase } from './meta.js';
 import { processMarches, marchView, battleLog } from './march.js';
 import { allyView, allyList, allyOp } from './alliance.js';
 import { findSpot, placeUnplaced, region, findPlayer, startAttack, finishAttack, leaderboard, profile } from './world.js';
@@ -190,22 +191,15 @@ app.post('/api/ally', wrap((req) => {
 app.get('/api/top', wrap((req) => { const p = auth(req); return leaderboard(p.id); }));
 
 // --- Донат (витрина; платёжный шлюз подключается позже) ---------------------------
-app.get('/api/shop', wrap(() => ({ packs: DONATE_PACKS, paymentsEnabled: DEV_PURCHASES })));
+app.get('/api/shop', wrap(() => ({ paymentsEnabled: DEV_PURCHASES })));
 app.post('/api/shop/buy', wrap((req) => {
   const p = auth(req);
-  const pack = DONATE_PACKS.find((x) => x.id === req.body?.pack);
-  if (!pack) throw new GameError('Пакет не найден');
   if (!DEV_PURCHASES) throw new GameError('Оплата скоро появится');
-  const s = p.state;
-  s.purchased = s.purchased || {};
-  if (pack.id === 'starter' && s.purchased.starter) throw new GameError('Набор уже куплен');
-  s.res.gems += pack.gems;
-  if (pack.bonus) { s.res.gold += pack.bonus.gold || 0; s.res.food += pack.bonus.food || 0; }
-  s.purchased[pack.id] = (s.purchased[pack.id] || 0) + 1;
-  db.prepare('INSERT INTO purchases (player, pack, gems, price, status, ts) VALUES (?, ?, ?, ?, ?, ?)').run(p.id, pack.id, pack.gems, pack.price, 'dev', Date.now());
-  tick(s);
+  const out = applyPurchase(p.state, String(req.body?.pack || ''), grant);
+  db.prepare('INSERT INTO purchases (player, pack, gems, price, status, ts) VALUES (?, ?, ?, ?, ?, ?)').run(p.id, String(req.body?.pack), out.gems, out.price, 'dev', Date.now());
+  tick(p.state);
   savePlayer(p);
-  return { me: viewMe(p) };
+  return { ...out, me: viewMe(p) };
 }));
 
 // --- WebSocket: чат и уведомления -------------------------------------------------

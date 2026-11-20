@@ -1,5 +1,6 @@
 // Серверная логика войск: обучение в трёх лагерях, госпиталь.
 import { BUILDINGS, gemsForTime, gemsForResources } from '../shared/config.js';
+import { mods } from '../shared/meta.js';
 import {
   TROOP_KINDS, KIND_ORDER, TIER_CAMP, TIER_MAX, troopKey, parseKey, troopCost, troopTime, batchMax, maxTierOf,
   hospitalCapOf, healCost, healTime, troopPowerOf, troopName,
@@ -53,7 +54,7 @@ function checkTrain(s, kind, tier, n) {
   if (s.trainQ[kind]) fail('Лагерь уже обучает отряд');
   if (n < 1) fail('Сколько воинов обучить?');
   if (n > batchMax(camp.level)) fail(`За раз не больше ${batchMax(camp.level)}`);
-  return { tier, n, time: Math.max(1, Math.round(troopTime(tier, s.race) * n)) };
+  return { tier, n, time: Math.max(1, Math.round(troopTime(tier, s.race) * n * Math.max(0.3, 1 - (mods(s).train || 0)))) };
 }
 
 export function troopActions({ pay, payCost, bumpDaily }) {
@@ -115,6 +116,8 @@ export function troopActions({ pay, payCost, bumpDaily }) {
         for (const [r, v] of Object.entries(healCost(kind, tier, cnt))) cost[r] = (cost[r] || 0) + v;
         time += healTime(tier, cnt);
       }
+      const hk = Math.max(0.3, 1 - (mods(s).heal || 0));
+      for (const r of Object.keys(cost)) cost[r] = Math.ceil(cost[r] * hk);
       payCost(s, cost);
       s.wounded = {};
       time = Math.max(1, Math.round(time));

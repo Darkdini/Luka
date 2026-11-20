@@ -29,6 +29,7 @@ SHEETS = [
      + ["gems1", "gems2", "gems3", "gems4"], 220, dict(gap=110, dil=3, glow=True, split=5)),
     ("pass_ui.png", ["p_track", "p_gold", "p_free", "p_locked", "p_claimed", "p_banner", "p_timer",
                      "p_cal", "p_cal_today", "p_scroll", "p_trophy", "p_podium"], 900, dict(gap=110, dil=3, glow=True, split=5)),
+    ("event_ui.png", ["e_hunt", "e_build", "e_gather", "e_muster", "e_gold", "e_silver", "e_bronze", "e_wreath", "e_plate", "e_points", "e_post", "e_chest"], 640, dict(gap=110, dil=3, glow=True, split=5)),
     ("offers.png", ["o_starter", "o_builder", "o_hero", "o_army", "o_month", "o_gems"], 420, dict(gap=150, dil=3, glow=False, grid=(3, 2))),
 ]
 

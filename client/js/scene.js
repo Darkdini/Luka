@@ -215,6 +215,35 @@ export class Scene {
     c.restore();
   }
 
+  // Мощёные главные улицы и площадь (прямоугольники в клетках), мягкие края
+  drawPaving(rects) {
+    const c = this.ctx, tex = cityImg('tex_cobble');
+    if (!tex || !rects.length) return;
+    if (!this.cobPat) this.cobPat = c.createPattern(tex, 'repeat');
+    const k = 2 / tex.width; // одна текстура — 2×2 клетки
+    c.save();
+    c.transform(TW / 2, TH / 2, -TW / 2, TH / 2, 0, 0);
+    for (const [pad, alpha] of [[0.25, 0.35], [0.1, 0.6], [-0.05, 1]]) {
+      c.save();
+      c.globalAlpha = alpha;
+      c.beginPath();
+      for (const r of rects) roundRectPath(c, r.x - pad, r.y - pad, r.w + pad * 2, r.h + pad * 2, Math.max(0.05, (r.round || 0.2) + pad));
+      c.clip();
+      c.scale(k, k);
+      c.fillStyle = this.cobPat;
+      c.fillRect(-20 / k, -20 / k, 90 / k, 90 / k);
+      c.restore();
+    }
+    // бордюр
+    c.globalAlpha = 0.35;
+    c.strokeStyle = '#3a2f22';
+    c.lineWidth = 0.06;
+    c.beginPath();
+    for (const r of rects) roundRectPath(c, r.x, r.y, r.w, r.h, r.round || 0.2);
+    c.stroke();
+    c.restore();
+  }
+
   // Спрайт города на плите: footprint sx×sy клеток от (gx, gy). Возвращает прямоугольник в мире
   drawSlab(name, gx, gy, sx, sy, o = {}) {
     const m = CITY[name], im = cityImg(name);

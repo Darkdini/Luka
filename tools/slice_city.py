@@ -119,6 +119,8 @@ def main():
                 x += im.size[0] + 10
             sheet_img.save(os.path.join(ROOT, "..", "dbg_" + sheet.replace(".png", ".jpg")) if False else
                            os.path.join(os.environ.get("DBG", OUT), "_dbg_" + sheet.replace(".png", ".jpg")))
+    if os.path.exists(os.path.join(OUT, "tex_cobble.jpg")):  # tools/make_cobble.py
+        manifest["tex_cobble"] = dict(w=256, h=256)
     with open(os.path.join(OUT, "manifest.json"), "w") as f:
         json.dump(manifest, f, ensure_ascii=False, indent=0)
     print("готово:", OUT, len(manifest))

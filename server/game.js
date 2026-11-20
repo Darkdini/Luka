@@ -54,7 +54,7 @@ export function newPlayerState(race, seed) {
     stats: {},
     achievements: {},
     story: {},
-    city: 4, seed,
+    city: 5, seed,
   };
   for (const st of STARTER) {
     const b = { id: s.nextId++, type: st.type, level: 1, x: st.x, y: st.y, up: null };
@@ -92,7 +92,7 @@ function respaceCity(s) {
 
 // Перевод старых сохранений (ячейки, оборона, хижины строителей) на свободную сетку
 export function migrateCity(s) {
-  if (s.city === 3) { respaceCity(s); s.city = 4; }
+  if (s.city === 3 || s.city === 4) { respaceCity(s); s.city = 5; }
   if (s.city >= 3) return;
   const now = Date.now();
   for (const r of RES_LIST) s.res[r] = Math.max(s.res[r] || 0, START[r] || 0);
@@ -124,7 +124,7 @@ export function migrateCity(s) {
   const g = genRuins(s.seed || s.nextId * 31, s, s.nextId);
   s.decor = g.decor; s.nextId = g.nextId;
   respaceCity(s);
-  s.city = 4;
+  s.city = 5;
 }
 
 // Старые сохранения дополняются новыми полями

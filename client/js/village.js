@@ -3,7 +3,7 @@
 // перетаскивать пальцем, и кнопки ✔/✖. Руины расчищаются нажатием, захваченные
 // здания отвоёвываются боем героев. За стеной — лес и туман следующей зоны.
 import { BUILDINGS, collectorCap, RACES, rateOf, castleLevelOf, maxLevelOf, buildCost, canAfford, RES_GEN, fmt } from '/shared/config.js';
-import { C, cityRect, nextZone, fits, RUIN_SIZE, ZONES, zoneIndex, autoPlace, inCity } from '/shared/city.js';
+import { C, cityRect, nextZone, fits, RUIN_SIZE, ZONES, zoneIndex, autoPlace, inCity, lotsIn, AVENUE, CASTLE_POS } from '/shared/city.js';
 import { iso, TW, TH } from './scene.js';
 import { CITY, cityImg, img } from './assets.js';
 
@@ -272,6 +272,7 @@ export class Village {
     s.begin(true);
     s.ctx.drawImage(st.back, st.wx, st.wy, st.ww, st.wh);
     const items = [];
+    for (const g of this.gardens()) for (const t of g.items) items.push({ d: t.x + t.y, tree: t });
     for (const b of me.buildings) {
       if (b.type === 'wall') continue;
       if (this.placing?.mode === 'move' && this.placing.id === b.id) continue;
@@ -343,7 +344,14 @@ export class Village {
       if (ground) {
         s.drawBackground();
         this.drawCityGround();
-        s.drawStreets(me.buildings.filter((b) => b.type !== 'wall' && !(this.placing?.mode === 'move' && this.placing.id === b.id)).map((b) => ({ x: b.x, y: b.y, size: BUILDINGS[b.type]?.size || 3 })));
+        s.drawStreets(me.buildings.filter((b) => b.type !== 'wall' && b.type !== 'castle' && !(this.placing?.mode === 'move' && this.placing.id === b.id)).map((b) => ({ x: b.x, y: b.y, size: BUILDINGS[b.type]?.size || 3 })));
+        const rr = this.rect, A0 = AVENUE[0], P = CASTLE_POS;
+        s.drawPaving([
+          { x: A0, y: rr.y0 - 1, w: 2, h: rr.y1 - rr.y0 + 2 },
+          { x: rr.x0 - 1, y: A0, w: rr.x1 - rr.x0 + 2, h: 2 },
+          { x: P.x - 1.5, y: P.y - 1.5, w: P.size + 3, h: P.size + 3, round: 1.2 },
+        ]);
+        for (const g of this.gardens()) if (g.bed) s.drawSlab('tile_grass', g.x, g.y, 3, 3, { scale: 0.92 });
       }
       for (const it of list) {
         if (it.tree) { const p = iso(it.tree.x, it.tree.y); s.drawFoot(it.tree.kind, p.x, p.y, it.tree.w); } else s.drawSlab(it.wall, it.x, it.y, it.sx, it.sy, { scale: it.scale, flip: it.flip });
@@ -352,6 +360,31 @@ export class Village {
     try { draw(back, backItems, true); draw(front, frontItems, false); } finally { s.ctx = main; }
     this.st = { key, cx, cy, back, front, wx, wy, ww, wh };
     return this.st;
+  }
+
+  // Сады на пустых участках кварталов: деревья, кусты, цветы. При постройке исчезают.
+  gardens() {
+    const me = this.visit || this.me;
+    const key = me.buildings.map((b) => `${b.x},${b.y}`).join(';') + '|' + (me.decor || []).length + '|' + this.cl;
+    if (this.gKey === key) return this.gList;
+    const hit = (x, y, bx, by, bs) => x < bx + bs && bx < x + 3 && y < by + bs && by < y + 3;
+    const out = [];
+    for (const l of lotsIn(this.cl)) {
+      if (me.buildings.some((b) => b.type !== 'wall' && hit(l.x, l.y, b.x - 1, b.y - 1, (BUILDINGS[b.type]?.size || 3) + 2))) continue;
+      if ((me.decor || []).some((d) => hit(l.x, l.y, d.x, d.y, RUIN_SIZE))) continue;
+      const h = (k) => { let v = (l.x * 374761393 + l.y * 668265263 + k * 97) | 0; v = Math.imul(v ^ (v >>> 13), 1274126177); return ((v ^ (v >>> 16)) >>> 0) / 4294967296; };
+      const variant = Math.floor(h(1) * 4);
+      const T = (dx, dy, kind, w) => ({ x: l.x + dx, y: l.y + dy, kind, w: TW * w * (0.9 + h(dx * 7 + dy) * 0.2) });
+      const items = [
+        [T(0.9, 0.9, 'oak', 1.25), T(2.3, 1.2, 'bush', 0.7), T(1.4, 2.4, 'flowers', 0.75), T(2.5, 2.5, 'bush2', 0.55)],
+        [T(0.8, 1.1, 'pine', 1.0), T(2.2, 0.8, 'pine2', 0.95), T(1.8, 2.3, 'rock', 0.6), T(0.9, 2.5, 'flowers', 0.6)],
+        [T(1.5, 1.5, 'flowers', 1.0), T(0.7, 2.4, 'bush', 0.65), T(2.4, 0.7, 'bush2', 0.65), T(2.5, 2.4, 'flowers', 0.6)],
+        [T(1.2, 1.0, 'oak2', 1.2), T(2.4, 2.0, 'flowers', 0.7), T(0.8, 2.4, 'flowers', 0.6), T(2.3, 0.6, 'bush', 0.5)],
+      ][variant];
+      out.push({ x: l.x, y: l.y, bed: variant !== 1, items });
+    }
+    this.gKey = key; this.gList = out;
+    return out;
   }
 
   viewRect() {

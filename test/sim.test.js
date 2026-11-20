@@ -41,7 +41,8 @@ test('экономика: стройка по сетке, сбор, обучен
   assert.throws(() => actions.train(s, { k: 'swordsman', n: 2 }), /Казармы/, 'казармы захвачены врагом');
   assert.throws(() => actions.place(s, { type: 'farm', x: 2, y: 2 }), /не расчищена/);
   assert.throws(() => actions.place(s, { type: 'farm', x: 20, y: 20 }), /занято/);
-  const r = actions.place(s, { type: 'farm', x: 14, y: 14 });
+  const sp1 = autoPlace(s, 3, 1);
+  const r = actions.place(s, { type: 'farm', x: sp1.x, y: sp1.y });
   assert.ok(s.buildings.find((b) => b.id === r.id).up, 'стройка идёт');
   assert.throws(() => actions.place(s, { type: 'mine', x: 26, y: 26 }), /Цитадели 2/);
   actions.buyBuilder(s);
@@ -67,8 +68,10 @@ test('город: руины, захваченные здания, перено�
   tick(s, Date.now() + 3600e3);
   assert.equal(statue.level, 1);
   const farm = s.buildings.find((b) => b.type === 'farm');
-  actions.move(s, { id: farm.id, x: 15, y: 15 });
-  assert.deepEqual([farm.x, farm.y], [15, 15]);
+  const sp2 = autoPlace(s, 3, 1);
+  actions.move(s, { id: farm.id, x: sp2.x, y: sp2.y });
+  assert.deepEqual([farm.x, farm.y], [sp2.x, sp2.y]);
+  assert.throws(() => actions.move(s, { id: farm.id, x: 21, y: 13 }), /занято/, 'на главной улице не строят');
   assert.throws(() => actions.move(s, { id: farm.id, x: 21, y: 21 }), /занято/);
   assert.equal(s.wallLevel, 1, 'частокол с первого дня');
   s.res.stone = 100000;

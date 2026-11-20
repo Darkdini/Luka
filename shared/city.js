@@ -57,9 +57,13 @@ const overlap = (ax, ay, as, bx, by, bs) => ax < bx + bs && bx < ax + as && ay <
 export const GAP = 1;
 const near = (ax, ay, as, bx, by, bs, g) => ax < bx + bs + g && bx < ax + as + g && ay < by + bs + g && by < ay + as + g;
 
-// Место свободно: внутри открытой части, с улочкой до соседних зданий, не на руинах
+// Главные улицы: мощёный крест через Цитадель к воротам (2 клетки), на них не строят
+export const AVENUE = [C - 1, C]; // клетки 21 и 22
+export const onAvenue = (x, y, size) => (x <= AVENUE[1] && x + size > AVENUE[0]) || (y <= AVENUE[1] && y + size > AVENUE[0]);
+
+// Место свободно: в открытой части, не на главной улице, с улочкой до соседей, не на руинах
 export function fits(state, x, y, size, castleLevel, ignoreId = null) {
-  if (!inCity(x, y, size, castleLevel)) return false;
+  if (!inCity(x, y, size, castleLevel) || onAvenue(x, y, size)) return false;
   for (const b of state.buildings) {
     if (b.id === ignoreId || b.type === 'wall') continue;
     if (near(x, y, size, b.x, b.y, sizeOf(b), GAP)) return false;
@@ -70,12 +74,19 @@ export function fits(state, x, y, size, castleLevel, ignoreId = null) {
 export function blockedBy(state, x, y, size) {
   for (const d of state.decor || []) if (overlap(x, y, size, d.x, d.y, RUIN_SIZE)) return { ruin: d };
   for (const b of state.buildings) if (b.type !== 'wall' && near(x, y, size, b.x, b.y, sizeOf(b), GAP)) return { building: b };
+  if (onAvenue(x, y, size)) return { avenue: true };
   return null;
 }
 
-// Аккуратная сетка участков: шаг 4 (здание 3 + улица 1), от Цитадели — площадь
-const LOT = (v) => ((v - 1) % 4 + 4) % 4 === 0;
-// Ближайшее к точке свободное место: сначала участки сетки, затем любое
+// Кварталы: участки 3×3 с улицами по 2 клетки, симметрично от главных улиц
+export const LOTS = [2, 7, 12, 17, 24, 29, 34, 39];
+const LOT = (v) => LOTS.includes(v);
+export function lotsIn(castleLevel) {
+  const r = cityRect(castleLevel), out = [];
+  for (const y of LOTS) for (const x of LOTS) if (x >= r.x0 && y >= r.y0 && x + 3 <= r.x1 && y + 3 <= r.y1) out.push({ x, y });
+  return out;
+}
+// Ближайшее к точке свободное место: сначала участки кварталов, затем любое
 export function autoPlace(state, size, castleLevel, at = { x: C, y: C }) {
   const r = cityRect(castleLevel);
   let best = null, loose = null;
@@ -91,14 +102,14 @@ export function autoPlace(state, size, castleLevel, at = { x: C, y: C }) {
 // --- Стартовая раскладка --------------------------------------------------------
 // Захваченные врагом здания: отвоёвываются боем героев (сила врага растёт)
 export const CAPTURED = [
-  { type: 'statue', x: 25, y: 25, enemy: 1, title: 'Статуя-страж', story: 'Разбойники осквернили Статую-страж — источник силы нашей расы.' },
-  { type: 'tavern', x: 13, y: 21, enemy: 3, title: 'Таверна героев', story: 'В таверне засели наёмники Морвейна и держат хозяина в погребе.' },
-  { type: 'barracks', x: 21, y: 13, enemy: 5, title: 'Казармы', story: 'Казармы заняли дезертиры. Без них не собрать войско.' },
+  { type: 'statue', x: 24, y: 29, enemy: 1, title: 'Статуя-страж', story: 'Разбойники осквернили Статую-страж — источник силы нашей расы.' },
+  { type: 'tavern', x: 12, y: 17, enemy: 3, title: 'Таверна героев', story: 'В таверне засели наёмники Морвейна и держат хозяина в погребе.' },
+  { type: 'barracks', x: 17, y: 12, enemy: 5, title: 'Казармы', story: 'Казармы заняли дезертиры. Без них не собрать войско.' },
 ];
 export const STARTER = [
   { type: 'castle', x: CASTLE_POS.x, y: CASTLE_POS.y },
-  { type: 'farm', x: 25, y: 21 },
-  { type: 'warehouse', x: 17, y: 25 },
+  { type: 'farm', x: 29, y: 29 },
+  { type: 'warehouse', x: 12, y: 12 },
 ];
 
 function rng(seed) {

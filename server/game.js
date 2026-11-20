@@ -140,7 +140,7 @@ export function bumpDaily(s, key, n = 1) {
   eventPts(s, key, n);
 }
 function questContext(s) {
-  return questCtx({ buildings: s.buildings, stats: s.stats, story: s.story, achClaimed: Object.values(s.achievements).reduce((a, v) => a + v, 0), wallLevel: s.wallLevel, summon: s.summon, campaign: s.campaign });
+  return questCtx({ buildings: s.buildings, stats: s.stats, story: s.story, achClaimed: Object.values(s.achievements).reduce((a, v) => a + v, 0), wallLevel: s.wallLevel, summon: s.summon, campaign: s.campaign, ally: s._ally, tech: s.tech });
 }
 export function grant(s, r) {
   if (r.gems) s.res.gems += r.gems;

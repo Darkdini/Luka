@@ -4,7 +4,7 @@
 // ============================================================================
 
 // Контекст из состояния игрока (сервер) или из view (клиент)
-export function questCtx({ buildings, stats, story, achClaimed, wallLevel, summon, campaign }) {
+export function questCtx({ buildings, stats, story, achClaimed, wallLevel, summon, campaign, ally, tech }) {
   const lvl = (t) => Math.max(0, ...buildings.filter((b) => b.type === t && !b.captured).map((b) => b.level));
   return {
     castle: lvl('castle') || 1,
@@ -17,12 +17,14 @@ export function questCtx({ buildings, stats, story, achClaimed, wallLevel, summo
     wall: wallLevel || 0,
     summons: summon?.total || 0,
     stage: campaign?.stage || 1,
+    ally: !!ally,
+    techs: Object.values(tech || {}).reduce((a, v) => a + v, 0),
   };
 }
 
 // Главы: задания по одному, у каждой главы — своё имя.
 // target: { building: тип [, bubble] } — указать на здание; { ruin: true } — на руины; { ui: селектор } — на кнопку
-const CH1 = 'Глава 1 · Пепел и камень', CH2 = 'Глава 2 · Обретение формы', CH3 = 'Глава 3 · Сталь и слава';
+const CH1 = 'Глава 1 · Пепел и камень', CH2 = 'Глава 2 · Обретение формы', CH3 = 'Глава 3 · Сталь и слава', CH4 = 'Глава 4 · За стеной';
 export const TUTORIAL = [
   { ch: CH1, id: 'food', title: 'Хлеб для людей', text: 'Ферма полна еды! Нажмите на значок над Фермой, чтобы собрать урожай.',
     done: (c) => c.st.collectedFood > 0, target: { building: 'farm', bubble: true }, reward: { wood: 500, gems: 5 } },
@@ -56,6 +58,14 @@ export const TUTORIAL = [
     done: (c) => c.lvl('barracks') >= 1, target: { building: 'barracks' }, reward: { gems: 30, food: 3000, gold: 2000 } },
   { ch: CH3, id: 'troops', title: 'Первые полки', text: 'Откройте «Армия» и обучите 50 воинов в Казармах.',
     done: (c) => (c.st.trained || 0) >= 50, target: { ui: '#btn-army' }, reward: { gems: 30, food: 3000, wood: 2000 } },
+  { ch: CH4, id: 'gather', title: 'Дары земли', text: 'Откройте «Карту», нажмите на ресурс рядом с замком и отправьте отряд на сбор.',
+    done: (c) => (c.st.gathered || 0) > 0, target: { ui: '#btn-attack' }, reward: { wood: 3000, stone: 2000, gems: 10 } },
+  { ch: CH4, id: 'camp', title: 'Разбойничий стан', text: 'На карте разбойники грабят караваны. Отправьте героев с войсками на лагерь 1–2 уровня.',
+    done: (c) => (c.st.npcWins || 0) > 0, target: { ui: '#btn-attack' }, reward: { gems: 20, book: 3, iron: 1000 } },
+  { ch: CH4, id: 'ally', title: 'Плечом к плечу', text: 'В одиночку Морвейна не одолеть. Вступите в союз или основайте свой — кнопка «Союз» слева.',
+    done: (c) => c.ally, target: { ui: '#btn-ally' }, reward: { gems: 30, ticket: 2 } },
+  { ch: CH4, id: 'academy', title: 'Свет знаний', text: 'Постройте Академию и изучите первую технологию.',
+    done: (c) => c.techs > 0, target: { ui: '#btn-build' }, reward: { gems: 50, mana: 500, book: 5 } },
 ];
 
 // --- Ежедневные задания --------------------------------------------------------

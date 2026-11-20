@@ -1549,3 +1549,4 @@ body[data-mode=battle] #marches, body[data-mode=visit] #marches { display: none 
 .sm-b img { width: 28px; height: 28px; object-fit: contain; }
 .sm-b .badge { position: static; margin-left: auto; }
 #btn-story.glow { animation: none; } #btn-story.glow span:first-of-type::after { content: ' •'; color: #8fe05a; }
+.adv-ava { object-fit: cover; object-position: 50% 8%; }

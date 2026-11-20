@@ -46,7 +46,7 @@ function auth(req) {
   if (!p) throw new GameError('Игрок не найден');
   tick(p.state);
   // служебные поля для походов (не сохраняются)
-  for (const [k, v] of Object.entries({ _pid: p.id, _x: p.wx, _y: p.wy, _name: p.castle_name })) Object.defineProperty(p.state, k, { value: v, enumerable: false, configurable: true });
+  for (const [k, v] of Object.entries({ _pid: p.id, _x: p.wx, _y: p.wy, _name: p.castle_name, _ally: p.ally || null })) Object.defineProperty(p.state, k, { value: v, enumerable: false, configurable: true });
   processMarches(p);
   if (p.ally) { processRallies(p.ally); Object.defineProperty(p.state, '_fortBonus', { value: fortBonus(p.ally), enumerable: false, configurable: true }); }
   return p;

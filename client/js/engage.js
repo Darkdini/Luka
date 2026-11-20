@@ -25,7 +25,7 @@ export class Engage {
   }
 
   ctx(me) {
-    return questCtx({ buildings: me.buildings, stats: me.stats, story: me.story, achClaimed: (me.achievements || []).reduce((a, x) => a + x.claimed, 0), wallLevel: me.wallLevel, summon: me.summon, campaign: me.campaign });
+    return questCtx({ buildings: me.buildings, stats: me.stats, story: me.story, achClaimed: (me.achievements || []).reduce((a, x) => a + x.claimed, 0), wallLevel: me.wallLevel, summon: me.summon, campaign: me.campaign, ally: me.allyId, tech: me.tech });
   }
 
   // --- Плавные счётчики ---------------------------------------------------------
@@ -56,6 +56,7 @@ export class Engage {
   update(me, prev) {
     this.me = me;
     const adv = $('#advisor');
+    adv.querySelector('.adv-ava').src = `/assets/realm/races/mentor_${me.race}.png`;
     const q = TUTORIAL[me.tutorial];
     if (!q) { adv.classList.add('hidden'); this.target = null; }
     else {
@@ -101,9 +102,9 @@ export class Engage {
       const r = await this.app.act('claimQuest');
       this.rewardFx(r.got);
       if (r.next >= TUTORIAL.length) {
-        this.app.ui.modal('Путь правителя пройден!', `<div class="center"><img class="big-portrait" src="${url('heroes/knight_portrait')}" alt="">
-          <p>Вы готовы править сами, милорд. Валория ждёт своего короля — а Морвейн уже собирает армию.</p></div>`,
-        [{ label: 'За Валорию!', cls: 'green', onClick: () => this.app.ui.closeModal() }]);
+        this.app.ui.modal('Путь правителя пройден!', `<div class="center"><img class="big-portrait" src="/assets/realm/races/mentor_${this.me.race}.png" alt="">
+          <p>Вы готовы править сами, милорд. Корона Семи Камней ждёт своего хранителя — а Морвейн уже собирает армию.</p></div>`,
+        [{ label: 'Вперёд!', cls: 'green', onClick: () => this.app.ui.closeModal() }]);
         this.app.sfx('win');
       }
     } catch { /* тост показан */ }

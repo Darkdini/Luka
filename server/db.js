@@ -48,13 +48,15 @@ db.exec(`
 
 // --- Миграции ------------------------------------------------------------------
 const cols = new Set(db.prepare('PRAGMA table_info(players)').all().map((c) => c.name));
-for (const [name, def] of [['wx', 'INTEGER'], ['wy', 'INTEGER'], ['motto', "TEXT NOT NULL DEFAULT ''"], ['avatar', "TEXT NOT NULL DEFAULT 'knight'"], ['title', "TEXT NOT NULL DEFAULT ''"]]) {
+for (const [name, def] of [['power', 'INTEGER NOT NULL DEFAULT 0'], ['kills', 'INTEGER NOT NULL DEFAULT 0'], ['wx', 'INTEGER'], ['wy', 'INTEGER'], ['motto', "TEXT NOT NULL DEFAULT ''"], ['avatar', "TEXT NOT NULL DEFAULT 'knight'"], ['title', "TEXT NOT NULL DEFAULT ''"]]) {
   if (!cols.has(name)) db.exec(`ALTER TABLE players ADD COLUMN ${name} ${def}`);
 }
 db.exec(`
   DROP INDEX IF EXISTS players_plot;
   CREATE INDEX IF NOT EXISTS players_pos ON players(wx, wy);
   CREATE INDEX IF NOT EXISTS players_seen ON players(seen_at DESC);
+  CREATE INDEX IF NOT EXISTS players_power ON players(power DESC);
+  CREATE INDEX IF NOT EXISTS players_kills ON players(kills DESC);
 `);
 
 export function secret() {
@@ -69,7 +71,7 @@ export function secret() {
 const q = {
   byId: db.prepare('SELECT * FROM players WHERE id = ?'),
   byName: db.prepare('SELECT * FROM players WHERE username = ?'),
-  save: db.prepare('UPDATE players SET state = ?, trophies = ?, castle_level = ?, seen_at = ? WHERE id = ?'),
+  save: db.prepare('UPDATE players SET state = ?, trophies = ?, castle_level = ?, seen_at = ?, power = ?, kills = ? WHERE id = ?'),
 };
 
 export function getPlayer(id) {
@@ -87,7 +89,9 @@ export function getPlayerByName(name) {
 let evUpsert = null;
 export function savePlayer(p, touch = true) {
   const castle = p.state.buildings.find((b) => b.type === 'castle');
-  q.save.run(JSON.stringify(p.state), p.state.trophies, castle ? castle.level : 1, touch ? Date.now() : p.seen_at, p.id);
+  const st = p.state.stats || {};
+  q.save.run(JSON.stringify(p.state), p.state.trophies, castle ? castle.level : 1, touch ? Date.now() : p.seen_at,
+    Math.round(p.state.power || 0), (st.npcWins || 0) + (st.wins || 0) + (st.liberated || 0), p.id);
   // очки события недели — в таблицу лидеров
   const ev = p.state.event;
   if (ev && ev.pts >= 1) {

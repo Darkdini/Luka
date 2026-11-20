@@ -13,9 +13,11 @@ import { newPlayerState, tick, actions, view, GameError, wallBuildings, grant } 
 import { applyPurchase } from './meta.js';
 import { eventBoard } from './events.js';
 import { bagView } from './items.js';
+import { mailView } from './mail.js';
 import { processMarches, marchView, battleLog } from './march.js';
 import { allyView, allyList, allyOp } from './alliance.js';
 import { processRallies, fortBonus, fortList, rallyView } from './forts.js';
+import { ranking } from './world.js';
 import { findSpot, placeUnplaced, region, findPlayer, startAttack, finishAttack, leaderboard, profile } from './world.js';
 import { AVATARS, avatarUnlocked, titlesOf } from '../shared/achievements.js';
 
@@ -69,7 +71,7 @@ function auth(req) {
   return p;
 }
 const viewMe = (p) => ({ ...view(p), ...marchView(p.state), allyId: p.ally || null, allyRank: p.ally_rank || 0,
-  ...bagView(p.state),
+  ...bagView(p.state), ...mailView(p.state),
   rallies: p.ally ? rallyView(p.ally).rallies.map((r) => ({ id: r.id, siteId: r.siteId, name: r.name, level: r.level, x: r.x, y: r.y, fx: r.fx, fy: r.fy, launch: r.launch, arrive: r.arrive || r.launch + r.travel * 1000, leaderName: r.leaderName, members: r.members, might: r.might, enemy: r.enemy })) : [],
   fortBonus: p.state._fortBonus || 0 });
 
@@ -217,6 +219,7 @@ app.post('/api/ally', wrap((req) => {
 app.get('/api/event', wrap((req) => { const p = auth(req); savePlayer(p); return eventBoard(p.id); }));
 
 app.get('/api/top', wrap((req) => { const p = auth(req); return leaderboard(p.id); }));
+app.get('/api/rank', wrap((req) => { const p = auth(req); savePlayer(p); return ranking(p.id, String(req.query.kind || 'power')); }));
 
 // --- Донат (витрина; платёжный шлюз подключается позже) ---------------------------
 app.get('/api/shop', wrap(() => ({ paymentsEnabled: DEV_PURCHASES })));
@@ -255,7 +258,7 @@ wss.on('connection', (ws, req) => {
   if (!p) return ws.close();
   if (!sockets.has(id)) sockets.set(id, new Set());
   sockets.get(id).add(ws);
-  const history = db.prepare('SELECT name, text, ts, player FROM chat ORDER BY id DESC LIMIT 40').all().reverse();
+  const history = db.prepare(`SELECT c.name, c.text, c.ts, c.player, p.race, p.avatar, a.tag FROM chat c LEFT JOIN players p ON p.id = c.player LEFT JOIN alliances a ON a.id = p.ally ORDER BY c.id DESC LIMIT 60`).all().reverse();
   ws.send(JSON.stringify({ type: 'history', messages: history, online: sockets.size }));
   broadcast({ type: 'online', online: sockets.size });
   let last = 0;
@@ -267,8 +270,9 @@ wss.on('connection', (ws, req) => {
     const now = Date.now();
     if (!text || now - last < 1000) return;
     last = now;
-    db.prepare('INSERT INTO chat (player, name, text, ts) VALUES (?, ?, ?, ?)').run(id, p.username, text, now);
-    broadcast({ type: 'chat', name: p.username, player: id, text, ts: now });
+    const who = db.prepare('SELECT p.castle_name AS name, p.race, p.avatar, a.tag FROM players p LEFT JOIN alliances a ON a.id = p.ally WHERE p.id = ?').get(id) || {};
+    db.prepare('INSERT INTO chat (player, name, text, ts) VALUES (?, ?, ?, ?)').run(id, who.name || p.username, text, now);
+    broadcast({ type: 'chat', name: who.name || p.username, race: who.race, avatar: who.avatar || null, tag: who.tag || '', player: id, text, ts: now });
   });
   ws.on('close', () => {
     sockets.get(id)?.delete(ws);

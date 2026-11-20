@@ -8,14 +8,15 @@ import {
   heroMaxLevel, heroUpgradeCost, heroUpgradeTime, forgeCost, forgeTime,
 } from '../shared/config.js';
 import { achievementStatus } from '../shared/achievements.js';
-import { migrateHeroes, heroActions, heroView, HeroError, teamOf } from './heroes.js';
-import { migrateTroops, tickTroops, troopActions, troopView, TroopError } from './troops.js';
+import { migrateHeroes, heroActions, heroView, HeroError, teamOf, teamPower } from './heroes.js';
+import { migrateTroops, tickTroops, troopActions, troopView, TroopError, troopPower } from './troops.js';
 import { migrateMeta, tickMeta, metaActions, metaView, MetaError, passXp } from './meta.js';
 import { mods } from '../shared/meta.js';
 import { isItem } from '../shared/items.js';
 import { migrateEvent, eventPts, eventActions, eventView, EventError } from './events.js';
 import { CASTLE_POS, CAPTURED, STARTER, wallTiles, cityRect, fits, blockedBy, autoPlace, genRuins, inCity, RUIN_SIZE } from '../shared/city.js';
 import { stageEnemies, HERO } from '../shared/heroes.js';
+import { mail, migrateMail } from './mailbox.js';
 import { simulate } from '../shared/herobattle.js';
 import { chapterById } from '../shared/story.js';
 import { TUTORIAL, STREAK, DAILY_BONUS_GEMS, questCtx, dailyQuests, today } from '../shared/quests.js';
@@ -179,6 +180,7 @@ export function grant(s, r) {
 // --- Течение времени ------------------------------------------------------------
 export function tick(s, now = Date.now()) {
   migrate(s);
+  migrateMail(s, RACES[s.race]?.mentor);
   const raceBonus = RACES[s.race]?.bonus.goldRate || 0;
   const md = mods(s);
   for (const b of s.buildings) {
@@ -194,6 +196,7 @@ export function tick(s, now = Date.now()) {
     if (b.up && b.up.end <= now) {
       b.level = b.up.to;
       b.up = null;
+      if (b.type === 'castle') mail(s, 'notice', { title: `Цитадель достигла ${b.level} уровня`, text: `Город растёт, правитель! Цитадель ${b.level} уровня открывает новые здания и уровни построек. Загляните в «Построить» — там могли появиться новинки.` });
       if (def.produces) { b.last = now; b.store = b.store || 0; }
     }
   }
@@ -213,6 +216,8 @@ export function tick(s, now = Date.now()) {
   for (const h of Object.values(s.heroes)) if (h.up && h.up.end <= now) { h.level = h.up.to; h.up = null; }
   tickTroops(s, now);
   tickMeta(s, now);
+  // сила королевства — для рейтинга (здания + отряд героев + войска)
+  s.power = cityPower(s) + teamPower(s) + troopPower(s);
   clampRes(s);
   return s;
 }

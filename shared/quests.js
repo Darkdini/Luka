@@ -57,7 +57,7 @@ export const TUTORIAL = [
   { ch: CH3, id: 'barracks2', title: 'Под знамёна', text: 'Почините Казармы.',
     done: (c) => c.lvl('barracks') >= 1, target: { building: 'barracks' }, reward: { gems: 30, food: 3000, gold: 2000 } },
   { ch: CH3, id: 'troops', title: 'Первые полки', text: 'Откройте «Армия» и обучите 50 воинов в Казармах.',
-    done: (c) => (c.st.trained || 0) >= 50, target: { ui: '#btn-army' }, reward: { gems: 30, food: 3000, wood: 2000 } },
+    done: (c) => (c.st.trained || 0) >= 50, target: { ui: '#q-train' }, reward: { gems: 30, food: 3000, wood: 2000 } },
   { ch: CH4, id: 'gather', title: 'Дары земли', text: 'Откройте «Карту», нажмите на ресурс рядом с замком и отправьте отряд на сбор.',
     done: (c) => (c.st.gathered || 0) > 0, target: { ui: '#btn-attack' }, reward: { wood: 3000, stone: 2000, gems: 10 } },
   { ch: CH4, id: 'camp', title: 'Разбойничий стан', text: 'На карте разбойники грабят караваны. Отправьте героев с войсками на лагерь 1–2 уровня.',

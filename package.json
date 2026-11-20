@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node --no-warnings server/index.js",
     "dev": "DEV_PURCHASES=1 node --no-warnings --watch server/index.js",
-    "test": "DATA_DIR=data/test node --no-warnings --test test/*.test.js",
+    "test": "rm -rf data/test && DATA_DIR=data/test node --no-warnings --test test/*.test.js",
     "assets": "python3 tools/slice_sheets.py"
   },
   "engines": {

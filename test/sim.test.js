@@ -395,3 +395,23 @@ test('инвентарь: ускорения, сундуки, щит, бонус
   assert.ok(mods(s).food >= 0.25);
   assert.throws(() => actions.useShield(s, { item: 'sh_8h' }), /не хватает/);
 });
+
+import '../server/mail.js';
+test('почта: приветствие с подарком, прочтение, удаление', () => {
+  const s = newPlayerState('elves', 77);
+  tick(s);
+  assert.ok(s.mail.length >= 2);
+  const gift = s.mail.find((m) => m.gift);
+  const gems = s.res.gems;
+  const r = actions.mailClaim(s, { id: gift.id });
+  assert.ok(s.res.gems > gems && r.got.gems > 0);
+  assert.throws(() => actions.mailClaim(s, { id: gift.id }), /Подарков нет/);
+  actions.mailRead(s, { cat: 'msg' });
+  assert.ok(s.mail.filter((m) => m.cat === 'msg').every((m) => m.read));
+  const n = s.mail.length;
+  actions.mailDel(s, { cat: 'notice' });
+  assert.equal(s.mail.length, n - 1);
+  // переполнение: старые прочитанные уходят, невзятые подарки остаются
+  for (let i = 0; i < 100; i++) tick(s), s.mail.unshift({ id: 1000 + i, cat: 'report', ts: Date.now(), read: true, text: '' });
+  tick(s);
+});

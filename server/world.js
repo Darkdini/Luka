@@ -265,6 +265,32 @@ export function finishAttack(me, battleId, log, notify) {
   return { ...result, got, trophies, ...extra };
 }
 
+// --- Рейтинги: игроки по силе / победам / Цитадели, союзы по силе / победам ---------
+const RANKS = {
+  power: { col: 'power' }, kills: { col: 'kills' }, castle: { col: 'castle_level' },
+  ally_power: { col: 'power', ally: true }, ally_kills: { col: 'kills', ally: true },
+};
+export function ranking(meId, kind) {
+  const r = RANKS[kind] || RANKS.power;
+  if (r.ally) {
+    const top = db.prepare(`SELECT a.id, a.name, a.tag, a.crest, SUM(p.${r.col}) AS value, COUNT(*) AS members FROM players p JOIN alliances a ON a.id = p.ally
+      GROUP BY a.id ORDER BY value DESC, a.id ASC LIMIT 100`).all();
+    const mine = db.prepare('SELECT ally FROM players WHERE id = ?').get(meId)?.ally;
+    let me = null;
+    if (mine) {
+      const v = db.prepare(`SELECT SUM(${r.col}) AS v FROM players WHERE ally = ?`).get(mine).v || 0;
+      const rank = db.prepare(`SELECT COUNT(*) AS n FROM (SELECT SUM(${r.col}) AS s FROM players WHERE ally IS NOT NULL GROUP BY ally) WHERE s > ?`).get(v).n + 1;
+      me = { rank, value: v };
+    }
+    return { kind, ally: true, top, me };
+  }
+  const top = db.prepare(`SELECT p.id, p.castle_name AS name, p.username AS owner, p.race, p.${r.col} AS value, a.tag FROM players p LEFT JOIN alliances a ON a.id = p.ally
+    ORDER BY p.${r.col} DESC, p.id ASC LIMIT 100`).all();
+  const v = db.prepare(`SELECT ${r.col} AS v FROM players WHERE id = ?`).get(meId)?.v || 0;
+  const rank = db.prepare(`SELECT COUNT(*) AS n FROM players WHERE ${r.col} > ? OR (${r.col} = ? AND id < ?)`).get(v, v, meId).n + 1;
+  return { kind, top, me: { rank, value: v }, total: db.prepare('SELECT COUNT(*) AS n FROM players').get().n };
+}
+
 // --- Рейтинг и профиль -------------------------------------------------------------
 export function leaderboard(meId) {
   const top = db.prepare('SELECT id, username, castle_name AS name, race, trophies, castle_level AS level, avatar, title FROM players ORDER BY trophies DESC, id ASC LIMIT 100').all();

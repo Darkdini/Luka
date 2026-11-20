@@ -48,7 +48,7 @@ export class Troops {
     const me = this.me;
     if (!me?.trainQ) return;
     const idle = KIND_ORDER.some((k) => { const c = this.camp(k); return c && !c.captured && c.level > 0 && !me.trainQ[k]; });
-    setDot(document.querySelector('#btn-army'), idle);
+    setDot(document.querySelector('#q-train'), idle);
     const tabs = this.root.querySelectorAll('.hs-tabs button');
     KIND_ORDER.forEach((k, i) => { const c = this.camp(k); setDot(tabs[i], !!(c && !c.captured && c.level > 0 && !me.trainQ[k])); });
     setDot(tabs[3], Object.values(me.wounded || {}).some((v) => v > 0) && !me.healQ);

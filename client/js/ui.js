@@ -1,7 +1,7 @@
 // DOM-интерфейс поверх канваса: HUD, панели, модальные окна.
 import {
   BUILDINGS, TROOPS, SPELLS, HEROES, RACES, DONATE_PACKS, BUILDER_GEM_COST, DECOR_REMOVE_COST,
-  upgradeCost, upgradeTime, wallCost, gemsForTime, gemsForResources, spriteFor, fmt, fmtTime, buildingHp,
+  MAX_BUILDERS, upgradeCost, upgradeTime, wallCost, gemsForTime, gemsForResources, spriteFor, fmt, fmtTime, buildingHp,
   armyUsed, heroMaxLevel, heroUpgradeCost, heroUpgradeTime, heroLevelMul, troopLevelMul, forgeCost, forgeTime,
 } from '/shared/config.js';
 import { url } from './assets.js';
@@ -11,6 +11,12 @@ import { esc, avatarUrl } from './world.js';
 import { ACHIEVEMENTS, AVATARS, leagueOf, avatarUnlocked, titlesOf } from '/shared/achievements.js';
 
 const $ = (s) => document.querySelector(s);
+function setDot(el, on) {
+  if (!el) return;
+  let d = el.querySelector('.rdot');
+  if (on && !d) { d = document.createElement('span'); d.className = 'rdot'; el.appendChild(d); }
+  if (!on && d) d.remove();
+}
 const RES_ICON = { gold: 'realm/kit/gold', food: 'realm/city/food', wood: 'realm/city/wood', stone: 'realm/city/stone', iron: 'realm/city/iron', mana: 'realm/city/mana', gems: 'realm/kit/gems' };
 const ico = (r, cls = 'ri') => `<img class="${cls}" src="${url(RES_ICON[r])}" alt="">`;
 const castleLevel = (me) => me.buildings.find((b) => b.type === 'castle')?.level || 1;
@@ -30,31 +36,24 @@ export class UI {
     this.lastTick = 0;
     $('#modal-bg').addEventListener('click', (e) => { if (e.target.id === 'modal-bg') this.closeModal(); });
     $('#btn-shop').onclick = () => this.app.store.open('offers');
-    $('#btn-army').onclick = () => this.openArmy('troops');
     $('#btn-attack').onclick = () => app.openWorld();
-    $('#btn-more').onclick = (e) => { e.stopPropagation(); $('#side-more').classList.toggle('show'); };
-    document.querySelectorAll('#side-more button').forEach((b) => b.addEventListener('click', () => $('#side-more').classList.remove('show')));
-    document.addEventListener('pointerdown', (e) => { if (!e.target.closest('#side-more, #btn-more')) $('#side-more').classList.remove('show'); });
-    $('#btn-top').onclick = () => this.openTop();
-    $('#btn-reports').onclick = () => this.openReports();
-    $('#btn-chat').onclick = () => this.toggleChat();
     $('#btn-gems').onclick = () => this.openShop('gems');
+    $('#r-gems').onclick = () => this.openShop('gems');
     $('#btn-settings').onclick = () => this.openSettings();
     $('#hud-player').onclick = () => this.openProfile(app.me.id);
     $('#btn-ach').onclick = () => this.openAchievements();
     $('#btn-story').onclick = () => app.story.open();
+    $('#btn-vip').onclick = () => app.store.open('vip');
+    $('#q-build').onclick = () => this.openBuilders();
+    $('#q-train').onclick = () => app.troops.open();
+    $('#q-research').onclick = () => app.academy.open();
+    $('#q-march').onclick = () => this.openMarches();
+    $('#shield').onclick = () => app.bag.open();
+    $('#power').onclick = () => this.openProfile(app.me.id);
     $('#w-story')?.addEventListener('click', () => app.story.open());
     $('#visit-back').onclick = () => app.goHome();
-    $('#chat-log').addEventListener('click', (e) => { const n = e.target.closest('[data-pid]'); if (n) this.openProfile(+n.dataset.pid); });
     $('#place-cancel').onclick = () => app.village.cancelPlacing();
     $('#world-back').onclick = () => app.goHome();
-    $('#chat-close').onclick = () => this.toggleChat(false);
-    $('#chat-form').onsubmit = (e) => {
-      e.preventDefault();
-      const inp = $('#chat-input');
-      app.sendChat(inp.value);
-      inp.value = '';
-    };
   }
 
   // --- Базовое ------------------------------------------------------------------
@@ -96,44 +95,47 @@ export class UI {
   updateHud(me) {
     $('#p-name').textContent = me.name;
     $('#p-level').textContent = castleLevel(me);
-    this.app.engage.count($('#p-trophies'), me.trophies);
     $('#p-ava').src = avatarUrl(me.avatar);
-    const lg = leagueOf(me.trophies);
-    $('#p-league').textContent = lg.icon;
-    $('#p-league').title = lg.name;
     const claim = (me.achievements || []).reduce((a, x) => a + Math.max(0, x.reached - x.claimed), 0);
     $('#btn-ach .badge').textContent = claim || '';
     $('#btn-ach .badge').classList.toggle('hidden', !claim);
     const nextCh = (this.app.storyNext?.() || null);
     $('#btn-story').classList.toggle('glow', !!nextCh);
-    $('#p-race').textContent = RACES[me.race]?.name || '';
-    $('#p-race').style.setProperty('--c', RACES[me.race]?.color || '#888');
+    setDot($('#btn-story'), !!nextCh);
     for (const r of RES_LIST) {
       this.app.engage.count($(`#r-${r} .v`), Math.floor(me.res[r] || 0), short);
+      const full = (me.res[r] || 0) >= (me.caps[r] || Infinity);
+      $(`#r-${r}`).classList.toggle('full', full);
       $(`#r-${r}`).title = `${RES_NAMES[r]}: ${fmt(me.res[r] || 0)} из ${fmt(me.caps[r] || 0)}`;
-      $(`#r-${r} .fill`).style.width = Math.min(100, (me.res[r] || 0) / Math.max(1, me.caps[r] || 1) * 100) + '%';
     }
-    this.app.engage.count($('#r-gems .v'), me.res.gems, short);
-    $('#builders').innerHTML = `<img src="/assets/realm/city/builder.png" alt="">${me.builders.total - me.builders.busy}/${me.builders.total}`;
-    $('#builders').onclick = () => this.buyBuilder();
-    $('#power').innerHTML = `<img src="/assets/realm/kit/power_ic.png" alt="">${fmt((me.power || 0) + (me.teamPower || 0) + (me.troopPower || 0))}`;
-    $('#army-count').textContent = `${armyUsed(me.army)}/${me.armyCap}`;
-    const unread = (me.reports || []).filter((r) => r.type === 'defense' && r.ts > (this.app.seenReports || 0)).length;
+    this.app.engage.count($('#r-gems .v'), me.res.gems, fmt);
+    $('#power b').textContent = fmt((me.power || 0) + (me.teamPower || 0) + (me.troopPower || 0));
+    // VIP и очереди под аватаром
+    $('#vip-lv').textContent = me.vip?.level ?? 0;
+    setDot($('#btn-vip'), !!me.vip?.dailyReady);
+    const q = (id, busy, total, idle) => {
+      const el = $(id);
+      el.querySelector('span').textContent = `${busy}/${total}`;
+      el.classList.toggle('idle', !!idle);
+    };
+    q('#q-build', me.builders.busy, me.builders.total, me.builders.busy < me.builders.total);
+    const camps = Object.values(me.trainQ || {});
+    q('#q-train', camps.filter(Boolean).length, camps.length || 3, camps.some((x) => !x));
+    q('#q-research', me.research ? 1 : 0, 1, !me.research);
+    q('#q-march', (me.marches || []).length, me.marchSlots || 2, false);
+    const unread = (me.mail || []).filter((m) => !m.read).length;
     $('#btn-reports .badge').textContent = unread || '';
     $('#btn-reports .badge').classList.toggle('hidden', !unread);
-    this.moreDot();
-    const sh = me.shieldUntil - me.now;
-    $('#shield').classList.toggle('hidden', sh <= 0);
     $('#shield').dataset.until = me.shieldUntil - me.now + Date.now();
+    this.tickShield();
     if (this.selObj) this.select(this.app.village.findSel(), this.selKind, true);
     if (this.modalKind) this.modalRefresh?.();
   }
 
-  moreDot() {
-    const any = [...document.querySelectorAll('#side-more .badge')].some((b) => !b.classList.contains('hidden')) || $('#btn-story').classList.contains('glow');
-    let d = $('#btn-more .rdot');
-    if (any && !d) { d = document.createElement('span'); d.className = 'rdot'; $('#btn-more').appendChild(d); }
-    if (!any && d) d.remove();
+  tickShield() {
+    const sh = $('#shield'), left = (+sh.dataset.until - Date.now()) / 1000;
+    sh.classList.toggle('off', !(left > 0));
+    sh.querySelector('span').textContent = left > 0 ? fmtTime(left) : 'нет щита';
   }
 
   tick() {
@@ -142,15 +144,53 @@ export class UI {
     this.lastTick = t;
     const me = this.app.me;
     if (!me) return;
-    const sh = $('#shield');
-    if (!sh.classList.contains('hidden')) sh.querySelector('span').textContent = fmtTime((+sh.dataset.until - Date.now()) / 1000);
+    this.tickShield();
+    const now = new Date(Date.now() + (me.now - this.app.fetchedAt));
+    $('#clock').textContent = `UTC ${now.toISOString().slice(11, 16)}`;
     const tr = me.training.length ? me.training[me.training.length - 1] : null;
-    $('#army-timer').textContent = tr ? fmtTime((tr.end - me.now - (Date.now() - this.app.fetchedAt)) / 1000) : '';
     if (tr && tr.end - me.now - (Date.now() - this.app.fetchedAt) < -500 && !this.app.busy) this.app.refresh();
     document.querySelectorAll('[data-end]').forEach((el) => {
       const left = (+el.dataset.end - me.now - (Date.now() - this.app.fetchedAt)) / 1000;
       el.textContent = left > 0 ? fmtTime(left) : 'готово';
     });
+  }
+
+  // --- Очереди: строители и походы -----------------------------------------------------
+  openBuilders() {
+    const me = this.app.me, n = me.builders.total;
+    this.pendingKind = 'builders';
+    this.pendingRefresh = () => this.openBuilders();
+    const busy = me.buildings.filter((b) => b.up);
+    const rows = [];
+    for (let i = 0; i < MAX_BUILDERS; i++) {
+      const b = busy[i];
+      if (i >= n) {
+        const cost = BUILDER_GEM_COST[i] || 0;
+        rows.push(`<div class="bq-row lock"><i class="bq-img"><img src="/assets/realm/kit/padlock.png" alt=""></i><p>Наймите строителя, чтобы открыть ещё одну стройку.</p>${i === n ? `<button class="nbtn sm gem" data-hire><img class="ic" src="/assets/realm/kit/gems.png" alt="">${cost}</button>` : ''}</div>`);
+      } else if (b) {
+        const def = BUILDINGS[b.type];
+        rows.push(`<div class="bq-row"><i class="bq-img"><img src="${this.app.cityUi.sprite(b.type)}" alt=""></i><div><b>${def.name} → ур. ${b.up.to || b.level + 1}</b><span class="bq-t" data-end="${b.up.end}"></span></div><button class="nbtn sm" data-speed="${b.id}"><img class="ic" src="/assets/realm/items/sp4.png" alt="">Ускорить</button></div>`);
+      } else {
+        rows.push(`<div class="bq-row"><i class="bq-img"><img src="/assets/realm/city/builder.png" alt=""></i><p class="muted">Бездействует</p><button class="nbtn sm gold" data-build>Построить</button></div>`);
+      }
+    }
+    const box = this.modal('Строители', `<div class="bq-list">${rows.join('')}</div><p class="bq-note">Каждый строитель ведёт одну стройку. Свободные строители подсвечены зелёным.</p>`, [], 'bw bq');
+    box.querySelectorAll('[data-speed]').forEach((el) => { el.onclick = () => { const b = me.buildings.find((v) => v.id === +el.dataset.speed); if (b?.up) { this.app.bag.after = null; this.app.bag.speed({ type: 'build', id: b.id }, b.up.end, 'speedup', { id: b.id }, BUILDINGS[b.type].name); } }; });
+    box.querySelector('[data-build]')?.addEventListener('click', () => { this.closeModal(); this.app.cityUi.openBuild(); });
+    box.querySelector('[data-hire]')?.addEventListener('click', () => this.buyBuilder());
+  }
+
+  openMarches() {
+    const me = this.app.me, mu = this.app.world?.march;
+    const list = me.marches || [];
+    const rows = list.map((m) => {
+      const ph = mu ? mu.phaseOf(m) : { icon: 'i_attack', text: 'В походе', end: m.backAt };
+      return `<div class="bq-row"><i class="bq-img"><img src="/assets/realm/world/${ph.icon}.png" alt=""></i><div><b>${esc(ph.text)}</b><span class="bq-t" data-end="${ph.end}"></span></div><button class="nbtn sm" data-m="${m.id}">Открыть</button></div>`;
+    });
+    for (let i = list.length; i < (me.marchSlots || 2); i++) rows.push('<div class="bq-row"><i class="bq-img"><img src="/assets/realm/world/i_coords.png" alt=""></i><p class="muted">Отряд свободен</p></div>');
+    const box = this.modal(`Походы ${list.length}/${me.marchSlots || 2}`, `<div class="bq-list">${rows.join('')}</div><p class="bq-note">Отправляйте отряды на карте мира: сбор ресурсов, лагеря разбойников и крепости.</p>`,
+      [{ label: 'Карта мира', cls: 'gold', onClick: () => { this.closeModal(); this.app.openWorld(); } }], 'bw bq');
+    box.querySelectorAll('[data-m]').forEach((el) => { el.onclick = () => { const m = list.find((v) => v.id === el.dataset.m); if (m && mu) { this.closeModal(); mu.openMarch(m); } }; });
   }
 
   // --- Выбор здания: нижняя панель действий ---------------------------------------
@@ -547,6 +587,7 @@ export class UI {
         { label: '✏ Изменить', cls: 'blue', onClick: () => this.editProfile() },
         { label: '🏅 Достижения', cls: 'green', onClick: () => this.openAchievements() },
       ] : [
+        { label: 'Написать', onClick: () => this.app.mail.compose(p.id, p.name) },
         { label: '🗺 На карте', onClick: () => { this.closeModal(); this.app.openWorld(p.x, p.y); } },
         { label: '👁 Осмотреть замок', cls: 'blue', onClick: () => { this.closeModal(); this.app.visit(p.id); } },
         { label: p.shield ? '🛡 Под щитом' : '⚔ Атаковать', cls: 'red', disabled: !!p.shield, onClick: () => this.app.attack({ kind: 'player', id: p.id }) },
@@ -631,28 +672,6 @@ export class UI {
     ]);
     $('#opt-sound').onchange = (e) => this.app.setSound(e.target.checked);
     $('#opt-music').onchange = (e) => this.app.setMusic(e.target.checked);
-  }
-
-  // --- Чат ---------------------------------------------------------------------------
-  toggleChat(force) {
-    const el = $('#chat');
-    const on = force ?? !el.classList.contains('show');
-    el.classList.toggle('show', on);
-    if (on) { $('#btn-chat .badge').classList.add('hidden'); this.unreadChat = 0; $('#chat-input').focus(); }
-  }
-
-  chatMessage(m) {
-    const box = $('#chat-log');
-    const d = document.createElement('div');
-    d.className = 'msg' + (m.player === this.app.me?.id ? ' mine' : '');
-    d.innerHTML = `<b class="link" data-pid="${m.player}">${esc(m.name)}</b> <span class="muted">${new Date(m.ts).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span><div>${esc(m.text)}</div>`;
-    box.appendChild(d);
-    while (box.children.length > 80) box.firstChild.remove();
-    box.scrollTop = box.scrollHeight;
-    if (!$('#chat').classList.contains('show') && m.live) {
-      this.unreadChat = (this.unreadChat || 0) + 1;
-      const b = $('#btn-chat .badge'); b.textContent = this.unreadChat; b.classList.remove('hidden');
-    }
   }
 
   // --- Бой ----------------------------------------------------------------------------

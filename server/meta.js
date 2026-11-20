@@ -6,6 +6,7 @@ import {
 } from '../shared/meta.js';
 import { HERO_DEFS } from '../shared/heroes.js';
 import { eventPts } from './events.js';
+import { mail } from './mailbox.js';
 
 export class MetaError extends Error {}
 const fail = (m) => { throw new MetaError(m); };
@@ -18,7 +19,7 @@ export function migrateMeta(s) {
 }
 export function tickMeta(s, now = Date.now()) {
   migrateMeta(s);
-  if (s.research && s.research.end <= now) { s.tech[s.research.id] = s.research.to; s.research = null; passXp(s, 'research', 1); eventPts(s, 'research', 1); }
+  if (s.research && s.research.end <= now) { s.tech[s.research.id] = s.research.to; mail(s, 'report', { title: `Исследование завершено: ${TECH[s.research.id]?.name || s.research.id}`, text: `Академия завершила исследование «${TECH[s.research.id]?.name || s.research.id}» — уровень ${s.research.to}. Бонус уже действует. Учёные ждут новой задачи.` }); s.research = null; passXp(s, 'research', 1); eventPts(s, 'research', 1); }
 }
 export function passXp(s, key, n = 1) {
   if (!PASS_XP[key]) return;

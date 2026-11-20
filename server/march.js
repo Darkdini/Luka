@@ -15,6 +15,7 @@ import { addWounded, migrateTroops } from './troops.js';
 import { gainExp } from './heroes.js';
 import { mods } from '../shared/meta.js';
 import { allyGift } from './alliance.js';
+import { mail } from './mailbox.js';
 
 const fail = (m) => { throw new GameError(m); };
 const busyHeroes = (s) => new Set((s.marches || []).flatMap((m) => m.heroes));
@@ -123,6 +124,8 @@ function raid(p, m) {
   const tro = win ? Math.max(1, offer) : -Math.round(offer * 0.6);
   s.trophies = Math.max(0, s.trophies + tro); ds.trophies = Math.max(0, ds.trophies - tro);
   ds.reports = [{ ts: Date.now(), type: 'defense', attacker: m.byName, attackerId: p.id, win: !win, loot: loot || {}, trophies: -tro, wounded: theirW }, ...(ds.reports || [])].slice(0, 30);
+  mail(ds, 'battle', { title: win ? `Налёт: ${m.byName} разграбил замок` : `Налёт отбит: ${m.byName}`, kind: 'defense', win: !win, from: m.byName, fromId: p.id, race: s.race, lost: loot || {}, wounded: theirW,
+    text: win ? `Отряд правителя «${m.byName}» прорвался в город и унёс часть припасов. Раненые ждут в лазарете. Замок получил щит на 4 часа.` : `Гарнизон выстоял: отряд «${m.byName}» отступил ни с чем. Раненые ждут в лазарете.` });
   ds.stats.defenses = (ds.stats.defenses || 0) + 1;
   if (!win) ds.stats.defWins = (ds.stats.defWins || 0) + 1;
   savePlayer(d, false);
@@ -141,8 +144,11 @@ function home(s, m) {
   const rep = { ts: Date.now(), type: m.kind === 'gather' ? 'gather' : 'march', target: m.targetName, win: m.result?.win, got, wounded: m.wounded || {}, died, note: m.result?.note };
   s.reports = [rep, ...(s.reports || [])].slice(0, 30);
   if (m.result?.battle) {
-    s.battleLogs = [{ id: m.id, ts: rep.ts, ...m.result }, ...(s.battleLogs || [])].slice(0, 3);
+    s.battleLogs = [{ id: m.id, ts: rep.ts, ...m.result }, ...(s.battleLogs || [])].slice(0, 6);
   }
+  if (m.kind === 'gather') mail(s, 'report', { title: `Сбор: ${m.targetName}`, kind: 'gather', got, text: Object.keys(got).length ? 'Отряд вернулся с добычей — ресурсы уже на складе.' : (m.result?.note || 'Отряд вернулся без добычи.') });
+  else mail(s, 'battle', { title: m.result?.title || m.targetName, kind: 'attack', win: !!m.result?.win, got, wounded: m.wounded || {}, died, battle: m.result?.battle ? m.id : null,
+    text: m.result?.note || (m.result?.win ? 'Победа! Отряд вернулся домой с добычей.' : 'Поражение. Отряд отступил, раненые отправлены в лазарет.') });
   s.marches = s.marches.filter((x) => x !== m);
 }
 

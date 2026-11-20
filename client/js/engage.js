@@ -82,7 +82,6 @@ export class Engage {
     const d = me.daily;
     const dailyClaim = me.dailyReady || d.quests.some((x, i) => !d.claimed[i] && (d.c[x.counter] || 0) >= x.goal) || (d.claimed.every(Boolean) && !d.bonus);
     dot('#btn-daily', dailyClaim);
-    $('#builders').classList.toggle('idle', me.builders.busy < me.builders.total);
     // празднуем завершённые стройки
     if (prev) this.celebrate(prev, me);
   }
@@ -116,11 +115,13 @@ export class Engage {
     const p = $('#pointer');
     const app = this.app;
     const t = this.target;
-    const modalOpen = $('#modal-bg').classList.contains('show') || $('#dialog').classList.contains('show') || $('#chat').classList.contains('show') || $('#campaign').classList.contains('show') || $('#heroes')?.classList.contains('show') || $('#hbattle')?.classList.contains('show');
+    const modalOpen = $('#modal-bg').classList.contains('show') || $('#dialog').classList.contains('show') || !!document.querySelector('.meta-screen.show, #troops.show') || $('#campaign').classList.contains('show') || $('#heroes')?.classList.contains('show') || $('#hbattle')?.classList.contains('show');
     if (!t || !this.me || app.mode !== 'village' || app.world?.open || modalOpen || app.village?.ghost) { p.classList.remove('show'); return; }
     let x, y;
     if (t.ui) {
-      const el = $(t.ui);
+      let el = $(t.ui);
+      // цель спрятана в свёрнутом меню — показываем на кнопку «Меню»
+      if (el?.closest('#tray') && !el.offsetParent) el = $('#btn-menu');
       if (!el || !el.offsetParent) { p.classList.remove('show'); return; }
       const r = el.getBoundingClientRect();
       x = r.left + r.width / 2; y = r.top;
@@ -228,7 +229,7 @@ export class Engage {
       ], { duration: 750 + i * 60, easing: 'cubic-bezier(.5,0,.6,1)', delay: i * 40 });
       anim.onfinish = () => {
         el.remove();
-        const bar = target.closest('.rbar');
+        const bar = target.closest('.rs, .tb-chip');
         bar?.classList.remove('bump'); void bar?.offsetWidth; bar?.classList.add('bump');
       };
     }

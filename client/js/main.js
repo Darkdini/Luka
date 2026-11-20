@@ -17,6 +17,7 @@ import { UI } from './ui.js';
 import { Story } from './story.js';
 import { Engage } from './engage.js';
 import { Heroes } from './heroes.js';
+import { Tray, Chat, Ranking, Mail } from './social.js';
 import { CHAPTERS, chapterOpen } from '/shared/story.js';
 import { checkUsername, checkPassword, checkCastleName } from '/shared/names.js';
 
@@ -54,10 +55,13 @@ class App {
     this.academy = new Academy(this);
     this.event = new WeekEvent(this);
     this.bag = new Bag(this);
+    this.tray = new Tray(this);
+    this.chat = new Chat(this);
+    this.rank = new Ranking(this);
+    this.mail = new Mail(this);
     $('#btn-bag').onclick = () => this.bag.open();
     $('#btn-event').onclick = () => this.event.open();
     $('#btn-ally').onclick = () => this.ally.open();
-    $('#btn-army').onclick = () => this.troops.open();
     $('#btn-build').onclick = () => { this.village.cancelPlacing(); this.cityUi.openBuild(); };
     $('#btn-heroes').onclick = () => this.heroes.open('list');
     $('#btn-campaign').onclick = () => this.heroes.open('campaign');
@@ -215,6 +219,7 @@ class App {
     this.academy?.refresh();
     this.event?.refresh();
     this.bag?.refresh();
+    this.mail?.refresh();
   }
 
   async refresh() {
@@ -344,8 +349,9 @@ class App {
     this.ws = ws;
     ws.onmessage = (e) => {
       const m = JSON.parse(e.data);
-      if (m.type === 'history') { $('#chat-log').innerHTML = ''; m.messages.forEach((x) => this.ui.chatMessage(x)); }
-      if (m.type === 'chat') this.ui.chatMessage({ ...m, live: true });
+      if (m.type === 'history') { this.chat.world = []; m.messages.forEach((x) => this.chat.push(x)); }
+      if (m.type === 'chat') this.chat.push(m, true);
+      if (m.type === 'achat') this.chat.ally(m.msg || m);
       if (m.type === 'achat' || m.type === 'ally') this.ally?.onEvent(m);
       if (m.online != null) $('#online').textContent = m.online;
       if (m.type === 'attacked') {

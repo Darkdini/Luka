@@ -1,6 +1,7 @@
 // Рейтинговое событие недели: очки, рубежи, награды по месту.
 import { db } from './db.js';
 import { week, weekEnd, themeOf, MILESTONES, rankReward } from '../shared/events.js';
+import { mail } from './mailbox.js';
 import { HERO_DEFS } from '../shared/heroes.js';
 
 export class EventError extends Error {}
@@ -10,11 +11,16 @@ db.exec('CREATE TABLE IF NOT EXISTS event_scores (week INTEGER, player INTEGER, 
 db.exec('CREATE INDEX IF NOT EXISTS event_scores_w ON event_scores(week, pts DESC)');
 
 export function migrateEvent(s, now = Date.now()) {
+  const had = s.event?.week;
   const w = week(now);
   if (!s.event) s.event = { week: w, pts: 0, claimed: [] };
   if (s.event.week !== w) {
     const old = s.event;
     s.event = { week: w, pts: 0, claimed: [], prev: old.pts > 0 ? { week: old.week, pts: Math.floor(old.pts), rewarded: false } : (old.prev && !old.prev.rewarded ? old.prev : null) };
+  }
+  if (had !== w && s.mail) {
+    const t = themeOf(w);
+    mail(s, 'event', { title: `Событие недели: ${t.name}`, text: `${t.text}. Очки идут в общий рейтинг королевства, за этапы и место в таблице — сундуки и самоцветы.${s.event.prev ? '\n\nИтоги прошлой недели подведены — заберите награду за место в окне события.' : ''}` });
   }
 }
 export function eventPts(s, key, n = 1) {

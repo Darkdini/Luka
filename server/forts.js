@@ -9,6 +9,7 @@ import { castleLevelOf } from '../shared/config.js';
 import { mods } from '../shared/meta.js';
 import { addWounded, migrateTroops } from './troops.js';
 import { gainExp } from './heroes.js';
+import { mail } from './mailbox.js';
 
 const fail = (m) => { throw new GameError(m); };
 export const RALLY_WAIT = 5 * 60;   // секунд на сбор участников
@@ -128,7 +129,9 @@ function resolve(a, r) {
     if (win) got = grant(s, { gems: 20 * f.level, stone: 3000 * f.level, iron: 800 * f.level });
     if (m.pid === r.leader) for (const h of r.heroes) if (s.roster[h.id]) gainExp(s, h.id, 3000 * f.level);
     s.reports = [{ ts: now, type: 'rally', target: `${r.name} · ур. ${f.level}`, win, got, wounded, died }, ...(s.reports || [])].slice(0, 30);
-    s.battleLogs = [{ id: r.id, ts: now, title: `Сбор: ${r.name}`, win, battle, reward: win ? got : null }, ...(s.battleLogs || [])].slice(0, 3);
+    s.battleLogs = [{ id: r.id, ts: now, title: `Сбор: ${r.name}`, win, battle, reward: win ? got : null }, ...(s.battleLogs || [])].slice(0, 6);
+    mail(s, 'ally', { title: `${win ? 'Крепость взята' : 'Штурм отбит'}: ${r.name} · ур. ${f.level}`, kind: 'rally', win, got, wounded, died, battle: r.id,
+      text: win ? 'Союзный сбор взял крепость! Бонус крепости действует для всего союза, пока её не отобьют.' : 'Гарнизон крепости устоял. Подкопите сил и соберите союз снова.' });
     if (win) bumpDaily(s, 'wins');
     savePlayer(pl, false);
   }

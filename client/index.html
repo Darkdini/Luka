@@ -108,48 +108,36 @@
   <!-- HUD поселения -->
   <div id="hud">
     <div id="topbar">
-      <div id="hud-res">
-        <div class="rbar" id="r-food"><img src="/assets/realm/city/food.png" alt=""><b class="v">0</b><i class="fill"></i></div><div class="rbar" id="r-wood"><img src="/assets/realm/city/wood.png" alt=""><b class="v">0</b><i class="fill"></i></div><div class="rbar" id="r-stone"><img src="/assets/realm/city/stone.png" alt=""><b class="v">0</b><i class="fill"></i></div><div class="rbar" id="r-iron"><img src="/assets/realm/city/iron.png" alt=""><b class="v">0</b><i class="fill"></i></div><div class="rbar" id="r-mana"><img src="/assets/realm/city/mana.png" alt=""><b class="v">0</b><i class="fill"></i></div><div class="rbar" id="r-gold"><img src="/assets/realm/kit/gold.png" alt=""><b class="v">0</b><i class="fill"></i></div>
-        <div class="rbar gems" id="r-gems"><img src="/assets/realm/kit/gems.png" alt=""><b class="v">0</b><button id="btn-gems" class="plus" aria-label="Купить самоцветы">+</button></div>
-      </div>
+      <div id="hud-res"><div class="rs" id="r-food"><img src="/assets/realm/city/food.png" alt=""><b class="v">0</b></div><div class="rs" id="r-wood"><img src="/assets/realm/city/wood.png" alt=""><b class="v">0</b></div><div class="rs" id="r-stone"><img src="/assets/realm/city/stone.png" alt=""><b class="v">0</b></div><div class="rs" id="r-iron"><img src="/assets/realm/city/iron.png" alt=""><b class="v">0</b></div><div class="rs" id="r-mana"><img src="/assets/realm/city/mana.png" alt=""><b class="v">0</b></div><div class="rs" id="r-gold"><img src="/assets/realm/kit/gold.png" alt=""><b class="v">0</b></div></div>
       <div id="toprow">
-        <div id="hud-player" title="Мой профиль">
-          <div class="ava-wrap"><img id="p-ava" alt=""><div class="lvl-badge"><span id="p-level">1</span></div></div>
-          <div class="p-info">
-            <div id="p-name">—</div>
-            <div class="p-sub"><span id="p-race" class="race-chip"></span><span class="tro"><span id="p-league"></span> 🏆 <b id="p-trophies">0</b></span></div>
-          </div>
-        </div>
-        <div class="chips">
-          <div id="shield" class="hidden" title="Щит мира"><img src="/assets/realm/items/sh2.png" alt=""><span></span></div>
-          <div id="builders" title="Свободные строители"></div>
-          <div id="power" title="Сила королевства"></div>
-        </div>
+        <div class="tb-l"><button id="shield" class="tb-chip off" title="Щит мира"><i class="tb-ic"><img src="/assets/realm/items/sh2.png" alt=""></i><span>нет щита</span></button></div>
+        <button id="power" class="tb-power" title="Сила королевства"><img src="/assets/realm/kit/power_ic.png" alt=""><b>0</b></button>
+        <div class="tb-r"><button id="r-gems" class="tb-chip" title="Самоцветы"><i class="tb-ic"><img src="/assets/realm/kit/gems.png" alt=""></i><b class="v">0</b></button><button id="btn-gems" class="plus" aria-label="Купить самоцветы"></button></div>
       </div>
+      <div id="tb-strip"><span id="p-name">—</span><span id="clock"></span></div>
+      <button id="hud-player" aria-label="Мой профиль"><img id="p-ava" alt=""><span class="lvl" id="p-level">1</span></button>
+    </div>
+    <div id="lcol">
+      <button id="btn-vip" class="vip-b"><b>VIP <span id="vip-lv">0</span></b></button>
+      <button class="q-b" id="q-build"><i><img src="/assets/realm/city/builder.png" alt=""></i><span>0/1</span></button>
+      <button class="q-b" id="q-train"><i><img src="/assets/realm/city/train.png" alt=""></i><span>0/3</span></button>
+      <button class="q-b" id="q-research"><i><img src="/assets/realm/city/research.png" alt=""></i><span>0/1</span></button>
+      <button class="q-b" id="q-march"><i><img src="/assets/realm/world/i_attack.png" alt=""></i><span>0/2</span></button>
     </div>
     <div id="hud-side">
-      <button class="rbtn daily" id="btn-daily" title="Ежедневные награды"><img src="/assets/realm/kit/gift.png" alt="Награды"></button>
-      <button class="rbtn" id="btn-event" title="Событие недели"><img src="/assets/realm/meta/e_points.png" alt="Событие"></button>
-      <button class="rbtn" id="btn-bag" title="Сумка"><img src="/assets/realm/items/bag.png" alt="Сумка"></button>
-      <button class="rbtn" id="btn-ally" title="Союз"><img src="/assets/realm/meta/ai_members.png" alt="Союз"></button>
-      <button class="rbtn" id="btn-more" title="Ещё"><img src="/assets/realm/kit/gear.png" alt="Ещё"></button>
-      <div id="side-more">
-        <button class="sm-b" id="btn-story"><img src="/assets/realm/city/quest.png" alt=""><span>Сюжет</span></button>
-        <button class="sm-b" id="btn-ach"><img src="/assets/realm/kit/statue.png" alt=""><span>Достижения</span><span class="badge hidden"></span></button>
-        <button class="sm-b" id="btn-chat"><img src="/assets/realm/meta/ai_chat.png" alt=""><span>Чат</span><span class="badge hidden"></span></button>
-        <button class="sm-b" id="btn-top"><img src="/assets/realm/meta/ai_rank.png" alt=""><span>Рейтинг</span></button>
-        <button class="sm-b" id="btn-reports"><img src="/assets/realm/meta/p_scroll.png" alt=""><span>Отчёты</span><span class="badge hidden"></span></button>
-        <button class="sm-b" id="btn-settings"><img src="/assets/realm/kit/gear.png" alt=""><span>Настройки</span></button>
-      </div>
+      <button class="rbtn" id="btn-daily"><img src="/assets/realm/kit/gift.png" alt=""><span>Награды</span></button>
+      <button class="rbtn" id="btn-event"><img src="/assets/realm/meta/e_points.png" alt=""><span>Событие</span></button>
+      <button class="rbtn" id="btn-shop"><img src="/assets/realm/kit/chest.png" alt=""><span>Лавка</span></button>
     </div>
-    <div id="dock">
-      <button id="btn-attack" class="dbtn map"><img class="ba-img" src="/assets/realm/city/move.png" alt=""><span>Карта</span></button>
-      <button id="btn-heroes" class="dbtn story"><img class="ba-img" src="/assets/realm/kit/tank.png" alt=""><span>Герои</span></button>
-      <button id="btn-campaign" class="dbtn camp"><img class="ba-img" src="/assets/realm/kit/atk.png" alt=""><span>Поход</span></button>
-      <i class="spacer"></i>
-      <button id="btn-army" class="dbtn army"><img class="ba-img" src="/assets/realm/city/train.png" alt=""><span>Армия</span><small id="army-count"></small><small id="army-timer"></small></button>
-      <button id="btn-build" class="dbtn build"><img class="ba-img" src="/assets/realm/city/build.png" alt=""><span>Построить</span></button>
-      <button id="btn-shop" class="dbtn shop"><img class="ba-img" src="/assets/realm/kit/chest.png" alt=""><span>Лавка</span></button>
+    <div id="rcol">
+      <div id="tray"><button class="tr-i" id="btn-campaign"><img src="/assets/realm/kit/atk.png" alt=""><span>Поход</span></button><button class="tr-i" id="btn-bag"><img src="/assets/realm/items/bag.png" alt=""><span>Сумка</span></button><button class="tr-i" id="btn-reports"><img src="/assets/realm/world/i_report.png" alt=""><span>Почта</span><span class="badge hidden"></span></button><button class="tr-i" id="btn-ally"><img src="/assets/realm/meta/ai_members.png" alt=""><span>Союз</span></button><button class="tr-i" id="btn-top"><img src="/assets/realm/meta/ai_rank.png" alt=""><span>Рейтинг</span></button><button class="tr-i" id="btn-ach"><img src="/assets/realm/kit/statue.png" alt=""><span>Подвиги</span><span class="badge hidden"></span></button><button class="tr-i" id="btn-story"><img src="/assets/realm/city/quest.png" alt=""><span>Сюжет</span></button><button class="tr-i" id="btn-settings"><img src="/assets/realm/kit/gear.png" alt=""><span>Настройки</span></button></div>
+      <button class="rc-b" id="btn-menu"><img src="/assets/realm/kit/chev_r.png" alt=""><span>Меню</span></button>
+      <button class="rc-b" id="btn-heroes"><img src="/assets/realm/kit/tank.png" alt=""><span>Герои</span></button>
+      <button class="rc-b" id="btn-build"><img src="/assets/realm/city/build.png" alt=""><span>Построить</span></button>
+    </div>
+    <div id="bottombar">
+      <button id="chatbar" aria-label="Чат"><img class="cb-ava" src="/assets/realm/meta/ai_chat.png" alt=""><div><b class="cb-who">Мировой чат</b><span class="cb-text">Пока тихо — напишите первым</span></div></button>
+      <button id="btn-attack" aria-label="Карта мира"><img src="/assets/realm/world/i_coords.png" alt=""></button>
     </div>
     <div id="advisor" class="hidden">
       <img class="adv-ava" src="/assets/heroes/knight_portrait.png" alt="Советник">
@@ -226,11 +214,6 @@
   </div>
 
   <!-- Чат -->
-  <div id="chat">
-    <div class="chat-head"><b>Чат королевства</b><button id="chat-close" class="x" aria-label="Закрыть"></button></div>
-    <div id="chat-log"></div>
-    <form id="chat-form"><input id="chat-input" maxlength="200" placeholder="Сообщение…" autocomplete="off"><button class="btn sm green">➤</button></form>
-  </div>
 
   <div id="pointer"><div class="ptr-arrow"></div></div>
   <div id="wipe"></div>

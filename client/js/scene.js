@@ -37,14 +37,14 @@ export class Scene {
 
   fitZoom() {
     // в портрете на экран помещается ~13 клеток в ширину, отдалить можно до ~26
-    const minZ = this.portrait ? this.w / (TW * 26) : Math.max(this.w / (GRID * TW * 0.9), this.h / (GRID * TH * 1.1));
+    const minZ = this.portrait ? this.w / (TW * 18) : Math.max(this.w / (GRID * TW * 0.9), this.h / (GRID * TH * 1.1));
     this.minZ = Math.max(0.16, minZ);
     this.maxZ = 1.5;
     this.cam.z = Math.max(this.minZ, Math.min(this.maxZ, this.cam.z));
   }
 
   defaultZoom(kind) {
-    if (this.portrait) return Math.max(this.minZ, Math.min(1, this.w / (TW * (kind === 'battle' ? 15 : 9))));
+    if (this.portrait) return Math.max(this.minZ, Math.min(1.1, this.w / (TW * (kind === 'battle' ? 15 : 6.5))));
     return Math.max(this.minZ, kind === 'battle' ? 0.85 : 0.75);
   }
 

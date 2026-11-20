@@ -248,7 +248,7 @@ export class Village {
       el.style.transform = `translate(${top.x + Math.cos(a) * R * 1.15 - 29}px, ${top.y + Math.sin(a) * R * 0.75 + 4}px)`;
     });
     const t = this.arc.querySelector('.arc-title');
-    if (t) t.style.transform = `translate(${top.x}px, ${top.y - size * TH * s.cam.z * 1.9}px) translate(-50%, -100%)`;
+    if (t) t.style.transform = `translate(${Math.max(70, Math.min(s.w - 70, top.x))}px, ${Math.max(150, top.y - size * TH * s.cam.z * 1.9)}px) translate(-50%, -100%)`;
   }
 
   canUpgrade(b) {
@@ -382,10 +382,6 @@ export class Village {
       puff(gx, gy, TW * (1.6 + (i % 3) * 0.6), 0.3);
     }
     c.restore();
-    if (nz && !this.visit) {
-      const p = iso(r.x1 + 3, r.y1 + 3);
-      s.label(`Новые земли · Цитадель ${nz.castle}`, p.x, p.y, { size: 10, bg: 'rgba(22,18,13,0.75)', color: '#d9ccb2' });
-    }
   }
 
   drawGhost() {

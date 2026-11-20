@@ -62,7 +62,7 @@ export class Engage {
       const done = q.done(this.ctx(me));
       adv.classList.remove('hidden');
       adv.classList.toggle('done', done);
-      adv.querySelector('.adv-step').textContent = `${q.ch || ''} · ${me.tutorial + 1}/${TUTORIAL.length}`;
+      adv.querySelector('.adv-step').textContent = `${(q.ch || '').split(' · ')[0]} · ${me.tutorial + 1}/${TUTORIAL.length}`;
       adv.querySelector('.adv-title').textContent = q.title;
       adv.querySelector('.adv-text').textContent = done ? 'Отлично, милорд! Заберите награду.' : q.text;
       adv.querySelector('.adv-reward').innerHTML = rewardHtml(q.reward);

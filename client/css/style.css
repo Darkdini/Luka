@@ -1250,3 +1250,11 @@ img.h-up { position: absolute; right: 3px; bottom: 20px; width: 24px; height: 24
 .toast { background: rgba(22,18,13,.92); border: 1px solid #8a6a33; color: #e9dcc0; font-weight: 600; font-size: 12.5px; padding: 6px 12px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,.4); }
 .toast.good { border-color: #6f9a4a; color: #dff0c8; }
 .toast.bad { border-color: #a0503f; color: #ffd9cf; }
+/* без старых лиг/кубков и лишних чипов */
+#hud-player .tro, #shield { display: none !important; }
+#dock #army-count, #dock #army-timer { display: none; }
+.dbtn span { font-size: 10.5px; white-space: nowrap; letter-spacing: -.1px; }
+.adv-head { align-items: baseline; }
+.adv-step { white-space: nowrap; }
+.bc { width: 136px; }
+.bc b { font-size: 12px; min-height: 2.2em; display: flex; align-items: center; text-align: center; overflow-wrap: anywhere; }

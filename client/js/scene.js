@@ -192,6 +192,29 @@ export class Scene {
     return cv;
   }
 
+  // Мощёные улочки: вокруг каждого здания полоса утоптанной земли, края мягкие.
+  // Соседние полосы сливаются в улицы между домами.
+  drawStreets(list) {
+    const c = this.ctx, tex = cityImg('tex_dirt');
+    if (!tex || !list.length) return;
+    if (!this.dirtPat) this.dirtPat = c.createPattern(tex, 'repeat');
+    const k = 3 / tex.width; // одна текстура — 3×3 клетки
+    c.save();
+    c.transform(TW / 2, TH / 2, -TW / 2, TH / 2, 0, 0); // дальше — координаты клеток
+    for (const [pad, alpha] of [[1.0, 0.3], [0.82, 0.55], [0.62, 0.95]]) {
+      c.save();
+      c.globalAlpha = alpha;
+      c.beginPath();
+      for (const b of list) roundRectPath(c, b.x - pad, b.y - pad, b.size + pad * 2, b.size + pad * 2, Math.min(0.55, pad));
+      c.clip();
+      c.scale(k, k);
+      c.fillStyle = this.dirtPat;
+      c.fillRect(-20 / k, -20 / k, 90 / k, 90 / k);
+      c.restore();
+    }
+    c.restore();
+  }
+
   // Спрайт города на плите: footprint sx×sy клеток от (gx, gy). Возвращает прямоугольник в мире
   drawSlab(name, gx, gy, sx, sy, o = {}) {
     const m = CITY[name], im = cityImg(name);
@@ -391,6 +414,15 @@ export class Scene {
   }
 
   end() {}
+}
+
+function roundRectPath(c, x, y, w, h, r) {
+  c.moveTo(x + r, y);
+  c.arcTo(x + w, y, x + w, y + h, r);
+  c.arcTo(x + w, y + h, x, y + h, r);
+  c.arcTo(x, y + h, x, y, r);
+  c.arcTo(x, y, x + w, y, r);
+  c.closePath();
 }
 
 export function roundRect(c, x, y, w, h, r) {

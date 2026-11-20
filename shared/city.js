@@ -11,10 +11,10 @@ export const CASTLE_POS = { x: 20, y: 20, size: 4 };
 export const RUIN_SIZE = 2;
 // half — половина стороны открытого квадрата; castle — уровень Цитадели для открытия
 export const ZONES = [
-  { castle: 1, half: 8 },
-  { castle: 3, half: 11 },
-  { castle: 5, half: 14 },
-  { castle: 7, half: 17 },
+  { castle: 1, half: 11 },
+  { castle: 3, half: 14 },
+  { castle: 5, half: 17 },
+  { castle: 7, half: 20 },
 ];
 
 export function zoneIndex(castleLevel) {
@@ -53,44 +53,51 @@ export function wallTiles(castleLevel) {
 const sizeOf = (b) => BUILDINGS[b.type]?.size || 3;
 const overlap = (ax, ay, as, bx, by, bs) => ax < bx + bs && bx < ax + as && ay < by + bs && by < ay + as;
 
-// Место свободно: внутри открытой части, не на зданиях и не на руинах
+// Между зданиями — обязательная улочка в 1 клетку (здания не слипаются)
+export const GAP = 1;
+const near = (ax, ay, as, bx, by, bs, g) => ax < bx + bs + g && bx < ax + as + g && ay < by + bs + g && by < ay + as + g;
+
+// Место свободно: внутри открытой части, с улочкой до соседних зданий, не на руинах
 export function fits(state, x, y, size, castleLevel, ignoreId = null) {
   if (!inCity(x, y, size, castleLevel)) return false;
   for (const b of state.buildings) {
     if (b.id === ignoreId || b.type === 'wall') continue;
-    if (overlap(x, y, size, b.x, b.y, sizeOf(b))) return false;
+    if (near(x, y, size, b.x, b.y, sizeOf(b), GAP)) return false;
   }
   for (const d of state.decor || []) if (overlap(x, y, size, d.x, d.y, RUIN_SIZE)) return false;
   return true;
 }
 export function blockedBy(state, x, y, size) {
   for (const d of state.decor || []) if (overlap(x, y, size, d.x, d.y, RUIN_SIZE)) return { ruin: d };
-  for (const b of state.buildings) if (b.type !== 'wall' && overlap(x, y, size, b.x, b.y, sizeOf(b))) return { building: b };
+  for (const b of state.buildings) if (b.type !== 'wall' && near(x, y, size, b.x, b.y, sizeOf(b), GAP)) return { building: b };
   return null;
 }
 
-// Ближайшее к центру свободное место (по спирали)
-export function autoPlace(state, size, castleLevel, near = { x: C, y: C }) {
+// Аккуратная сетка участков: шаг 4 (здание 3 + улица 1), от Цитадели — площадь
+const LOT = (v) => ((v - 1) % 4 + 4) % 4 === 0;
+// Ближайшее к точке свободное место: сначала участки сетки, затем любое
+export function autoPlace(state, size, castleLevel, at = { x: C, y: C }) {
   const r = cityRect(castleLevel);
-  let best = null;
+  let best = null, loose = null;
   for (let y = r.y0; y + size <= r.y1; y++) for (let x = r.x0; x + size <= r.x1; x++) {
     if (!fits(state, x, y, size, castleLevel)) continue;
-    const d = Math.hypot(x + size / 2 - near.x, y + size / 2 - near.y);
-    if (!best || d < best.d) best = { x, y, d };
+    const d = Math.hypot(x + size / 2 - at.x, y + size / 2 - at.y);
+    if (LOT(x) && LOT(y)) { if (!best || d < best.d) best = { x, y, d }; }
+    else if (!loose || d < loose.d) loose = { x, y, d };
   }
-  return best;
+  return best || loose;
 }
 
 // --- Стартовая раскладка --------------------------------------------------------
 // Захваченные врагом здания: отвоёвываются боем героев (сила врага растёт)
 export const CAPTURED = [
-  { type: 'statue', x: 24, y: 25, enemy: 1, title: 'Статуя-страж', story: 'Разбойники осквернили Статую-страж — источник силы нашей расы.' },
-  { type: 'tavern', x: 16, y: 21, enemy: 3, title: 'Таверна героев', story: 'В таверне засели наёмники Морвейна и держат хозяина в погребе.' },
-  { type: 'barracks', x: 21, y: 15, enemy: 5, title: 'Казармы', story: 'Казармы заняли дезертиры. Без них не собрать войско.' },
+  { type: 'statue', x: 25, y: 25, enemy: 1, title: 'Статуя-страж', story: 'Разбойники осквернили Статую-страж — источник силы нашей расы.' },
+  { type: 'tavern', x: 13, y: 21, enemy: 3, title: 'Таверна героев', story: 'В таверне засели наёмники Морвейна и держат хозяина в погребе.' },
+  { type: 'barracks', x: 21, y: 13, enemy: 5, title: 'Казармы', story: 'Казармы заняли дезертиры. Без них не собрать войско.' },
 ];
 export const STARTER = [
   { type: 'castle', x: CASTLE_POS.x, y: CASTLE_POS.y },
-  { type: 'farm', x: 25, y: 19 },
+  { type: 'farm', x: 25, y: 21 },
   { type: 'warehouse', x: 17, y: 25 },
 ];
 

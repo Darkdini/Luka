@@ -314,7 +314,9 @@ export class Village {
   staticLayers() {
     const s = this.scene, z = s.cam.z, dpr = s.dpr;
     const W = Math.ceil(s.w * 1.4), H = Math.ceil(s.h * 1.4);
-    const key = `${this.cl}|${z.toFixed(4)}|${dpr}|${W}x${H}|${this.placing ? 1 : 0}`;
+    const me = this.visit || this.me;
+    const lay = me.buildings.map((b) => `${b.x},${b.y},${b.type[0]}`).join(';');
+    const key = `${this.cl}|${z.toFixed(4)}|${dpr}|${W}x${H}|${this.placing ? 1 : 0}|${lay}`;
     const halfW = W / 2 / z, halfH = H / 2 / z, vw = s.w / 2 / z, vh = s.h / 2 / z;
     const st = this.st;
     if (st && st.key === key && Math.abs(s.cam.x - st.cx) <= halfW - vw - 1 && Math.abs(s.cam.y - st.cy) <= halfH - vh - 1) return st;
@@ -338,7 +340,11 @@ export class Village {
       c.setTransform(dpr * z, 0, 0, dpr * z, dpr * (W / 2 - cx * z), dpr * (H / 2 - cy * z));
       c.imageSmoothingQuality = 'medium';
       s.ctx = c;
-      if (ground) { s.drawBackground(); this.drawCityGround(); }
+      if (ground) {
+        s.drawBackground();
+        this.drawCityGround();
+        s.drawStreets(me.buildings.filter((b) => b.type !== 'wall' && !(this.placing?.mode === 'move' && this.placing.id === b.id)).map((b) => ({ x: b.x, y: b.y, size: BUILDINGS[b.type]?.size || 3 })));
+      }
       for (const it of list) {
         if (it.tree) { const p = iso(it.tree.x, it.tree.y); s.drawFoot(it.tree.kind, p.x, p.y, it.tree.w); } else s.drawSlab(it.wall, it.x, it.y, it.sx, it.sy, { scale: it.scale, flip: it.flip });
       }

@@ -204,7 +204,8 @@ export class MarchUI {
     const btns = [];
     if (m.result?.hasBattle) btns.push({ label: `<img class="ic" src="${WI('i_report')}" alt=""> Бой`, cls: 'steel', onClick: () => this.watch(m.id) });
     if (m.phase !== 'back') btns.push({ label: `<img class="ic" src="${WI('i_recall')}" alt=""> Отозвать`, cls: 'steel', onClick: () => this.act('recall', { id: m.id }) });
-    if (left > 0) btns.push({ label: `<img class="ic" src="${A}kit/gems.png" alt=""> ${gems} Ускорить`, cls: 'gem', onClick: () => this.app.ui.confirmGems(gems, () => this.act('speedupMarch', { id: m.id })) });
+    void gems;
+    if (left > 0) btns.push({ label: `<img class="ic" src="${A}items/sp4.png" alt=""> Ускорить`, cls: 'gem', onClick: () => { this.app.bag.after = () => { this.listKey = null; }; this.app.bag.speed({ type: 'march', id: m.id }, ph.end, 'speedupMarch', { id: m.id }, m.targetName); } });
     btns.push({ label: 'К отряду', onClick: () => { this.app.ui.closeModal(); if (!this.world.open) this.app.openWorld(); const p = this.world.marchPos(m); this.world.flyTo(Math.round(p.x), Math.round(p.y)); } });
     this.app.ui.modal(esc(m.targetName), `
       <div class="bw-box"><div class="ms-row"><span><img class="ic" src="${WI(ph.icon)}" alt="">${esc(ph.text)}</span><b>${left > 0 ? fmtTime(left) : 'сейчас'}</b></div>

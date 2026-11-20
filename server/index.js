@@ -11,6 +11,7 @@ import { hashPassword, checkPassword, makeToken, readToken, rateLimit } from './
 import { newPlayerState, tick, actions, view, GameError, wallBuildings, grant } from './game.js';
 import { applyPurchase } from './meta.js';
 import { eventBoard } from './events.js';
+import { bagView } from './items.js';
 import { processMarches, marchView, battleLog } from './march.js';
 import { allyView, allyList, allyOp } from './alliance.js';
 import { processRallies, fortBonus, fortList, rallyView } from './forts.js';
@@ -52,6 +53,7 @@ function auth(req) {
   return p;
 }
 const viewMe = (p) => ({ ...view(p), ...marchView(p.state), allyId: p.ally || null, allyRank: p.ally_rank || 0,
+  ...bagView(p.state),
   rallies: p.ally ? rallyView(p.ally).rallies.map((r) => ({ id: r.id, siteId: r.siteId, name: r.name, level: r.level, x: r.x, y: r.y, fx: r.fx, fy: r.fy, launch: r.launch, arrive: r.arrive || r.launch + r.travel * 1000, leaderName: r.leaderName, members: r.members, might: r.might, enemy: r.enemy })) : [],
   fortBonus: p.state._fortBonus || 0 });
 
@@ -104,6 +106,7 @@ app.post('/api/action', wrap((req) => {
   const fn = Object.hasOwn(actions, action) ? actions[action] : null;
   if (typeof fn !== 'function') throw new GameError('Неизвестное действие');
   const extra = fn(p.state, args) || {};
+  if (extra.moveTo) { p.wx = extra.moveTo.x; p.wy = extra.moveTo.y; }
   tick(p.state);
   savePlayer(p);
   return { ...extra, me: viewMe(p) };

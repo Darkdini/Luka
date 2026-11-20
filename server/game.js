@@ -12,6 +12,7 @@ import { migrateHeroes, heroActions, heroView, HeroError, teamOf } from './heroe
 import { migrateTroops, tickTroops, troopActions, troopView, TroopError } from './troops.js';
 import { migrateMeta, tickMeta, metaActions, metaView, MetaError, passXp } from './meta.js';
 import { mods } from '../shared/meta.js';
+import { isItem } from '../shared/items.js';
 import { migrateEvent, eventPts, eventActions, eventView, EventError } from './events.js';
 import { CASTLE_POS, CAPTURED, STARTER, wallTiles, cityRect, fits, blockedBy, autoPlace, genRuins, inCity, RUIN_SIZE } from '../shared/city.js';
 import { stageEnemies, HERO } from '../shared/heroes.js';
@@ -64,6 +65,7 @@ export function newPlayerState(race, seed) {
   for (const c of CAPTURED) s.buildings.push({ id: s.nextId++, type: c.type, level: 0, x: c.x, y: c.y, up: null, captured: true, enemy: c.enemy });
   s.army = { swordsman: 10, crossbowman: 6 };
   s.wallLevel = 1;
+  s.bag = { sp_1m: 10, sp_5m: 5, spb_5m: 3, rc_food_1k: 3, rc_wood_1k: 3, tp_rand: 1 };
   const g = genRuins(seed, s, s.nextId);
   s.decor = g.decor; s.nextId = g.nextId;
   migrate(s);
@@ -148,6 +150,9 @@ export function grant(s, r) {
   for (const k of RES_LIST) if (r[k]) got[k] = addRes(s, k, r[k]);
   if (r.book) { s.items.book += r.book; got.book = r.book; }
   if (r.ticket) { s.items.ticket += r.ticket; got.ticket = r.ticket; }
+  if (r.statue) { s.items.statue += r.statue; got.statue = r.statue; }
+  // предметы — в сумку
+  for (const [k, n] of Object.entries(r)) if (isItem(k) && n > 0) { s.bag ||= {}; s.bag[k] = (s.bag[k] || 0) + n; got[k] = n; }
   return got;
 }
 

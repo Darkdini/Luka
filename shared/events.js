@@ -22,10 +22,10 @@ export const themeOf = (w) => EVENT_THEMES[((w % EVENT_THEMES.length) + EVENT_TH
 // Личные рубежи
 export const MILESTONES = [
   { pts: 200, reward: { food: 3000, wood: 3000 } },
-  { pts: 600, reward: { gems: 30, book: 2 } },
+  { pts: 600, reward: { gems: 30, book: 2, sp_60m: 1 } },
   { pts: 1500, reward: { stone: 6000, iron: 1500, ticket: 2 } },
-  { pts: 3500, reward: { gems: 80, book: 5 } },
-  { pts: 7000, reward: { gems: 150, ticket: 5, mana: 800 } },
+  { pts: 3500, reward: { gems: 80, book: 5, sp_3h: 1 } },
+  { pts: 7000, reward: { gems: 150, ticket: 5, mana: 800, sh_24h: 1 } },
 ];
 // Награды по месту: [до места, награда]
 export const RANK_REWARDS = [

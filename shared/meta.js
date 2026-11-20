@@ -44,7 +44,7 @@ export const VIP_PTS = [0, 150, 400, 900, 1800, 3500, 7000, 13000, 25000, 50000]
 export const vipLevel = (pts) => { let l = 1; for (let i = 0; i < VIP_PTS.length; i++) if (pts >= VIP_PTS[i]) l = i + 1; return l; };
 export const VIP_DAILY_PTS = 30;
 export const vipPerks = (l) => ({ build: 0.01 * l, gather: 0.02 * l, train: 0.01 * l, march: l >= 6 ? 1 : 0 });
-export const vipChest = (l) => ({ gems: 3 * l, food: 500 * l, wood: 500 * l, stone: 300 * l, book: Math.ceil(l / 3) });
+export const vipChest = (l) => ({ gems: 3 * l, food: 500 * l, wood: 500 * l, stone: 300 * l, book: Math.ceil(l / 3), sp_15m: Math.ceil(l / 2), ...(l >= 5 ? { sp_60m: 1 } : {}) });
 export function vipLines(l) {
   const p = vipPerks(l);
   return [`Стройка быстрее на ${Math.round(p.build * 100)}%`, `Сбор быстрее на ${Math.round(p.gather * 100)}%`, `Обучение быстрее на ${Math.round(p.train * 100)}%`,
@@ -62,6 +62,13 @@ export function mods(s) {
   out.slots = v.march;
   // крепости союза: +5% добычи за каждую (до трёх)
   for (const r of ['food', 'wood', 'stone', 'iron', 'mana', 'gold']) out[r] = (out[r] || 0) + (s._fortBonus || 0);
+  // бонусы из предметов (действуют до срока)
+  const now = Date.now();
+  for (const [eff, b] of Object.entries(s.boosts || {})) {
+    if (b.until <= now) continue;
+    if (eff === 'resAll') for (const r of ['food', 'wood', 'stone', 'iron', 'mana', 'gold']) out[r] = (out[r] || 0) + b.val;
+    else out[eff] = (out[eff] || 0) + b.val;
+  }
   return out;
 }
 
@@ -76,12 +83,12 @@ export function passReward(level, gold) {
   if (!gold) {
     if (level % 10 === 0) return { gems: 50, ticket: 3 };
     if (level % 5 === 0) return { gems: 20, book: 3 };
-    return level % 2 ? { food: 1500 + level * 100, wood: 1500 + level * 100 } : { stone: 1000 + level * 80, ticket: 1 };
+    return level % 2 ? { food: 1500 + level * 100, wood: 1500 + level * 100 } : { stone: 1000 + level * 80, ticket: 1, sp_15m: 1 };
   }
   if (level === 30) return { gems: 300, frag: 'legendary', fragN: 20 };
   if (level % 10 === 0) return { gems: 150, frag: 'epic', fragN: 15 };
   if (level % 5 === 0) return { gems: 80, ticket: 5 };
-  return level % 2 ? { gems: 20, book: 2, iron: 500 + level * 50 } : { ticket: 2, mana: 200 + level * 20 };
+  return level % 2 ? { gems: 20, book: 2, iron: 500 + level * 50, sp_60m: 1 } : { ticket: 2, mana: 200 + level * 20, spb_60m: 1 };
 }
 
 // --- Лавка ---------------------------------------------------------------------

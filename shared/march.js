@@ -60,7 +60,9 @@ export function siteReward(level, type) {
   const r = { food: Math.round(700 * k), wood: Math.round(600 * k), stone: Math.round(400 * k), gems: 2 + level, book: Math.ceil(level / 3) };
   if (level >= 3) r.iron = Math.round(150 * k);
   if (level >= 6) r.mana = Math.round(40 * k);
-  if (type === 'lair' || type === 'tower' || type === 'throne') { r.gems += level * 2; r.book += 1; }
+  r.sp_5m = 1;
+  if (level >= 5) r.sp_60m = 1;
+  if (type === 'lair' || type === 'tower' || type === 'throne') { r.gems += level * 2; r.book += 1; r.rc_iron_10k = 1; }
   return r;
 }
 export const siteExp = (level) => Math.round(300 * Math.pow(level, 1.4));

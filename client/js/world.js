@@ -411,7 +411,13 @@ export class WorldMap {
     const cell = this.cellAt(p.x, p.y);
     const t = terrainAt(cell.x, cell.y);
     this.sel = null;
-    this.panel(`<b>${BIOMES[t].name}</b><span class="muted">Клетка ${cell.x}:${cell.y}</span>`, []);
+    const tp = this.teleportMode;
+    this.panel(`<b>${BIOMES[t].name}</b><span class="muted">Клетка ${cell.x}:${cell.y}</span>`, tp ? [
+      { label: 'Отмена', cls: 'steel', fn: () => { this.teleportMode = null; this.hidePanel(); } },
+      { label: '<img class="ic" src="/assets/realm/items/tp2.png" alt=""> Перенести замок сюда', cls: 'green', fn: async () => {
+        try { const r = await this.app.act('teleport', { item: tp, x: cell.x, y: cell.y }); this.teleportMode = null; this.hidePanel(); this.regions.clear(); this.app.ui.toast('Замок перенесён', 'good'); this.flyTo(r.moveTo.x, r.moveTo.y); } catch { /* тост */ }
+      } },
+    ] : []);
   }
 
   select(e) {

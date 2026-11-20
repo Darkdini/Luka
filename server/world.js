@@ -26,7 +26,7 @@ const q = {
   unplaced: db.prepare('SELECT id FROM players WHERE wx IS NULL'),
 };
 
-function cellFree(x, y) {
+export function cellFree(x, y) {
   if (!buildable(x, y) || campAt(x, y)) return false;
   if (Math.abs(x - CENTER) < 8 && Math.abs(y - CENTER) < 8) return false;
   for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) if (campAt(x + dx, y + dy)) return false; // не вплотную к лагерям

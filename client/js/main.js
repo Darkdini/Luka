@@ -8,6 +8,7 @@ import { Troops } from './troops.js';
 import { Alliance } from './alliance.js';
 import { Store, Academy } from './store.js';
 import { WeekEvent } from './event.js';
+import { Bag } from './bag.js';
 import { RES_GEN } from '/shared/config.js';
 import { Village } from './village.js';
 import { Battle } from './battle.js';
@@ -52,6 +53,8 @@ class App {
     this.store = new Store(this);
     this.academy = new Academy(this);
     this.event = new WeekEvent(this);
+    this.bag = new Bag(this);
+    $('#btn-bag').onclick = () => this.bag.open();
     $('#btn-event').onclick = () => this.event.open();
     $('#btn-ally').onclick = () => this.ally.open();
     $('#btn-army').onclick = () => this.troops.open();
@@ -198,6 +201,7 @@ class App {
     this.store?.refresh();
     this.academy?.refresh();
     this.event?.refresh();
+    this.bag?.refresh();
   }
 
   async refresh() {

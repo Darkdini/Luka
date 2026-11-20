@@ -364,3 +364,31 @@ test('событие недели: очки, рубеж, таблица, наг�
 });
 import { bumpDaily as actionsBump } from '../server/game.js';
 import { migrateEvent as migrateEventT } from '../server/events.js';
+
+import '../server/items.js';
+import { autoPlace } from '../shared/city.js';
+
+test('инвентарь: ускорения, сундуки, щит, бонус, покупка', () => {
+  const s = newPlayerState('humans', 66);
+  const sp5 = s.bag.sp_5m;
+  const spot = autoPlace(s, 3, 1);
+  const r = actions.place(s, { type: 'farm', x: spot.x, y: spot.y });
+  const b = s.buildings.find((v) => v.id === r.id);
+  const end = b.up.end;
+  actions.useSpeed(s, { item: 'sp_5m', n: 1, target: { type: 'build', id: b.id } });
+  assert.equal(s.bag.sp_5m, sp5 - 1);
+  assert.ok(b.level === 1 || b.up.end <= end - 290e3);
+  assert.throws(() => actions.useSpeed(s, { item: 'spb_5m', target: { type: 'research' } }), /не подходит/);
+  const food = s.res.food;
+  actions.openChest(s, { item: 'rc_food_1k', n: 2 });
+  assert.ok(s.res.food > food);
+  s.res.gems = 2000;
+  actions.buyItem(s, { item: 'sh_8h', n: 1 });
+  s.shieldUntil = 0;
+  actions.useShield(s, { item: 'sh_8h' });
+  assert.ok(s.shieldUntil > Date.now() + 7 * 3600e3);
+  actions.buyItem(s, { item: 'bo_res', n: 1 });
+  actions.useBoost(s, { item: 'bo_res' });
+  assert.ok(mods(s).food >= 0.25);
+  assert.throws(() => actions.useShield(s, { item: 'sh_8h' }), /не хватает/);
+});

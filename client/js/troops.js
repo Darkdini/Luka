@@ -140,7 +140,7 @@ export class Troops {
     const on = (sel, fn) => { const el = body.querySelector(sel); if (el) el.onclick = fn; };
     on('[data-train]', async () => { if (await this.act('trainTroops', { kind, tier, n })) { this.app.sfx('build'); this.app.ui.toast(`Обучение: ${fmt(n)} × ${troopName(race, kind, tier)}`, 'good'); this.refresh(); } });
     on('[data-now]', () => this.app.ui.confirmGems(gems, async () => { if (await this.act('trainNow', { kind, tier, n })) { this.app.sfx('levelup'); this.app.ui.toast(`В армии +${fmt(n)}: ${troopName(race, kind, tier)}`, 'good'); this.refresh(); } }));
-    on('[data-speed]', () => { const g = gemsForTime((q.end - me.now) / 1000); this.app.ui.confirmGems(g, async () => { if (await this.act('speedupTrain', { kind })) this.refresh(); }); });
+    on('[data-speed]', () => { this.app.bag.after = () => this.refresh(); this.app.bag.speed({ type: 'train', kind }, q.end, 'speedupTrain', { kind }, `${fmt(q.n)} × ${troopName(race, kind, q.tier)}`); });
     on('[data-cancel]', async () => { if (await this.act('cancelTrain', { kind })) this.refresh(); });
     on('[data-go]', () => { this.close(); if (camp) this.app.village.select(camp); });
     this.tickTimers();
@@ -178,7 +178,7 @@ export class Troops {
     : `<div class="tr-box tr-note">Раненых нет. ${hosp ? '' : 'Постройте Госпиталь, чтобы спасать воинов после боёв.'}</div>`}`;
     const on = (sel, fn) => { const el = body.querySelector(sel); if (el) el.onclick = fn; };
     on('[data-heal]', async () => { if (await this.act('healAll')) { this.app.sfx('build'); this.refresh(); } });
-    on('[data-hspeed]', () => { const g = gemsForTime((hq.end - me.now) / 1000); this.app.ui.confirmGems(g, async () => { if (await this.act('speedupHeal')) this.refresh(); }); });
+    on('[data-hspeed]', () => { this.app.bag.after = () => this.refresh(); this.app.bag.speed({ type: 'heal' }, hq.end, 'speedupHeal', {}, 'лечение'); });
     this.tickTimers();
   }
 }

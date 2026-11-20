@@ -7,10 +7,23 @@ import {
 } from '/shared/config.js';
 import { CAPTURED, nextZone, ZONES } from '/shared/city.js';
 import { HERO, RARITY, heroPower, stageEnemies } from '/shared/heroes.js';
+import { ITEMS } from '/shared/items.js';
 
 const A = '/assets/realm/';
 const RI = { food: `${A}city/food.png`, wood: `${A}city/wood.png`, stone: `${A}city/stone.png`, iron: `${A}city/iron.png`, mana: `${A}city/mana.png`, gold: `${A}kit/gold.png`, gems: `${A}kit/gems.png` };
-export const resIcon = (r) => RI[r] || RI.gold;
+// Иконки предметов (до листа предметов — из уже нарезанных наборов)
+const ITEM_FALLBACK = {
+  sp1: 'city/speedup', sp2: 'city/speedup', sp3: 'city/speedup', sp4: 'city/timer', sp5: 'city/timer', sp6: 'kit/statue',
+  spb: 'city/build', spt: 'city/train', spr: 'city/research',
+  rc_food: 'city/food', rc_wood: 'city/wood', rc_stone: 'city/stone', rc_iron: 'city/iron', rc_mana: 'city/mana', rc_gold: 'kit/gold',
+  sh1: 'world/i_peace', sh2: 'world/i_peace', sh3: 'world/i_peace', tp1: 'world/i_teleport', tp2: 'world/i_teleport',
+  bo_march: 'world/i_speed', bo_gather: 'world/i_gather', bo_atk: 'kit/atk', bo_def: 'kit/def', bo_res: 'meta/ch_res',
+  book: 'kit/book', ticket: 'kit/ticket', statue: 'kit/statue',
+};
+export const ITEM_ART = new Set(['sp1', 'sp2', 'sp3', 'sp4', 'sp5', 'sp6', 'spb', 'spt', 'spr', 'sph', 'spm', 'spg', 'rc_food', 'rc_wood', 'rc_stone', 'rc_iron', 'rc_mana', 'rc_gold',
+  'sh1', 'sh2', 'sh3', 'tp1', 'tp2', 'peace', 'bo_atk', 'bo_def', 'bo_res', 'potion', 'bo_march', 'bag']);
+export const itemUrl = (icon) => (ITEM_ART.has(icon) ? `${A}items/${icon}.png` : `${A}${ITEM_FALLBACK[icon] || 'city/speedup'}.png`);
+export const resIcon = (r) => RI[r] || (ITEMS[r] ? itemUrl(ITEMS[r].icon) : r === 'book' || r === 'ticket' || r === 'statue' ? itemUrl(r) : RI.gold);
 const ico = (r) => `<img class="ic" src="${resIcon(r)}" alt="">`;
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const short = (n) => (n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + 'M' : n >= 1e4 ? Math.floor(n / 1e3) + 'K' : n >= 1e3 ? (n / 1e3).toFixed(1).replace('.0', '') + 'K' : String(Math.floor(n)));
@@ -115,9 +128,7 @@ export class CityUI {
   }
 
   speedup(b) {
-    const left = (b.up.end - this.me.now) / 1000;
-    const g = gemsForTime(left);
-    this.app.ui.confirmGems(g, () => this.app.act('speedup', { id: b.id }).then(() => this.app.village.select(null)).catch(() => {}));
+    this.app.bag.speed({ type: 'build', id: b.id }, b.up.end, 'speedup', { id: b.id }, BUILDINGS[b.type].name);
   }
 
   openInfo(b, note = '') {

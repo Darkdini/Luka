@@ -4,6 +4,8 @@ import {
   TECHS, TECH, BRANCHES, techCost, techTime, techMax, VIP_PTS, vipLines, vipChest, PASS_LEVELS, PASS_XP_LEVEL, passReward, OFFERS, GEM_PACKS, MONTH_DAILY,
 } from '/shared/meta.js';
 import { api } from './api.js';
+import { ITEMS, SHOP_ITEMS, RARITY_COLOR } from '/shared/items.js';
+import { itemUrl } from './cityui.js';
 import { resIcon, short } from './cityui.js';
 
 const A = '/assets/realm/';
@@ -56,8 +58,8 @@ export class Store extends Base {
   show(tab) {
     this.tab = tab;
     const me = this.me;
-    this.tabs([['offers', M('ch_royal'), 'Наборы', me.month?.ready], ['gems', M('gems2'), 'Самоцветы'], ['vip', M(`vip${me.vip.level}`), 'VIP', me.vip.dailyReady], ['pass', M('p_trophy'), 'Пропуск', this.passReady()]]);
-    ({ offers: () => this.renderOffers(), gems: () => this.renderGems(), vip: () => this.renderVip(), pass: () => this.renderPass() })[tab]();
+    this.tabs([['offers', M('ch_royal'), 'Наборы', me.month?.ready], ['items', itemUrl('sp4'), 'Товары'], ['gems', M('gems2'), 'Самоцветы'], ['vip', M(`vip${me.vip.level}`), 'VIP', me.vip.dailyReady], ['pass', M('p_trophy'), 'Пропуск', this.passReady()]]);
+    ({ offers: () => this.renderOffers(), items: () => this.renderItems(), gems: () => this.renderGems(), vip: () => this.renderVip(), pass: () => this.renderPass() })[tab]();
   }
 
   async buy(id) {
@@ -87,6 +89,21 @@ export class Store extends Base {
     this.body().querySelectorAll('[data-buy]').forEach((b) => { b.onclick = () => this.buy(b.dataset.buy); });
     const mb = this.body().querySelector('[data-month]');
     if (mb) mb.onclick = async () => { const r = await this.act('monthClaim'); if (r) { this.app.engage.rewardFx(r.got); this.show('offers'); } };
+  }
+
+  renderItems() {
+    const groups = [['speed', 'Ускорения'], ['res', 'Ресурсы'], ['special', 'Щиты, телепорты, бонусы']];
+    this.body().innerHTML = groups.map(([tab, name]) => `<div class="hd-sub">${name}</div><div class="bg-grid">${SHOP_ITEMS.filter((k) => ITEMS[k].tab === tab).map((k) => {
+      const it = ITEMS[k];
+      return `<button class="bg-cell" data-buy="${k}" style="--rc:${RARITY_COLOR[it.rarity]}"><img src="${itemUrl(it.icon)}" alt=""><b>${fmt(this.me.bag?.[k] || 0)}</b><span>${it.name}</span><em><img class="ic" src="${A}kit/gems.png" alt="">${fmt(it.gems)}</em></button>`;
+    }).join('')}</div>`).join('');
+    this.body().querySelectorAll('[data-buy]').forEach((b) => {
+      b.onclick = () => {
+        const it = ITEMS[b.dataset.buy];
+        this.app.ui.modal(it.name, `<div class="bw-head"><img src="${itemUrl(it.icon)}" alt=""><div><p>${it.desc}</p><p class="muted">В сумке: ${fmt(this.me.bag?.[it.id] || 0)}</p></div></div>`,
+          [1, 5, 10].map((n) => ({ label: `×${n} <img class="ic" src="${A}kit/gems.png" alt=""> ${fmt(it.gems * n)}`, cls: n === 1 ? 'gem' : 'steel', onClick: () => this.app.ui.confirmGems(it.gems * n, async () => { this.app.ui.closeModal(); if (await this.act('buyItem', { item: it.id, n }, `Куплено: ${it.name} ×${n}`)) this.show('items'); }) })), 'bw');
+      };
+    });
   }
 
   renderGems() {
@@ -155,7 +172,7 @@ export class Academy extends Base {
     this.body().innerHTML = `${head}<div class="hd-sub">${BRANCHES[tab]}</div><div class="tc-grid">${cards}</div>`;
     this.body().querySelectorAll('.tc').forEach((b) => { b.onclick = () => this.techModal(b.dataset.id); });
     const sp = this.body().querySelector('[data-speed]');
-    if (sp) sp.onclick = () => { const g = gemsForTime((q.end - me.now) / 1000); this.app.ui.confirmGems(g, async () => { if (await this.act('speedupResearch')) this.show(this.tab); }); };
+    if (sp) sp.onclick = () => { this.app.bag.after = () => this.show(this.tab); this.app.bag.speed({ type: 'research' }, q.end, 'speedupResearch', {}, TECH[q.id].name); };
     this.tickQ();
   }
   tickQ() {

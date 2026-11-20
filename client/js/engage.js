@@ -3,6 +3,7 @@
 import { BUILDINGS, HEROES, fmt, fmtTime, armyUsed, TROOPS, castleLevelOf, buildCost, canAfford, RES_LIST, RES_GEN } from '/shared/config.js';
 import { resIcon } from './cityui.js';
 import { inCity, RUIN_SIZE } from '/shared/city.js';
+import { ITEMS } from '/shared/items.js';
 import { TUTORIAL, STREAK, DAILY_BONUS_GEMS, questCtx, today } from '/shared/quests.js';
 import { url } from './assets.js';
 import { iso, TW, TH } from './scene.js';
@@ -11,7 +12,7 @@ import { esc } from './world.js';
 const $ = (s) => document.querySelector(s);
 const ico = (r) => `<img class="ri" src="${r === 'book' ? '/assets/realm/kit/book.png' : r === 'ticket' ? '/assets/realm/kit/ticket.png' : resIcon(r)}" alt="">`;
 const REW = ['gems', ...RES_LIST, 'book', 'ticket'];
-const rewardHtml = (r) => REW.filter((k) => r[k]).map((k) => `${ico(k)} ${fmt(r[k])}`).join(' &nbsp;');
+const rewardHtml = (r) => [...REW.filter((k) => r[k]), ...Object.keys(r).filter((k) => ITEMS[k])].map((k) => `${ico(k)} ${fmt(r[k])}`).join(' &nbsp;');
 
 export class Engage {
   constructor(app) {
@@ -204,7 +205,8 @@ export class Engage {
     const start = from || { x: window.innerWidth / 2, y: window.innerHeight / 2 };
     for (const k of ['gems', ...RES_LIST]) if (got[k] > 0) this.fly(start, k, Math.min(10, 3 + Math.round(Math.log10(got[k] + 1) * 2)));
     this.app.sfx('coin');
-    const parts = REW.filter((k) => got[k] > 0).map((k) => `+${fmt(got[k])} ${k === 'book' ? 'книг опыта' : k === 'ticket' ? 'билетов' : RES_GEN[k]}`);
+    const parts = [...REW.filter((k) => got[k] > 0).map((k) => `+${fmt(got[k])} ${k === 'book' ? 'книг опыта' : k === 'ticket' ? 'билетов' : RES_GEN[k]}`),
+      ...Object.keys(got).filter((k) => ITEMS[k] && got[k] > 0).map((k) => `${ITEMS[k].name} ×${got[k]}`)];
     if (parts.length) this.app.ui.toast(parts.join(', '), 'good');
   }
 

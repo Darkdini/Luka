@@ -2,6 +2,7 @@ import http from 'node:http';
 import path from 'node:path';
 import fs from 'node:fs';
 import express from 'express';
+import compression from 'compression';
 import { WebSocketServer } from 'ws';
 import { RACES, DONATE_PACKS } from '../shared/config.js';
 import { db, getPlayer, getPlayerByName, savePlayer } from './db.js';
@@ -24,8 +25,23 @@ const DEV_PURCHASES = process.env.DEV_PURCHASES === '1';
 
 const app = express();
 app.disable('x-powered-by');
+app.use(compression({ threshold: 1024 })); // сжатие JS/JSON/HTML (картинки уже сжаты)
 app.use(express.json({ limit: '256kb' }));
 app.use('/shared', express.static(path.join(ROOT, 'shared')));
+// Картинки: браузерам с поддержкой WebP — сжатая копия (tools/webp.py), в 5 раз легче
+const ASSETS = path.join(ROOT, 'client', 'assets');
+app.use('/assets', (req, res, next) => {
+  if (!/\.(png|jpe?g)$/i.test(req.path) || !/image\/webp/.test(req.headers.accept || '')) return next();
+  let rel;
+  try { rel = decodeURIComponent(req.path); } catch { return next(); }
+  const f = path.join(ASSETS, rel) + '.webp';
+  if (!f.startsWith(ASSETS + path.sep) || !fs.existsSync(f)) return next();
+  res.setHeader('Vary', 'Accept');
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.type('image/webp');
+  res.sendFile(f);
+});
+app.use('/assets', express.static(ASSETS, { maxAge: '1d' }));
 app.use(express.static(path.join(ROOT, 'client')));
 
 const wrap = (fn) => (req, res) => {

@@ -266,18 +266,10 @@ export class Village {
     if (!me) return;
     this.t += dt;
     const now = this.now();
-    s.begin();
-    s.drawBackground();
-    this.drawCityGround();
+    const st = this.staticLayers();
+    s.begin(true);
+    s.ctx.drawImage(st.back, st.wx, st.wy, st.ww, st.wh);
     const items = [];
-    // видимая область (в клетках) — для отсечения леса
-    const view = this.viewRect();
-    for (const f of this.forest) {
-      if (f.x < view.x0 || f.x > view.x1 || f.y < view.y0 || f.y > view.y1) continue;
-      const p = iso(f.x, f.y);
-      if (Math.abs(p.x - s.cam.x) > view.hw || p.y < view.top || p.y > view.bot) continue;
-      items.push({ d: f.x + f.y, tree: f });
-    }
     for (const b of me.buildings) {
       if (b.type === 'wall') continue;
       if (this.placing?.mode === 'move' && this.placing.id === b.id) continue;
@@ -288,7 +280,6 @@ export class Village {
       if (!inCity(d.x, d.y, RUIN_SIZE, this.cl)) continue; // руины закрытых зон — под лесом
       items.push({ d: d.x + d.y + RUIN_SIZE * 2, dec: d });
     }
-    for (const w of this.wallPieces()) items.push(w);
     if (this.placing) items.push({ d: this.placing.x + this.placing.y + this.placing.size * 2 + 0.01, ghost: true });
     items.sort((a, b) => a.d - b.d);
 
@@ -304,6 +295,7 @@ export class Village {
         if (r) this.hits.push({ d: it.dec, x: r.x + r.w * 0.15, y: r.y + r.h * 0.2, w: r.w * 0.7, h: r.h * 0.8 });
       }
     }
+    s.ctx.drawImage(st.front, st.wx, st.wy, st.ww, st.wh);
     this.drawFog();
     // значки поверх
     if (!this.visit) for (const b of me.buildings) this.drawOverlay(b, now);
@@ -312,6 +304,46 @@ export class Village {
     this.placeArc();
     this.placeGhostBar();
     if (!this.visit) this.app.ui.tick(now);
+  }
+
+  // Неподвижные слои — трава, лес и стены — рисуются в кэш один раз и переиспользуются:
+  // каждый кадр это одна картинка вместо травы и сотен деревьев. «Задний» слой под зданиями,
+  // «передний» (ближняя стена и лес перед ней) — поверх.
+  staticLayers() {
+    const s = this.scene, z = s.cam.z, dpr = s.dpr;
+    const W = Math.ceil(s.w * 1.4), H = Math.ceil(s.h * 1.4);
+    const key = `${this.cl}|${z.toFixed(4)}|${dpr}|${W}x${H}|${this.placing ? 1 : 0}`;
+    const halfW = W / 2 / z, halfH = H / 2 / z, vw = s.w / 2 / z, vh = s.h / 2 / z;
+    const st = this.st;
+    if (st && st.key === key && Math.abs(s.cam.x - st.cx) <= halfW - vw - 1 && Math.abs(s.cam.y - st.cy) <= halfH - vh - 1) return st;
+    const mk = (old) => { const cv = old || document.createElement('canvas'); cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); return cv; };
+    const back = mk(st?.back), front = mk(st?.front);
+    const cx = s.cam.x, cy = s.cam.y, wx = cx - halfW, wy = cy - halfH, ww = W / z, wh = H / z;
+    const r = this.rect;
+    const inView = (x, y) => { const p = iso(x, y); return p.x > wx - TW * 2 && p.x < wx + ww + TW * 2 && p.y > wy - TH * 2 && p.y < wy + wh + TH * 10; };
+    const backItems = [], frontItems = [];
+    for (const f of this.forest) {
+      if (!inView(f.x, f.y)) continue;
+      ((f.x >= r.x1 || f.y >= r.y1) ? frontItems : backItems).push({ d: f.x + f.y, tree: f });
+    }
+    for (const w of this.wallPieces()) (w.front ? frontItems : backItems).push(w);
+    backItems.sort((a, b) => a.d - b.d); frontItems.sort((a, b) => a.d - b.d);
+    const main = s.ctx;
+    const draw = (cv, list, ground) => {
+      const c = cv.getContext('2d');
+      c.setTransform(1, 0, 0, 1, 0, 0);
+      c.clearRect(0, 0, cv.width, cv.height);
+      c.setTransform(dpr * z, 0, 0, dpr * z, dpr * (W / 2 - cx * z), dpr * (H / 2 - cy * z));
+      c.imageSmoothingQuality = 'medium';
+      s.ctx = c;
+      if (ground) { s.drawBackground(); this.drawCityGround(); }
+      for (const it of list) {
+        if (it.tree) { const p = iso(it.tree.x, it.tree.y); s.drawFoot(it.tree.kind, p.x, p.y, it.tree.w); } else s.drawSlab(it.wall, it.x, it.y, it.sx, it.sy);
+      }
+    };
+    try { draw(back, backItems, true); draw(front, frontItems, false); } finally { s.ctx = main; }
+    this.st = { key, cx, cy, back, front, wx, wy, ww, wh };
+    return this.st;
   }
 
   viewRect() {
@@ -345,18 +377,18 @@ export class Village {
       if (len < 1) continue;
       out.push({ wall: 'wall_l', x, y: r.y0 - 1, sx: len, sy: 1, d: x + len + r.y0 });
       if (x + 3 > gateX && x < gateX + 2) continue; // проём ворот
-      out.push({ wall: 'wall_l', x, y: r.y1, sx: len, sy: 1, d: x + len + r.y1 + 1 });
+      out.push({ wall: 'wall_l', x, y: r.y1, sx: len, sy: 1, d: x + len + r.y1 + 1, front: true });
     }
     for (let y = r.y0; y < r.y1; y += 3) {
       const len = Math.min(3, r.y1 - y);
       out.push({ wall: 'wall_r', x: r.x0 - 1, y, sx: 1, sy: len, d: r.x0 + y + len });
       if (y + 3 > gateY && y < gateY + 2) continue;
-      out.push({ wall: 'wall_r', x: r.x1, y, sx: 1, sy: len, d: r.x1 + 1 + y + len });
+      out.push({ wall: 'wall_r', x: r.x1, y, sx: 1, sy: len, d: r.x1 + 1 + y + len, front: true });
     }
-    const T = (x, y) => out.push({ wall: 'tower', x: x - 0.5, y: y - 0.5, sx: 2, sy: 2, d: x + y + 3.2 });
-    T(r.x0 - 1, r.y0 - 1); T(r.x1, r.y0 - 1); T(r.x0 - 1, r.y1); T(r.x1, r.y1);
-    out.push({ wall: 'gate', x: gateX, y: r.y1 - 0.5, sx: 2, sy: 2, d: gateX + r.y1 + 4 });
-    out.push({ wall: 'gate', x: r.x1 - 0.5, y: gateY, sx: 2, sy: 2, d: r.x1 + gateY + 4 });
+    const T = (x, y, front) => out.push({ wall: 'tower', x: x - 0.5, y: y - 0.5, sx: 2, sy: 2, d: x + y + 3.2, front });
+    T(r.x0 - 1, r.y0 - 1, false); T(r.x1, r.y0 - 1, true); T(r.x0 - 1, r.y1, true); T(r.x1, r.y1, true);
+    out.push({ wall: 'gate', x: gateX, y: r.y1 - 0.5, sx: 2, sy: 2, d: gateX + r.y1 + 4, front: true });
+    out.push({ wall: 'gate', x: r.x1 - 0.5, y: gateY, sx: 2, sy: 2, d: r.x1 + gateY + 4, front: true });
     return out;
   }
 

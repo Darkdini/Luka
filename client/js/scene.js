@@ -26,7 +26,7 @@ export class Scene {
   }
 
   resize() {
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const dpr = Math.min(this.dprCap || 2, window.devicePixelRatio || 1);
     this.dpr = dpr;
     this.w = this.cv.clientWidth; this.h = this.cv.clientHeight;
     this.cv.width = Math.round(this.w * dpr); this.cv.height = Math.round(this.h * dpr);
@@ -137,7 +137,7 @@ export class Scene {
   // --- Отрисовка ----------------------------------------------------------------
   shake(power) { this.shakeP = Math.max(this.shakeP || 0, power); }
 
-  begin() {
+  begin(noFill) {
     const c = this.ctx;
     let sx = 0, sy = 0;
     if (this.shakeP > 0.2) {
@@ -145,13 +145,15 @@ export class Scene {
       this.shakeP *= 0.86;
     } else this.shakeP = 0;
     c.setTransform(1, 0, 0, 1, 0, 0);
+    if (!noFill) { // при кэше земли фон закрывает весь экран — заливка не нужна
     const g = c.createLinearGradient(0, 0, 0, this.cv.height);
     g.addColorStop(0, '#3e5426'); g.addColorStop(1, '#2c3f1c');
     c.fillStyle = g;
     c.fillRect(0, 0, this.cv.width, this.cv.height);
+    }
     c.setTransform(this.dpr * this.cam.z, 0, 0, this.dpr * this.cam.z,
       this.dpr * (this.w / 2 - this.cam.x * this.cam.z + sx), this.dpr * (this.h / 2 - this.cam.y * this.cam.z + sy));
-    c.imageSmoothingQuality = 'high';
+    c.imageSmoothingQuality = 'medium';
   }
 
   // Земля: бесшовная трава, спроецированная в изометрию (1 текстура = 4×4 клетки)
@@ -168,6 +170,28 @@ export class Scene {
     c.restore();
   }
 
+  // Картинка, заранее уменьшенная под нужный экранный размер: большие спрайты не
+  // сжимаются заново каждый кадр (главная нагрузка на слабых телефонах)
+  fit(im, w) {
+    const px = w * this.cam.z * this.dpr;
+    if (im.width < px * 1.5) return im;
+    const bw = Math.max(16, Math.ceil(px / 16) * 16);
+    const key = bw;
+    let m = im._scaled;
+    if (!m) { m = new Map(); im._scaled = m; }
+    let cv = m.get(key);
+    if (!cv) {
+      cv = document.createElement('canvas');
+      cv.width = bw; cv.height = Math.max(1, Math.round(im.height * bw / im.width));
+      const c = cv.getContext('2d');
+      c.imageSmoothingQuality = 'high';
+      c.drawImage(im, 0, 0, cv.width, cv.height);
+      if (m.size > 6) m.delete(m.keys().next().value);
+      m.set(key, cv);
+    }
+    return cv;
+  }
+
   // Спрайт города на плите: footprint sx×sy клеток от (gx, gy). Возвращает прямоугольник в мире
   drawSlab(name, gx, gy, sx, sy, o = {}) {
     const m = CITY[name], im = cityImg(name);
@@ -179,9 +203,9 @@ export class Scene {
       c.save();
       if (o.alpha != null) c.globalAlpha = o.alpha;
       if (o.filter) c.filter = o.filter;
-      c.drawImage(im, r.x, r.y, r.w, r.h);
+      c.drawImage(this.fit(im, r.w), r.x, r.y, r.w, r.h);
       c.restore();
-    } else c.drawImage(im, r.x, r.y, r.w, r.h);
+    } else c.drawImage(this.fit(im, r.w), r.x, r.y, r.w, r.h);
     return r;
   }
 
@@ -191,8 +215,9 @@ export class Scene {
     if (!m || !im) return null;
     const k = width / m.w;
     const r = { x: wx - m.ax * k, y: wy - m.ay * k, w: m.w * k, h: m.h * k };
-    if (o.alpha != null) { this.ctx.save(); this.ctx.globalAlpha = o.alpha; this.ctx.drawImage(im, r.x, r.y, r.w, r.h); this.ctx.restore(); }
-    else this.ctx.drawImage(im, r.x, r.y, r.w, r.h);
+    const fi = this.fit(im, r.w);
+    if (o.alpha != null) { this.ctx.save(); this.ctx.globalAlpha = o.alpha; this.ctx.drawImage(fi, r.x, r.y, r.w, r.h); this.ctx.restore(); }
+    else this.ctx.drawImage(fi, r.x, r.y, r.w, r.h);
     return r;
   }
 

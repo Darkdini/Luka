@@ -1,6 +1,6 @@
 import { RACES, GAME_TITLE, fmt } from '/shared/config.js';
 import { api, token, setToken, store } from './api.js';
-import { loadAll } from './assets.js';
+import { loadAll, loadGroup } from './assets.js';
 import { agreement, intro, chooseFaction, showAuthScreen, hideScreens, loadingProgress, loadingTip } from './onboarding.js';
 import { Scene, iso } from './scene.js';
 import { CityUI } from './cityui.js';
@@ -166,8 +166,21 @@ class App {
     const loop = (t) => {
       const dt = Math.min(0.1, (t - last) / 1000);
       last = t;
-      if (this.world.open) { /* у карты мира свой цикл */ } else if (this.mode === 'battle') this.battle.frame(dt);
+      // под полноэкранными окнами город не рисуем — экономим процессор и батарею
+      const covered = this.world.open || document.querySelector('#heroes.show, #troops.show, #ally.show, .meta-screen.show, #hbattle.show, #campaign.show');
+      if (covered) { /* перекрыто */ } else if (this.mode === 'battle') this.battle.frame(dt);
       else this.village.frame(dt);
+      // слабое устройство: если город долго идёт медленнее 30 кадров — снижаем чёткость холста
+      if (!covered) {
+        this.perf ||= { n: 0, sum: 0 };
+        this.perf.n++; this.perf.sum += dt;
+        if (this.perf.n >= 120) {
+          const fps = this.perf.n / this.perf.sum;
+          this.perf = { n: 0, sum: 0 };
+          const cap = this.scene.dprCap || 2;
+          if (fps < 28 && cap > 1 && (window.devicePixelRatio || 1) > 1) { this.scene.dprCap = cap - 0.5; this.scene.resize(); }
+        }
+      }
       requestAnimationFrame(loop);
     };
     requestAnimationFrame(loop);
@@ -308,7 +321,7 @@ class App {
   async attack(target) {
     this.ui.closeModal();
     try {
-      const data = await api.attackStart(target);
+      const [data] = await Promise.all([api.attackStart(target), loadGroup('legacy')]);
       this.world.close();
       this.story.close();
       if (target.kind !== 'story') this.story.pending = null;

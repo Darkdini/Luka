@@ -4,7 +4,7 @@ import { RACES, fmt, fmtTime } from '/shared/config.js';
 import { WORLD, CENTER, BIOMES, terrainAt, campAt, decorAt, hash01, SITE_TYPES } from '/shared/worldgen.js';
 import { siteMight, siteAmount, troopMight, marchSlots } from '/shared/march.js';
 import { FORT_MIGHT, FORT_BONUS } from '/shared/worldgen.js';
-import { img } from './assets.js';
+import { img, loadGroup } from './assets.js';
 import { MarchUI } from './march.js';
 
 const W = (n) => img('realm/world/' + n);
@@ -46,14 +46,15 @@ export class WorldMap {
 
   get open() { return this.el.classList.contains('show'); }
 
-  show(x, y) {
+  async show(x, y) {
+    await loadGroup('world');
     this.el.classList.add('show');
     this.resize();
     const me = this.app.me;
     this.flyTo(x ?? me.x, y ?? me.y, true);
     this.drawMini();
     this.loadForts();
-    if (!this.raf) { let last = performance.now(); const loop = (t) => { this.raf = this.open ? requestAnimationFrame(loop) : null; this.frame(Math.min(0.1, (t - last) / 1000)); last = t; }; this.raf = requestAnimationFrame(loop); }
+    if (!this.raf) { let last = performance.now(); const loop = (t) => { this.raf = this.open ? requestAnimationFrame(loop) : null; if (!document.querySelector('#hbattle.show, #heroes.show, #ally.show, .meta-screen.show')) this.frame(Math.min(0.1, (t - last) / 1000)); last = t; }; this.raf = requestAnimationFrame(loop); }
   }
   close() { this.el.classList.remove('show'); this.hidePanel(); }
 
@@ -123,6 +124,26 @@ export class WorldMap {
     const half = WORLD * TW / 2;
     this.cam.x = Math.max(-half, Math.min(half, this.cam.x));
     this.cam.y = Math.max(0, Math.min(WORLD * TH, this.cam.y));
+  }
+
+  // Спрайт, заранее уменьшенный под экранный размер (без пересжатия каждый кадр)
+  fit(im, w) {
+    const px = w * this.cam.z * this.dpr;
+    if (!im || im.width < px * 1.5) return im;
+    const bw = Math.max(16, Math.ceil(px / 16) * 16);
+    let m = im._wscaled;
+    if (!m) { m = new Map(); im._wscaled = m; }
+    let cv = m.get(bw);
+    if (!cv) {
+      cv = document.createElement('canvas');
+      cv.width = bw; cv.height = Math.max(1, Math.round(im.height * bw / im.width));
+      const c = cv.getContext('2d');
+      c.imageSmoothingQuality = 'high';
+      c.drawImage(im, 0, 0, cv.width, cv.height);
+      if (m.size > 6) m.delete(m.keys().next().value);
+      m.set(bw, cv);
+    }
+    return cv;
   }
 
   // --- Рельеф чанками ------------------------------------------------------------
@@ -261,7 +282,7 @@ export class WorldMap {
       if ((e.kind === 'camp' || e.kind === 'deco') && taken.has(e.x * 10000 + e.y)) continue;
       if (e.kind === 'deco') this.drawDeco(c, e);
       else if (e.kind === 'march') this.drawMarch(c, e, now);
-      else if (e.kind === 'rallyWait') { const im = img('realm/meta/a_rally'); if (im) { const w = TW * 0.9, h = im.height * w / im.width, px = isoX(e.x, e.y), py = isoY(e.x, e.y) + TH / 2; c.drawImage(im, px - w / 2, py - h * 0.8, w, h); } }
+      else if (e.kind === 'rallyWait') { const im = img('realm/meta/a_rally'); if (im) { const w = TW * 0.9, h = im.height * w / im.width, px = isoX(e.x, e.y), py = isoY(e.x, e.y) + TH / 2; c.drawImage(this.fit(im, w), px - w / 2, py - h * 0.8, w, h); } }
       else this.drawEntity(c, e, now);
     }
     this.drawViewport();
@@ -274,7 +295,7 @@ export class WorldMap {
     const px = isoX(e.x, e.y), py = isoY(e.x, e.y) + TH / 2;
     const big = e.deco === 'd_village' || e.deco === 'd_mount' || e.deco === 'd_stones';
     const w = TW * (big ? 1.6 : 1.3) * (0.9 + hash01(e.x, e.y, 12) * 0.2), h = im.height * w / im.width;
-    c.drawImage(im, px - w / 2, py - h * 0.78, w, h);
+    c.drawImage(this.fit(im, w), px - w / 2, py - h * 0.78, w, h);
   }
 
   drawEntity(c, e, now) {
@@ -314,7 +335,7 @@ export class WorldMap {
       h = im.height * w / im.width;
       c.save();
       if (e.respawn > now) { c.globalAlpha = 0.45; c.filter = 'grayscale(.8)'; }
-      c.drawImage(im, px - w / 2, py - h * 0.82, w, h);
+      c.drawImage(this.fit(im, w), px - w / 2, py - h * 0.82, w, h);
       c.restore();
       this.hits.push({ e, x: px - w / 2, y: py - h * 0.82, w, h });
     }
@@ -397,7 +418,7 @@ export class WorldMap {
     c.save();
     c.translate(px, py + bob);
     if (!right) c.scale(-1, 1);
-    c.drawImage(im, -w / 2, -h * 0.9, w, h);
+    c.drawImage(this.fit(im, w), -w / 2, -h * 0.9, w, h);
     c.restore();
     this.hits.push({ e: { kind: 'march', id: m.id, m }, x: px - w / 2, y: py - h * 0.9, w, h });
   }

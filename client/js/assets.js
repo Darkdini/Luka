@@ -31,22 +31,39 @@ export function url(name) {
   return `/assets/${name}.png`;
 }
 
+function loadList(list, onProgress) {
+  let done = 0;
+  return Promise.all(list.map((n) => new Promise((res) => {
+    const key = n.replace(/\.jpg$/, '');
+    if (imgs.has(key)) { done++; res(); return; }
+    const im = new Image();
+    im.onload = () => { imgs.set(key, im); done++; onProgress?.(done / list.length); res(); };
+    im.onerror = () => { done++; onProgress?.(done / list.length); res(); };
+    im.src = url(n);
+  })));
+}
+
+// Наборы, которые грузятся только когда нужны (карта мира, старый бой-набег)
+const later = {};
+export function loadGroup(name) {
+  if (later[name]) return later[name];
+  if (name === 'world') {
+    later.world = (async () => {
+      const wm = await (await fetch('/assets/realm/world/manifest.json')).json().catch(() => ({}));
+      await loadList([...Object.keys(wm).map((n) => `realm/world/${n}`), ...['meadow', 'steppe', 'snow', 'forest'].map((t) => `realm/world/tex_${t}.jpg`),
+        ...['a_fort1', 'a_fort2', 'a_fort3', 'a_rally', 'a_burned'].map((n) => `realm/meta/${n}`), ...Object.keys(CITY).filter((n) => n.startsWith('castle_')).map((n) => `realm/city/${n}`)]);
+    })();
+  }
+  if (name === 'legacy') later.legacy = loadList([...LIST, 'bg/grass.jpg']);
+  return later[name];
+}
+
+// При запуске — только город; карта мира догружается в фоне
 export async function loadAll(onProgress) {
   try {
     Object.assign(CITY, await (await fetch('/assets/realm/city/manifest.json')).json());
   } catch { /* без города — запасные ромбы */ }
   const city = Object.keys(CITY).map((n) => `realm/city/${n}${n.startsWith('tex_') ? '.jpg' : ''}`);
-  try {
-    const wm = await (await fetch('/assets/realm/world/manifest.json')).json();
-    city.push(...Object.keys(wm).map((n) => `realm/world/${n}`), ...['meadow', 'steppe', 'snow', 'forest'].map((t) => `realm/world/tex_${t}.jpg`),
-      ...['a_fort1', 'a_fort2', 'a_fort3', 'a_rally', 'a_burned'].map((n) => `realm/meta/${n}`));
-  } catch { /* без карты */ }
-  const all = [...LIST, ...city, 'bg/world_map.jpg', 'bg/grass.jpg'];
-  let done = 0;
-  await Promise.all(all.map((n) => new Promise((res) => {
-    const im = new Image();
-    im.onload = () => { imgs.set(n.replace(/\.jpg$/, ''), im); done++; onProgress?.(done / all.length); res(); };
-    im.onerror = () => { done++; onProgress?.(done / all.length); res(); };
-    im.src = url(n);
-  })));
+  await loadList(city, onProgress);
+  setTimeout(() => loadGroup('world'), 4000);
 }

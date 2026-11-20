@@ -9,7 +9,7 @@ import { MarchUI } from './march.js';
 const W = (n) => img('realm/world/' + n);
 const WI = (n) => `/assets/realm/world/${n}.png`;
 
-const TW = 56, TH = 28;
+const TW = 96, TH = 48;
 const CH = 16;                      // клеток в чанке
 const REG = 48;                     // клеток в запросе игроков
 const isoX = (x, y) => (x - y) * TW / 2;
@@ -25,7 +25,7 @@ export class WorldMap {
     this.el = document.getElementById('world');
     this.cv = document.getElementById('wcv');
     this.ctx = this.cv.getContext('2d');
-    this.cam = { x: 0, y: isoY(CENTER, CENTER), z: 1 };
+    this.cam = { x: 0, y: isoY(CENTER, CENTER), z: 0.75 };
     this.chunks = new Map();
     this.camps = new Map();
     this.regions = new Map();    // key -> { t, players }
@@ -108,7 +108,7 @@ export class WorldMap {
 
   zoomAt(sx, sy, f) {
     const b = this.toWorld(sx, sy);
-    this.cam.z = Math.max(0.3, Math.min(1.6, this.cam.z * f));
+    this.cam.z = Math.max(0.25, Math.min(1.2, this.cam.z * f));
     const a = this.toWorld(sx, sy);
     this.cam.x += b.x - a.x; this.cam.y += b.y - a.y;
     this.clamp();
@@ -144,7 +144,7 @@ export class WorldMap {
       const t = W(b.tex);
       if (!t) continue;
       const p = c.createPattern(t, 'repeat');
-      p.setTransform(new DOMMatrix().scale(0.75));
+      p.setTransform(new DOMMatrix().scale(1));
       pats[k] = p;
     }
     for (let s = 0; s <= 2 * (CH - 1); s++) {
@@ -223,7 +223,7 @@ export class WorldMap {
     const ry0 = Math.floor(cy0 * CH / REG), ry1 = Math.floor((cy1 * CH + CH - 1) / REG);
     const taken = new Set();
     for (let ry = ry0; ry <= ry1; ry++) for (let rx = rx0; rx <= rx1; rx++) {
-      for (const p of this.ensureRegion(rx, ry)) { ents.push({ kind: 'player', ...p }); taken.add(p.x * 10000 + p.y); }
+      for (const p of this.ensureRegion(rx, ry)) { ents.push({ kind: 'player', ...p }); for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) taken.add((p.x + dx) * 10000 + p.y + dy); }
     }
     this.hits = [];
     const now = Date.now();
@@ -245,7 +245,7 @@ export class WorldMap {
     if (!im) return;
     const px = isoX(e.x, e.y), py = isoY(e.x, e.y) + TH / 2;
     const big = e.deco === 'd_village' || e.deco === 'd_mount' || e.deco === 'd_stones';
-    const w = TW * (big ? 2.6 : 2.1) * (0.9 + hash01(e.x, e.y, 12) * 0.2), h = im.height * w / im.width;
+    const w = TW * (big ? 1.6 : 1.3) * (0.9 + hash01(e.x, e.y, 12) * 0.2), h = im.height * w / im.width;
     c.drawImage(im, px - w / 2, py - h * 0.78, w, h);
   }
 
@@ -258,12 +258,12 @@ export class WorldMap {
     let im, w, label;
     if (e.kind === 'player') {
       im = img(`realm/city/castle_${RACES[e.race] ? e.race : 'humans'}_${e.level >= 6 ? 2 : 1}`);
-      w = TW * (1.7 + Math.min(10, e.level) * 0.06);
+      w = TW * (1.12 + Math.min(10, e.level) * 0.03);
       label = e.name;
     } else {
       const st = SITE_TYPES[e.type];
       im = W(st.sprite);
-      w = TW * (e.type === 'throne' ? 4.2 : st.res ? 1.9 : 2.1);
+      w = TW * (e.type === 'throne' ? 3 : st.res ? 1.1 : 1.2);
       label = e.name;
       const resp = me.npc?.[e.id];
       if (resp && resp > now) e.respawn = resp; else e.respawn = 0;
@@ -283,7 +283,7 @@ export class WorldMap {
       c.restore();
       this.hits.push({ e, x: px - w / 2, y: py - h * 0.82, w, h });
     }
-    if (z < 0.55 && !mine && !sel) return;
+    if (z < 0.4 && !mine && !sel) return;
     // табличка уровня
     const ty = py - h * 0.82 - 2;
     const enemy = e.kind === 'camp' && !SITE_TYPES[e.type].res;
@@ -294,7 +294,7 @@ export class WorldMap {
     c.strokeStyle = '#c9a25a'; c.lineWidth = 1.2;
     c.beginPath(); c.arc(px, ty, 9, 0, Math.PI * 2); c.fill(); c.stroke();
     c.fillStyle = '#f2e2bd'; c.fillText(lv, px, ty + 0.5);
-    if (z >= 1.35 || mine || sel) {
+    if (z >= 0.9 || mine || sel) {
       c.font = '700 10px Rubik, sans-serif';
       const t = (mine ? '★ ' : '') + label;
       const tw = c.measureText(t).width + 10;
@@ -346,7 +346,7 @@ export class WorldMap {
       return;
     }
     if (!im) return;
-    const w = TW * 1.25, h = im.height * w / im.width;
+    const w = TW * 0.75, h = im.height * w / im.width;
     // направление движения на экране
     const dx = isoX(m.tx, m.ty) - isoX(m.fx, m.fy);
     const right = e.back ? dx < 0 : dx >= 0;

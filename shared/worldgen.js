@@ -61,9 +61,9 @@ function computeTerrain(x, y) {
 
 // Природа на клетке (крупные кластеры): занимает клетку, замки рядом не ставятся
 const DECOR_BY = {
-  meadow: ['d_autumn', 'd_pines', 'd_boulders', 'd_hill', 'd_stones', 'd_pines', 'd_autumn', 'd_road'],
+  meadow: ['d_autumn', 'd_pines', 'd_boulders', 'd_hill', 'd_stones', 'd_pines', 'd_autumn'],
   forest: ['d_pines', 'd_pines', 'd_autumn', 'd_hill', 'd_pines', 'd_boulders'],
-  steppe: ['d_boulders', 'd_hill', 'd_mount', 'd_stones', 'd_autumn', 'd_ford', 'd_village'],
+  steppe: ['d_boulders', 'd_hill', 'd_mount', 'd_stones', 'd_autumn', 'd_village'],
   snow: ['d_pines', 'd_mount', 'd_hill', 'd_boulders', 'd_pines', 'd_tower'],
 };
 export function decorAt(x, y) {
@@ -72,9 +72,11 @@ export function decorAt(x, y) {
   const h = hash(x, y, 909);
   const dens = t === 'forest' ? 0.12 : 0.022;
   if (h > dens) return null;
-  if (siteRaw(x, y)) return null;
-  // не вплотную к другой природе (чтобы кластеры не слипались)
-  if (hash(x - 1, y, 909) <= dens || hash(x, y - 1, 909) <= dens) { if (t !== 'forest') return null; }
+  // не вплотную к объектам и к другой природе (чтобы ничего не слипалось)
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+    if (siteRaw(x + dx, y + dy)) return null;
+    if ((dx || dy) && (dy < 0 || (dy === 0 && dx < 0)) && hash(x + dx, y + dy, 909) <= dens) return null;
+  }
   const list = DECOR_BY[t];
   return list[Math.floor(hash(x, y, 910) * list.length)];
 }
@@ -109,8 +111,8 @@ export function campAt(x, y) {
   const raw = siteRaw(x, y);
   if (!raw) return null;
   if (raw === 'throne') return { id: 'throne', x, y, type: 'throne', level: 15, name: SITE_TYPES.throne.name };
-  // не вплотную к соседнему объекту
-  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+  // соседний объект — не ближе 3 клеток
+  for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
     if ((dx || dy) && (dy < 0 || (dy === 0 && dx < 0)) && siteRaw(x + dx, y + dy)) return null;
   }
   const dc = Math.hypot(x - CENTER, y - CENTER) / (WORLD / 2);

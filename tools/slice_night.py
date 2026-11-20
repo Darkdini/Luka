@@ -59,7 +59,7 @@ def rgba(rgb, fg):
     return Image.fromarray(np.dstack([rgb.clip(0, 255).astype(np.uint8), a]), "RGBA")
 
 
-def cut_columns(rgb, fg, n, names, folder, max_side, pad=6):
+def cut_columns(rgb, fg, n, names, folder, max_side, pad=6, holes=False):
     """Объекты листа: связные компоненты распределяются по колонкам по центру масс
     (соседний меч или лук не попадёт в чужую вырезку)."""
     h, w = fg.shape
@@ -74,6 +74,23 @@ def cut_columns(rgb, fg, n, names, folder, max_side, pad=6):
         groups[min(n - 1, int(cx / (w / n)))].append(j)
     for i, name in enumerate(names):
         m = np.isin(lab, groups[i])
+        if holes:  # «окна» фона, зажатые внутри силуэта (между рукой и луком и т.п.)
+            corners = np.array([rgb[2, 2], rgb[2, -3], rgb[-3, 2], rgb[-3, -3]]).mean(0)
+            near = np.abs(rgb - corners).max(axis=2) <= 22
+            hl, hn = ndimage.label(m & near)
+            if hn:
+                hs = ndimage.sum(m & near, hl, range(1, hn + 1))
+                cut = np.isin(hl, [j + 1 for j, v in enumerate(hs) if v >= 300])
+                m = m & ~ndimage.binary_dilation(cut, iterations=1)
+            # серая «подложка» тени под ногами: светлые бесцветные пиксели внизу силуэта
+            ys0 = np.where(m.any(1))[0]
+            if len(ys0):
+                top = ys0[-1] - int((ys0[-1] - ys0[0]) * 0.07)
+                chroma = rgb.max(axis=2) - rgb.min(axis=2)
+                grey = (chroma < 16) & (rgb.mean(axis=2) > 110)
+                band = np.zeros_like(m); band[top:] = True
+                m = m & ~(band & grey)
+                m = ndimage.binary_opening(m, iterations=1)
         ys, xs = np.where(m)
         y0, y1 = max(0, ys.min() - pad), min(h, ys.max() + pad)
         x0, x1 = max(0, xs.min() - pad), min(w, xs.max() + pad)
@@ -124,6 +141,15 @@ UI_BOXES = {
 }
 
 
+def heroes_only():
+    sheets = HERO_SHEETS
+    for sheet_name, ids in sheets.items():
+        hr = load(sheet_name + ".png")
+        cut_columns(hr, ~bg_mask(hr, 24), 4, ids, "heroes", 900, holes=True)
+        for hid in ids:
+            portrait(os.path.join(OUT, "heroes", hid + ".png"), os.path.join(OUT, "heroes", hid + "_p.png"))
+
+
 def main():
     names = ["humans", "elves", "dwarves", "orcs"]
     # 1. Заставка
@@ -158,7 +184,8 @@ def main():
     cut_columns(ch[bot], fg[bot], 4, [f"hq_{n}" for n in names], "races", 520)
 
     # 6. Герои: 8 листов по 4, полный рост + портрет для карточки
-    sheets = {
+    sheets = HERO_SHEETS
+    _unused = {
         "heroes_h1": ["elinor", "gaven", "mira", "rowan"], "heroes_h2": ["varrick", "selene", "edric", "hilda"],
         "heroes_e1": ["aerith", "thalion", "ysolde", "fenn"], "heroes_e2": ["elandor", "nyra", "caelum", "lirien"],
         "heroes_d1": ["durin", "brenna", "bolgar", "grim"], "heroes_d2": ["hrafna", "kargan", "odda", "thrain"],
@@ -168,7 +195,7 @@ def main():
         if not os.path.exists(os.path.join(SRC, sheet_name + ".png")):
             continue
         hr = load(sheet_name + ".png")
-        cut_columns(hr, ~bg_mask(hr, 24), 4, ids, "heroes", 900)
+        cut_columns(hr, ~bg_mask(hr, 24), 4, ids, "heroes", 900, holes=True)
         for hid in ids:
             portrait(os.path.join(OUT, "heroes", hid + ".png"), os.path.join(OUT, "heroes", hid + "_p.png"))
 
@@ -214,5 +241,12 @@ def main():
     print("готово:", SET, "UI:", len(named))
 
 
+HERO_SHEETS = {
+    "heroes_h1": ["elinor", "gaven", "mira", "rowan"], "heroes_h2": ["varrick", "selene", "edric", "hilda"],
+    "heroes_e1": ["aerith", "thalion", "ysolde", "fenn"], "heroes_e2": ["elandor", "nyra", "caelum", "lirien"],
+    "heroes_d1": ["durin", "brenna", "bolgar", "grim"], "heroes_d2": ["hrafna", "kargan", "odda", "thrain"],
+    "heroes_o1": ["ashka", "murg", "tarrok", "skab"], "heroes_o2": ["gorrum", "vexa", "brakk", "gnash"],
+}
+
 if __name__ == "__main__":
-    main()
+    heroes_only() if "--heroes" in sys.argv else main()

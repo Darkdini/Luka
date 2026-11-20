@@ -198,7 +198,16 @@ export class Scene {
     if (!m || !im || m.sa == null) return null;
     const c = this.ctx, ctr = iso(gx + sx / 2, gy + sy / 2);
     const k = ((sx + sy) * TW / 2) / (m.sa + m.sb) * (o.scale || 1);
-    const r = { x: ctr.x - m.ax * k, y: ctr.y - m.ay * k + (o.lift || 0), w: m.w * k, h: m.h * k };
+    const ax = o.flip ? m.w - m.ax : m.ax; // зеркальный спрайт (стена в другую сторону)
+    const r = { x: ctr.x - ax * k, y: ctr.y - m.ay * k + (o.lift || 0), w: m.w * k, h: m.h * k };
+    if (o.flip) {
+      c.save();
+      if (o.filter) c.filter = o.filter;
+      c.translate(r.x + r.w, r.y); c.scale(-1, 1);
+      c.drawImage(this.fit(im, r.w), 0, 0, r.w, r.h);
+      c.restore();
+      return r;
+    }
     if (o.alpha != null || o.filter) {
       c.save();
       if (o.alpha != null) c.globalAlpha = o.alpha;
@@ -283,8 +292,8 @@ export class Scene {
     const w = o.walls;
     const has = (x, y) => w?.has(x * 100 + y);
     const f = o.flash ? 'brightness(1.5)' : null;
-    if (has(b.x - 1, b.y) || has(b.x + 1, b.y)) return b.x % 3 ? null : this.drawSlab('wall_l', b.x, b.y, 3, 1, { filter: f });
-    return b.y % 3 ? null : this.drawSlab('wall_r', b.x, b.y, 1, 3, { filter: f });
+    if (has(b.x - 1, b.y) || has(b.x + 1, b.y)) return b.x % 3 ? null : this.drawSlab('wall_r', b.x, b.y, 3, 1, { filter: f, flip: true, scale: 1.1 });
+    return b.y % 3 ? null : this.drawSlab('wall_r', b.x, b.y, 1, 3, { filter: f, scale: 1.1 });
   }
 
   drawDecor(d) {

@@ -81,6 +81,8 @@ export class Village {
     for (let y = -6; y < 50; y++) for (let x = -6; x < 50; x++) {
       if (x >= r.x0 - 1 && x <= r.x1 && y >= r.y0 - 1 && y <= r.y1) continue; // город и стена
       const near = Math.max(r.x0 - 1 - x, x - r.x1, r.y0 - 1 - y, y - r.y1); // клеток от стены
+      const frontSide = x > r.x1 || y > r.y1; // ближняя к зрителю сторона
+      if (frontSide && near <= 3) continue; // перед ближней стеной — поляна, деревья её не закрывают
       const p = near <= 1 ? 0.18 : near <= 3 ? 0.42 : 0.55;
       if (hash(x, y) > p) continue;
       const kind = TREES[Math.floor(hash(x, y, 1) * TREES.length)];
@@ -338,7 +340,7 @@ export class Village {
       s.ctx = c;
       if (ground) { s.drawBackground(); this.drawCityGround(); }
       for (const it of list) {
-        if (it.tree) { const p = iso(it.tree.x, it.tree.y); s.drawFoot(it.tree.kind, p.x, p.y, it.tree.w); } else s.drawSlab(it.wall, it.x, it.y, it.sx, it.sy);
+        if (it.tree) { const p = iso(it.tree.x, it.tree.y); s.drawFoot(it.tree.kind, p.x, p.y, it.tree.w); } else s.drawSlab(it.wall, it.x, it.y, it.sx, it.sy, { scale: it.scale, flip: it.flip });
       }
     };
     try { draw(back, backItems, true); draw(front, frontItems, false); } finally { s.ctx = main; }
@@ -372,18 +374,18 @@ export class Village {
   wallPieces() {
     const r = this.rect, out = [];
     const gateX = Math.round((r.x0 + r.x1) / 2) - 1, gateY = Math.round((r.y0 + r.y1) / 2) - 1;
-    for (let x = r.x0; x < r.x1; x += 3) {
-      const len = Math.min(3, r.x1 - x);
-      if (len < 1) continue;
-      out.push({ wall: 'wall_l', x, y: r.y0 - 1, sx: len, sy: 1, d: x + len + r.y0 });
+    // отрезки по 3 клетки; последний сдвигается назад, чтобы стена ровно доходила до угла
+    const starts = (a, b) => { const o = []; for (let v = a; v < b; v += 3) o.push(Math.min(v, b - 3)); return o; };
+    const S = 1.1; // лёгкое перекрытие соседних отрезков — без щелей
+    for (const x of starts(r.x0, r.x1)) {
+      out.push({ wall: 'wall_r', flip: true, x, y: r.y0 - 1, sx: 3, sy: 1, d: x + 3 + r.y0, scale: S });
       if (x + 3 > gateX && x < gateX + 2) continue; // проём ворот
-      out.push({ wall: 'wall_l', x, y: r.y1, sx: len, sy: 1, d: x + len + r.y1 + 1, front: true });
+      out.push({ wall: 'wall_r', flip: true, x, y: r.y1, sx: 3, sy: 1, d: x + 3 + r.y1 + 1, front: true, scale: S });
     }
-    for (let y = r.y0; y < r.y1; y += 3) {
-      const len = Math.min(3, r.y1 - y);
-      out.push({ wall: 'wall_r', x: r.x0 - 1, y, sx: 1, sy: len, d: r.x0 + y + len });
+    for (const y of starts(r.y0, r.y1)) {
+      out.push({ wall: 'wall_r', x: r.x0 - 1, y, sx: 1, sy: 3, d: r.x0 + y + 3, scale: S });
       if (y + 3 > gateY && y < gateY + 2) continue;
-      out.push({ wall: 'wall_r', x: r.x1, y, sx: 1, sy: len, d: r.x1 + 1 + y + len, front: true });
+      out.push({ wall: 'wall_r', x: r.x1, y, sx: 1, sy: 3, d: r.x1 + 1 + y + 3, front: true, scale: S });
     }
     const T = (x, y, front) => out.push({ wall: 'tower', x: x - 0.5, y: y - 0.5, sx: 2, sy: 2, d: x + y + 3.2, front });
     T(r.x0 - 1, r.y0 - 1, false); T(r.x1, r.y0 - 1, true); T(r.x0 - 1, r.y1, true); T(r.x1, r.y1, true);
@@ -468,7 +470,7 @@ export class Village {
     // табличка уровня у левого угла плиты
     if (b.level > 0) {
       const lp = iso(b.x, b.y + size);
-      if (this.scene.cam.z > 0.45) s.label(String(b.level), lp.x + TW * 0.35, lp.y - TH * 0.2, { size: 9, bg: 'rgba(22,18,13,0.8)', color: '#e9dcc0' });
+      if (this.scene.cam.z > 0.75 || this.sel?.id === b.id) s.label(String(b.level), lp.x + TW * 0.35, lp.y - TH * 0.2, { size: 9, bg: 'rgba(22,18,13,0.8)', color: '#e9dcc0' });
       if (!b.up && this.canUpgrade(b)) icon('upgrade', lp.x + TW * 0.35 + 13 / z, lp.y - TH * 0.2 - 16 / z, 7 / z, Math.sin(this.t * 3) * 1.5 / z);
     }
     if (b.level === 0 && !b.up) {

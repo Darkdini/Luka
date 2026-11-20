@@ -74,16 +74,16 @@ export class Alliance {
     const head = this.root.querySelector('.al-head');
     if (a) {
       head.innerHTML = `<img class="al-crest" src="${crestUrl(a.crest)}" alt=""><div><b>[${esc(a.tag)}] ${esc(a.name)}</b>
-        <span><img class="ic" src="${M('ai_members')}" alt="">${a.members}/${a.max} · <img class="ic" src="${M('ai_rank')}" alt="">${fmt(a.power)}${a.open ? '' : ' · по заявкам'}</span>
+        <span><img class="ic" src="${M('ai_members')}" alt="">${a.members}/${a.max} · <img class="ic" src="${M('ai_territory')}" alt="">${(v.forts || []).length}${v.fortBonus ? ` · +${Math.round(v.fortBonus * 100)}% добычи` : ''}${a.open ? '' : ' · по заявкам'}</span>
         ${a.motto ? `<i>«${esc(a.motto)}»</i>` : ''}</div>`;
       head.style.display = '';
-      this.tabs([['members', 'ai_members', 'Участники', (v.requests || []).length], ['chat', 'ai_chat', 'Чат'], ['help', 'ai_help', 'Помощь', (v.helps || []).length], ['gifts', 'ai_gift', 'Подарки', (v.gifts || []).length]]);
+      this.tabs([['members', 'ai_members', 'Участники', (v.requests || []).length], ['chat', 'ai_chat', 'Чат'], ['rally', 'ai_rally', 'Сбор', (v.rallies || []).some((r) => !r.members.some((m) => m.pid === this.me.id))], ['help', 'ai_help', 'Помощь', (v.helps || []).length], ['gifts', 'ai_gift', 'Подарки', (v.gifts || []).length]]);
     } else {
       head.style.display = 'none';
       if (!['find', 'create'].includes(tab)) tab = this.tab = 'find';
       this.tabs([['find', 'ai_request', 'Найти'], ['create', 'ai_leader', 'Создать']]);
     }
-    ({ find: () => this.renderFind(), create: () => this.renderCreate(), members: () => this.renderMembers(), chat: () => this.renderChat(), help: () => this.renderHelp(), gifts: () => this.renderGifts() })[tab]();
+    ({ rally: () => this.renderRally(), find: () => this.renderFind(), create: () => this.renderCreate(), members: () => this.renderMembers(), chat: () => this.renderChat(), help: () => this.renderHelp(), gifts: () => this.renderGifts() })[tab]();
   }
   body() { return this.root.querySelector('.hs-body'); }
 
@@ -183,6 +183,28 @@ export class Alliance {
       inp.value = '';
       try { await api.allyOp('chat', { text }); } catch (er) { this.app.ui.toast(er.message); }
     };
+  }
+
+  // --- Сбор на крепости --------------------------------------------------------------
+  renderRally() {
+    const v = this.v, me = this.me, now = Date.now() + (me.now - this.app.fetchedAt);
+    const rows = (v.rallies || []).map((r) => {
+      const wait = r.launch > now, inside = r.members.some((m) => m.pid === me.id);
+      const t = wait ? `сбор: ${fmtTime((r.launch - now) / 1000)}` : `в пути: ${fmtTime(((r.arrive || r.launch + r.travel * 1000) - now) / 1000)}`;
+      return `<div class="tr-box al-rally"><div class="al-rh"><img src="${M('a_fort' + r.level)}" alt=""><div><b>${esc(r.name)} · ур. ${r.level}</b>
+          <span>Ведёт ${esc(r.leaderName)} · ${t}</span>
+          <span>Сила <b class="${r.might >= r.enemy ? 'ok' : 'bad'}">${fmt(r.might)}</b> / гарнизон ${fmt(r.enemy)}</span></div></div>
+        <div class="ms-chips">${r.members.map((m) => `<span class="ms-chip">${esc(m.name)} · ${fmt(m.n)}</span>`).join('')}</div>
+        ${wait && !inside ? `<div class="hd-btns"><button class="nbtn sm" data-join="${r.id}"><img class="ic" src="${M('ai_rally')}" alt=""> Присоединиться</button></div>` : inside ? '<p class="muted small">Ваши войска в этом сборе</p>' : ''}</div>`;
+    }).join('');
+    const forts = (v.forts || []).map((f) => `<div class="al-row"><img src="${M('a_fort' + f.level)}" alt=""><div><b>${esc(f.name)} · ур. ${f.level}</b><span>${f.x}:${f.y} · наша с ${new Date(f.since).toLocaleDateString('ru-RU')}</span></div><button class="nbtn xs steel" data-go="${f.x},${f.y}">На карту</button></div>`).join('');
+    const log = (v.warlog || []).slice(0, 6).map((l) => `<div class="ms-row"><span>${l.win ? '⚔ Взята' : '✖ Отбиты у'} «${esc(l.name)}»${l.from ? ` у [${esc(l.from)}]` : ''}</span><b class="${l.win ? 'ok' : 'bad'}">${new Date(l.ts).toLocaleDateString('ru-RU')}</b></div>`).join('');
+    this.body().innerHTML = `<div class="tr-box tr-note">Найдите крепость на карте и объявите сбор. Союзники за 5 минут добавят войска, затем отряд ударит вместе. Каждая крепость даёт союзу +5% добычи (до трёх).</div>
+      ${rows || '<p class="muted">Активных сборов нет.</p>'}
+      <div class="hd-sub">Крепости союза</div>${forts ? `<div class="al-list">${forts}</div>` : '<p class="muted">Пока ни одной.</p>'}
+      ${log ? `<div class="hd-sub">Летопись битв</div><div class="tr-box">${log}</div>` : ''}`;
+    this.body().querySelectorAll('[data-join]').forEach((b) => { b.onclick = () => { const r = v.rallies.find((x) => x.id === b.dataset.join); this.app.world.march.open({ kind: 'join', rally: { ...r, fx: r.x, fy: r.y } }); }; });
+    this.body().querySelectorAll('[data-go]').forEach((b) => { b.onclick = () => { const [x, y] = b.dataset.go.split(',').map(Number); this.close(); this.app.openWorld(x, y); }; });
   }
 
   // --- Помощь -----------------------------------------------------------------------

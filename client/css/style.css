@@ -1494,3 +1494,9 @@ body[data-mode=battle] #marches, body[data-mode=visit] #marches { display: none 
 .tc.busy { border-color: #8fe05a; }
 .tc em { position: absolute; right: 5px; top: 5px; width: 10px; height: 10px; border-radius: 50%; background: #8fe05a; box-shadow: 0 0 6px #8fe05a; }
 .ps-cell, .ps-cell .ms-chip { color: #e9dcc0; } .ps-cell .ms-chip { background: rgba(0,0,0,.45); border-color: #5a4528; }
+.al-rally { display: flex; flex-direction: column; gap: 6px; }
+.al-rh { display: flex; gap: 8px; align-items: center; }
+.al-rh > img { width: 64px; height: 56px; object-fit: contain; }
+.al-rh > div { display: flex; flex-direction: column; gap: 1px; font-size: 12px; color: #bfae8c; }
+.al-rh b { color: #f2e2bd; font-size: 13.5px; } .al-rh b.ok { color: #8fe05a; } .al-rh b.bad { color: #ff8a70; }
+.ms-row b.ok { color: #8fe05a; } .ms-row b.bad { color: #ff8a70; }

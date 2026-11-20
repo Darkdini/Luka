@@ -298,3 +298,38 @@ test('этап 6: академия, VIP, пропуск, покупки', () => 
   assert.throws(() => applyPurchase(s, 'builder', grant), /уже куплен/);
   assert.ok(s.vip.pts > 1000);
 });
+
+import { processRallies, fortOwner, fortBonus } from '../server/forts.js';
+import { campAt as at2 } from '../shared/worldgen.js';
+
+test('битва союза за крепость: сбор, удар, владение', () => {
+  let fort = null;
+  for (let y = 0; y < 680 && !fort; y += 3) for (let x = 0; x < 680 && !fort; x++) { const c = at2(x, y); if (c?.fort && c.level === 1 && !fortOwner(c.id)) fort = c; }
+  assert.ok(fort, 'есть свободная крепость');
+  const mk = (name) => {
+    const st = newPlayerState('dwarves', name.length * 13);
+    st.troops = { infantry4: 600, archer4: 400 };
+    const now = Date.now();
+    const r = db.prepare(`INSERT INTO players (username, pass, castle_name, race, realm, plot, wx, wy, state, created_at, seen_at) VALUES (?, 'x', ?, 'dwarves', 1, 0, ?, ?, ?, ?, ?)`)
+      .run(name + now + Math.random(), name, fort.x + 5, fort.y + 5, JSON.stringify(st), now, now);
+    return gp(Number(r.lastInsertRowid));
+  };
+  const io = { notify() {}, allyBroadcast() {} };
+  const a = mk('Воевода'), b = mk('Дружинник');
+  a.state.res.gems = 500;
+  const uid = Math.random().toString(36).slice(2, 5).toUpperCase();
+  allyOp(a, { op: 'create', name: 'Молот ' + uid, tag: 'M' + uid, crest: 'hammer' }, io);
+  sp(a);
+  allyOp(b, { op: 'join', id: a.ally }, io);
+  assert.throws(() => actions.march(a.state, { kind: 'attack', siteId: fort.id, heroes: a.state.formation.filter(Boolean), troops: { infantry4: 10 } }), /сбором союза/);
+  allyOp(a, { op: 'rally', siteId: fort.id, heroes: a.state.formation.filter(Boolean), troops: { infantry4: 300, archer4: 150 } }, io);
+  sp(a);
+  allyOp(b, { op: 'rallyJoin', id: allyView(b, () => false).rallies[0].id, troops: { infantry4: 300, archer4: 150 } }, io);
+  sp(b);
+  assert.equal(gp(b.id).state.troops.infantry4, 300);
+  processRallies(a.ally, Date.now() + 3600e3);
+  processRallies(a.ally, Date.now() + 7200e3);
+  assert.equal(fortOwner(fort.id)?.ally, a.ally, 'крепость взята');
+  assert.ok(fortBonus(a.ally) > 0);
+  assert.ok(gp(b.id).state.troops.infantry4 > 500, 'войска вернулись');
+});

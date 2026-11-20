@@ -12,6 +12,7 @@ import { newPlayerState, tick, actions, view, GameError, wallBuildings, grant } 
 import { applyPurchase } from './meta.js';
 import { processMarches, marchView, battleLog } from './march.js';
 import { allyView, allyList, allyOp } from './alliance.js';
+import { processRallies, fortBonus, fortList, rallyView } from './forts.js';
 import { findSpot, placeUnplaced, region, findPlayer, startAttack, finishAttack, leaderboard, profile } from './world.js';
 import { AVATARS, avatarUnlocked, titlesOf } from '../shared/achievements.js';
 
@@ -46,9 +47,12 @@ function auth(req) {
   // служебные поля для походов (не сохраняются)
   for (const [k, v] of Object.entries({ _pid: p.id, _x: p.wx, _y: p.wy, _name: p.castle_name })) Object.defineProperty(p.state, k, { value: v, enumerable: false, configurable: true });
   processMarches(p);
+  if (p.ally) { processRallies(p.ally); Object.defineProperty(p.state, '_fortBonus', { value: fortBonus(p.ally), enumerable: false, configurable: true }); }
   return p;
 }
-const viewMe = (p) => ({ ...view(p), ...marchView(p.state), allyId: p.ally || null, allyRank: p.ally_rank || 0 });
+const viewMe = (p) => ({ ...view(p), ...marchView(p.state), allyId: p.ally || null, allyRank: p.ally_rank || 0,
+  rallies: p.ally ? rallyView(p.ally).rallies.map((r) => ({ id: r.id, siteId: r.siteId, name: r.name, level: r.level, x: r.x, y: r.y, fx: r.fx, fy: r.fy, launch: r.launch, arrive: r.arrive || r.launch + r.travel * 1000, leaderName: r.leaderName, members: r.members, might: r.might, enemy: r.enemy })) : [],
+  fortBonus: p.state._fortBonus || 0 });
 
 // --- Регистрация и вход ---------------------------------------------------------
 app.get('/api/captcha', wrap((req) => {
@@ -110,6 +114,8 @@ app.get('/api/world/region', wrap((req) => {
   const { x0, y0, x1, y1 } = req.query;
   return { players: region(+x0, +y0, +x1, +y1, isOnline) };
 }));
+
+app.get('/api/world/forts', wrap((req) => { auth(req); return fortList(); }));
 
 app.get('/api/world/find', wrap((req) => { auth(req); return findPlayer(req.query.q); }));
 

@@ -4,6 +4,7 @@ import { GameError, tick, grant, bumpDaily } from './game.js';
 import { hasProfanity } from '../shared/names.js';
 import { ALLY_CRESTS, ALLY_MAX, ALLY_COST, RANKS, HELP_MAX, helpCut, GIFT_TTL } from '../shared/alliance.js';
 import { castleLevelOf } from '../shared/config.js';
+import { rallyStart, rallyJoin, processRallies, rallyView } from './forts.js';
 
 const fail = (m) => { throw new GameError(m); };
 
@@ -62,6 +63,7 @@ export function allyList(p, query) {
 }
 
 export function allyView(p, online) {
+  if (p.ally) processRallies(p.ally);
   const a = getAlly(p.ally);
   if (!a) return { ally: null, invites: [] };
   const now = Date.now();
@@ -75,6 +77,7 @@ export function allyView(p, online) {
     ally: { ...brief(a, members.length), leader: a.leader, myRank: myRank(p), max: ALLY_MAX },
     members, helps, gifts, chat, requests: reqs,
     myHelps: (a.data.helps || []).filter((h) => h.player === p.id),
+    ...rallyView(a.id),
   };
 }
 
@@ -240,6 +243,8 @@ export function allyOp(p, body, { notify, allyBroadcast }) {
       s.allyGifts = s.allyGifts.slice(-300);
       return { got: grant(s, total), n: list.length };
     }
+    case 'rally': { const r = rallyStart(p, body); allyBroadcast(p.ally, { type: 'ally', what: 'rally', name: p.castle_name }); return r; }
+    case 'rallyJoin': rallyJoin(p, body); return;
     default: fail('Неизвестное действие');
   }
 }

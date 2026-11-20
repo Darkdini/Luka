@@ -60,6 +60,8 @@ export function mods(s) {
   out.gather = (out.gather || 0) + v.gather;
   out.train = (out.train || 0) + v.train;
   out.slots = v.march;
+  // крепости союза: +5% добычи за каждую (до трёх)
+  for (const r of ['food', 'wood', 'stone', 'iron', 'mana', 'gold']) out[r] = (out[r] || 0) + (s._fortBonus || 0);
   return out;
 }
 

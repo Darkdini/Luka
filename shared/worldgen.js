@@ -97,7 +97,12 @@ export const SITE_TYPES = {
   lair: { name: 'Логово чудовища', sprite: 's_lair', enemy: null },
   tower: { name: 'Башня отступника', sprite: 's_tower', enemy: 'archer' },
   throne: { name: 'Престол Морвейна', sprite: 's_city', enemy: null },
+  fort: { name: 'Крепость', sprite: 'a_fort1', enemy: 'infantry', fort: true },
 };
+// Крепости для битв союзов: гарнизон и бонус владельцу
+export const FORT_NAMES = ['Северная застава', 'Волчий рубеж', 'Каменный венец', 'Серая цитадель', 'Твердыня рассвета', 'Багряный бастион', 'Сторожевой холм', 'Древний оплот'];
+export const FORT_MIGHT = [0, 30000, 120000, 450000];
+export const FORT_BONUS = 0.05;       // +5% добычи за каждую крепость союза (до 3)
 export const CAMP_TYPES = SITE_TYPES; // совместимость
 
 function siteRaw(x, y) {
@@ -116,6 +121,10 @@ export function campAt(x, y) {
     if ((dx || dy) && (dy < 0 || (dy === 0 && dx < 0)) && siteRaw(x + dx, y + dy)) return null;
   }
   const dc = Math.hypot(x - CENTER, y - CENTER) / (WORLD / 2);
+  if (hash(x, y, 778) < 0.04 && dc < 0.92) {
+    const fl = dc > 0.62 ? 1 : dc > 0.32 ? 2 : 3;
+    return { id: `c${x}_${y}`, x, y, type: 'fort', level: fl, fort: true, name: FORT_NAMES[Math.floor(hash(x, y, 779) * FORT_NAMES.length)] };
+  }
   const level = Math.max(1, Math.min(10, Math.round((1 - dc) * 10 + (hash(x, y, 5) - 0.5) * 3)));
   const r = hash(x, y, 6);
   let type;

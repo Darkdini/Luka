@@ -181,6 +181,7 @@ Object.assign(actions, {
       const site = campById(String(a.siteId)) || fail('Цель не найдена');
       if ((s.npc[site.id] || 0) > Date.now()) fail('Объект ещё восстанавливается');
       if (s.marches.some((m) => m.siteId === site.id)) fail('Туда уже идёт ваш отряд');
+      if (site.fort) fail('Крепость берут только сбором союза');
       const isRes = !!SITE_TYPES[site.type].res;
       if (kind === 'gather' && !isRes) fail('Здесь нечего собирать');
       if (kind === 'attack' && isRes) fail('Ресурсы не атакуют — отправьте отряд на сбор');

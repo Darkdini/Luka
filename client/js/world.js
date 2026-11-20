@@ -3,6 +3,7 @@
 import { RACES, fmt, fmtTime } from '/shared/config.js';
 import { WORLD, CENTER, BIOMES, terrainAt, campAt, decorAt, hash01, SITE_TYPES } from '/shared/worldgen.js';
 import { siteMight, siteAmount, troopMight, marchSlots } from '/shared/march.js';
+import { FORT_MIGHT, FORT_BONUS } from '/shared/worldgen.js';
 import { img } from './assets.js';
 import { MarchUI } from './march.js';
 
@@ -38,7 +39,10 @@ export class WorldMap {
     document.getElementById('w-search').onsubmit = (e) => { e.preventDefault(); this.search(); };
     document.getElementById('mini').addEventListener('pointerdown', (e) => this.miniClick(e));
     this.march = new MarchUI(app, this);
+    this.fortOwners = new Map();
+    setInterval(() => { if (this.open) this.loadForts(); }, 60000);
   }
+  loadForts() { this.app.api.forts().then((l) => { this.fortOwners = new Map(l.map((f) => [f.site, f])); }).catch(() => {}); }
 
   get open() { return this.el.classList.contains('show'); }
 
@@ -48,6 +52,7 @@ export class WorldMap {
     const me = this.app.me;
     this.flyTo(x ?? me.x, y ?? me.y, true);
     this.drawMini();
+    this.loadForts();
     if (!this.raf) { let last = performance.now(); const loop = (t) => { this.raf = this.open ? requestAnimationFrame(loop) : null; this.frame(Math.min(0.1, (t - last) / 1000)); last = t; }; this.raf = requestAnimationFrame(loop); }
   }
   close() { this.el.classList.remove('show'); this.hidePanel(); }
@@ -234,6 +239,7 @@ export class WorldMap {
       if ((e.kind === 'camp' || e.kind === 'deco') && taken.has(e.x * 10000 + e.y)) continue;
       if (e.kind === 'deco') this.drawDeco(c, e);
       else if (e.kind === 'march') this.drawMarch(c, e, now);
+      else if (e.kind === 'rallyWait') { const im = img('realm/meta/a_rally'); if (im) { const w = TW * 0.9, h = im.height * w / im.width, px = isoX(e.x, e.y), py = isoY(e.x, e.y) + TH / 2; c.drawImage(im, px - w / 2, py - h * 0.8, w, h); } }
       else this.drawEntity(c, e, now);
     }
     this.drawViewport();
@@ -260,6 +266,12 @@ export class WorldMap {
       im = img(`realm/city/castle_${RACES[e.race] ? e.race : 'humans'}_${e.level >= 6 ? 2 : 1}`);
       w = TW * (1.12 + Math.min(10, e.level) * 0.03);
       label = (e.tag ? `[${e.tag}] ` : '') + e.name;
+    } else if (e.fort) {
+      im = img(`realm/meta/a_fort${e.level}`);
+      w = TW * (1.3 + e.level * 0.2);
+      const own = this.fortOwners.get(e.id);
+      label = (own?.tag ? `[${own.tag}] ` : '') + e.name;
+      e.ownAlly = own?.ally || null;
     } else {
       const st = SITE_TYPES[e.type];
       im = W(st.sprite);
@@ -268,7 +280,7 @@ export class WorldMap {
       const resp = me.npc?.[e.id];
       if (resp && resp > now) e.respawn = resp; else e.respawn = 0;
     }
-    const friend = e.kind === 'player' && !mine && e.ally && e.ally === me.allyId;
+    const friend = (e.kind === 'player' && !mine && e.ally && e.ally === me.allyId) || (e.fort && e.ownAlly && e.ownAlly === me.allyId);
     if (sel || mine || friend) {
       c.save();
       c.strokeStyle = mine ? 'rgba(255,216,74,0.9)' : friend ? 'rgba(120,220,110,0.85)' : 'rgba(255,255,255,0.9)'; c.lineWidth = 2.5 / z;
@@ -287,7 +299,7 @@ export class WorldMap {
     if (z < 0.4 && !mine && !sel) return;
     // табличка уровня
     const ty = py - h * 0.82 - 2;
-    const enemy = e.kind === 'camp' && !SITE_TYPES[e.type].res;
+    const enemy = e.kind === 'camp' && !SITE_TYPES[e.type].res && !(e.fort && e.ownAlly === me.allyId);
     c.save();
     c.font = '800 11px Rubik, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
     const lv = String(e.level);
@@ -318,13 +330,21 @@ export class WorldMap {
     return { x: m.fx + (m.tx - m.fx) * k, y: m.fy + (m.ty - m.fy) * k, back: m.phase === 'back' };
   }
   marchEnts(now) {
-    return (this.app.me.marches || []).map((m) => { const p = this.marchPos(m); return { kind: 'march', m, x: p.x, y: p.y, back: p.back }; });
+    const t = this.serverNow();
+    const out = (this.app.me.marches || []).map((m) => { const p = this.marchPos(m); return { kind: 'march', m, x: p.x, y: p.y, back: p.back }; });
+    for (const r of this.app.me.rallies || []) {
+      if (t < r.launch) { out.push({ kind: 'rallyWait', r, x: r.fx + 0.6, y: r.fy + 0.6 }); continue; }
+      const k = Math.min(1, (t - r.launch) / Math.max(1, r.arrive - r.launch));
+      out.push({ kind: 'march', m: { id: r.id, kind: 'attack', phase: 'go', fx: r.fx, fy: r.fy, tx: r.x, ty: r.y, rally: r }, x: r.fx + (r.x - r.fx) * k, y: r.fy + (r.y - r.fy) * k });
+    }
+    void now;
+    return out;
   }
   drawMarchPaths(c) {
     const z = this.cam.z;
     c.save();
     c.setLineDash([8 / z, 6 / z]); c.lineWidth = 2.5 / z;
-    for (const m of this.app.me.marches || []) {
+    for (const m of [...(this.app.me.marches || []), ...(this.app.me.rallies || []).map((r) => ({ kind: 'attack', fx: r.fx, fy: r.fy, tx: r.x, ty: r.y }))]) {
       c.strokeStyle = m.kind === 'gather' ? 'rgba(140,220,110,0.85)' : 'rgba(255,120,90,0.85)';
       c.beginPath();
       c.moveTo(isoX(m.fx, m.fy), isoY(m.fx, m.fy) + TH / 2);
@@ -377,7 +397,7 @@ export class WorldMap {
     this.app.sfx('click');
     const me = this.app.me;
     const now = Date.now();
-    if (e.kind === 'march') { this.march.openMarch(e.m); return; }
+    if (e.kind === 'march') { if (e.m.rally) this.app.ally.open('rally'); else this.march.openMarch(e.m); return; }
     if (e.kind === 'player') {
       const mine = e.id === me.id;
       this.panel(`<div class="wp-head"><img class="wp-ava" src="/assets/realm/city/castle_${RACES[e.race] ? e.race : 'humans'}_1.png" alt=""><div>
@@ -390,6 +410,20 @@ export class WorldMap {
           { label: `<img class="ic" src="${WI('i_attack')}" alt=""> Налёт`, cls: 'red', fn: () => this.march.open({ kind: 'attack', player: e }) },
         ]),
       ]);
+      return;
+    }
+    if (e.fort) {
+      const own = this.fortOwners.get(e.id);
+      const mine = own && own.ally === me.allyId;
+      const rally = (me.rallies || []).find((r) => r.siteId === e.id);
+      const might = troopMight(me.troops, me.race, 'infantry', me.mods);
+      this.panel(`<div class="wp-head"><img class="wp-ava camp" src="/assets/realm/meta/a_fort${e.level}.png" alt=""><div><b>${esc(e.name)}</b>
+        <div class="muted">Крепость ${e.level} ур. · ${e.x}:${e.y} · ${own?.tag ? `владеет [${esc(own.tag)}]` : 'ничья'}</div>
+        <div class="wp-info">Гарнизон <b>${fmt(FORT_MIGHT[e.level])}</b> · ваша армия <b>${fmt(might)}</b><br>Союзу-владельцу: +${Math.round(FORT_BONUS * 100)}% добычи</div></div></div>`,
+      !me.allyId ? [{ label: 'Вступите в союз, чтобы штурмовать', cls: 'steel', fn: () => this.app.ally.open() }]
+        : mine ? [{ label: 'Крепость наша', cls: 'steel', disabled: true, fn: () => {} }]
+          : rally ? [{ label: `<img class="ic" src="${WI('i_rally')}" alt=""> К сбору`, cls: 'green', fn: () => this.app.ally.open('rally') }]
+            : [{ label: `<img class="ic" src="${WI('i_rally')}" alt=""> Объявить сбор`, cls: 'red', fn: () => this.march.open({ kind: 'rally', site: e }) }]);
       return;
     }
     const st = SITE_TYPES[e.type];

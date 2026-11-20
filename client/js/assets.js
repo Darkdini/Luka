@@ -38,7 +38,8 @@ export async function loadAll(onProgress) {
   const city = Object.keys(CITY).map((n) => `realm/city/${n}${n.startsWith('tex_') ? '.jpg' : ''}`);
   try {
     const wm = await (await fetch('/assets/realm/world/manifest.json')).json();
-    city.push(...Object.keys(wm).map((n) => `realm/world/${n}`), ...['meadow', 'steppe', 'snow', 'forest'].map((t) => `realm/world/tex_${t}.jpg`));
+    city.push(...Object.keys(wm).map((n) => `realm/world/${n}`), ...['meadow', 'steppe', 'snow', 'forest'].map((t) => `realm/world/tex_${t}.jpg`),
+      ...['a_fort1', 'a_fort2', 'a_fort3', 'a_rally', 'a_burned'].map((n) => `realm/meta/${n}`));
   } catch { /* без карты */ }
   const all = [...LIST, ...city, 'bg/world_map.jpg', 'bg/grass.jpg'];
   let done = 0;

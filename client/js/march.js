@@ -2,7 +2,7 @@
 // окно похода (ускорить, отозвать, посмотреть бой).
 import { fmt, fmtTime, gemsForTime, castleLevelOf } from '/shared/config.js';
 import { HERO, heroPower } from '/shared/heroes.js';
-import { SITE_TYPES } from '/shared/worldgen.js';
+import { SITE_TYPES, FORT_MIGHT } from '/shared/worldgen.js';
 import { parseKey, troopName, artGroup, ROMAN } from '/shared/troops.js';
 import { troopMight, troopLoad, troopCount, travelSec, siteMight, siteAmount, gatherRate, MAX_HEROES } from '/shared/march.js';
 import { api } from './api.js';
@@ -28,14 +28,14 @@ export class MarchUI {
   open(t) {
     const me = this.me;
     const cl = castleLevelOf(me);
-    if ((me.marches || []).length >= me.marchSlots) { this.app.ui.toast(`Все отряды в походе (${me.marches.length}/${me.marchSlots})`); return; }
+    if (!['rally', 'join'].includes(t.kind) && (me.marches || []).length >= me.marchSlots) { this.app.ui.toast(`Все отряды в походе (${me.marches.length}/${me.marchSlots})`); return; }
     const busy = new Set((me.marches || []).flatMap((m) => m.heroes));
     const free = Object.keys(me.roster || {}).filter((id) => !busy.has(id));
     this.t = t;
-    this.heroes = t.kind === 'attack'
+    this.heroes = t.kind === 'attack' || t.kind === 'rally'
       ? (me.formation || []).filter((id) => id && free.includes(id)).slice(0, MAX_HEROES)
       : [];
-    if (t.kind === 'attack' && !this.heroes.length) this.heroes = free.sort((a, b) => this.hp(b) - this.hp(a)).slice(0, MAX_HEROES);
+    if ((t.kind === 'attack' || t.kind === 'rally') && !this.heroes.length) this.heroes = free.sort((a, b) => this.hp(b) - this.hp(a)).slice(0, MAX_HEROES);
     this.troops = this.auto(me.marchCap);
     void cl;
     this.render();
@@ -54,6 +54,7 @@ export class MarchUI {
   target() {
     const t = this.t;
     if (t.player) return { x: t.player.x, y: t.player.y, name: t.player.name, level: t.player.level };
+    if (t.rally) return { x: t.rally.fx, y: t.rally.fy, name: t.rally.name, level: t.rally.level, fort: true };
     return { x: t.site.x, y: t.site.y, name: t.site.name, level: t.site.level, type: t.site.type };
   }
 
@@ -62,7 +63,8 @@ export class MarchUI {
     const busy = new Set((me.marches || []).flatMap((m) => m.heroes));
     const roster = Object.keys(me.roster || {}).sort((a, b) => this.hp(b) - this.hp(a));
     const st = tg.type ? SITE_TYPES[tg.type] : null;
-    const enemyKind = st?.enemy || null;
+    const isRally = t.kind === 'rally' || t.kind === 'join';
+    const enemyKind = isRally ? 'infantry' : st?.enemy || null;
     const cnt = troopCount(this.troops);
     const might = troopMight(this.troops, me.race, enemyKind);
     const dist = Math.hypot(tg.x - me.x, tg.y - me.y);
@@ -73,6 +75,11 @@ export class MarchUI {
       const amount = siteAmount(tg.type, tg.level), take = Math.min(amount, load);
       summary = `<div class="ms-row"><span><img class="ic" src="${resIcon(st.res)}" alt="">Соберут</span><b>${fmt(take)} / ${fmt(amount)}</b></div>
         <div class="ms-row"><span>Время сбора</span><b>${fmtTime(take / gatherRate(tg.level))}</b></div>`;
+    } else if (isRally) {
+      const enemy = FORT_MIGHT[tg.level], already = t.rally ? t.rally.might : 0;
+      summary = `<div class="ms-row"><span><img class="ic" src="${A}kit/atk.png" alt="">Ваш вклад</span><b>${fmt(might)}</b></div>
+        <div class="ms-row"><span><img class="ic" src="${WI('i_rally')}" alt="">Весь сбор / гарнизон</span><b class="${already + might < enemy ? 'bad' : 'ok'}">${fmt(already + might)} / ${fmt(enemy)}</b></div>
+        <div class="ms-hint">${t.kind === 'rally' ? 'Союзники присоединятся за 5 минут, потом отряд выступит' : 'Войска уйдут с отрядом сбора'}</div>`;
     } else {
       const enemy = t.player ? null : siteMight(tg.level);
       const hp = this.heroes.reduce((a, id) => a + this.hp(id), 0);
@@ -89,15 +96,16 @@ export class MarchUI {
       return `<div class="ms-t"><img src="${A}troops/${me.race}_${kind}${artGroup(tier)}.png" alt=""><img class="ms-tier" src="${A}troops/tier${tier}.png" alt="${ROMAN[tier - 1]}">
         <div class="ms-tn"><b>${troopName(me.race, kind, tier)}</b><input type="range" min="0" max="${n}" value="${v}" data-k="${k}"></div><span class="ms-tv">${fmt(v)}<small>/${fmt(n)}</small></span></div>`;
     }).join('') || '<p class="muted">Войск нет — обучите их в «Армии».</p>';
-    const box = this.app.ui.modal(`${t.kind === 'gather' ? 'Сбор' : t.player ? 'Налёт' : 'Атака'}: ${esc(tg.name)}`, `
-      <div class="ms-sub">${t.kind === 'gather' ? 'Герои не обязательны' : `Герои ведут отряд · до ${MAX_HEROES}`}</div>
-      <div class="ms-heroes">${heroes}</div>
+    const title = { gather: 'Сбор ресурсов', rally: 'Сбор на крепость', join: 'В сбор союза' }[t.kind] || (t.player ? 'Налёт' : 'Атака');
+    const box = this.app.ui.modal(`${title}: ${esc(tg.name)}`, `
+      ${t.kind === 'join' ? '' : `<div class="ms-sub">${t.kind === 'gather' ? 'Герои не обязательны' : `Герои ведут отряд · до ${MAX_HEROES}`}</div>
+      <div class="ms-heroes">${heroes}</div>`}
       <div class="ms-head"><span>Войска <b>${fmt(cnt)}</b> / ${fmt(me.marchCap)}</span><button class="nbtn xs steel" data-auto>Авто</button><button class="nbtn xs steel" data-clear>Сброс</button></div>
       <div class="ms-troops">${rows}</div>
       <div class="bw-box">${summary}
-        <div class="ms-row"><span><img class="ic" src="${WI('i_speed')}" alt="">В пути</span><b>${fmtTime(travel)}</b></div>
+        ${t.kind === 'join' ? '' : `<div class="ms-row"><span><img class="ic" src="${WI('i_speed')}" alt="">В пути</span><b>${fmtTime(travel)}</b></div>`}
         <div class="ms-row"><span><img class="ic" src="${A}kit/chest.png" alt="">Груз</span><b>${fmt(load)}</b></div></div>`,
-    [{ label: `<img class="ic" src="${WI(t.kind === 'gather' ? 'i_gather' : 'i_attack')}" alt=""> В поход`, cls: 'green', disabled: !cnt || (t.kind === 'attack' && !this.heroes.length), onClick: () => this.send() }], 'march-sheet');
+    [{ label: `<img class="ic" src="${WI(t.kind === 'gather' ? 'i_gather' : isRally ? 'i_rally' : 'i_attack')}" alt=""> ${t.kind === 'rally' ? 'Объявить сбор' : t.kind === 'join' ? 'Присоединиться' : 'В поход'}`, cls: 'green', disabled: !cnt || ((t.kind === 'attack' || t.kind === 'rally') && !this.heroes.length), onClick: () => this.send() }], 'march-sheet');
     box.querySelectorAll('.ms-h').forEach((b) => {
       b.onclick = () => {
         const id = b.dataset.h;
@@ -124,6 +132,19 @@ export class MarchUI {
 
   async send() {
     const t = this.t;
+    if (t.kind === 'rally' || t.kind === 'join') {
+      try {
+        const r = t.kind === 'rally' ? await api.allyOp('rally', { siteId: t.site.id, heroes: this.heroes, troops: this.troops }) : await api.allyOp('rallyJoin', { id: t.rally.id, troops: this.troops });
+        this.app.setMe(r.me);
+        if (this.app.ally) this.app.ally.v = r.view;
+        this.app.ui.closeModal();
+        this.world.hidePanel?.();
+        this.app.sfx('horn');
+        this.app.ui.toast(t.kind === 'rally' ? 'Сбор объявлен — союзники получили сигнал' : 'Войска присоединились к сбору', 'good');
+        if (this.app.ally?.root.classList.contains('show')) this.app.ally.show('rally');
+      } catch (e) { this.app.ui.toast(e.message, 'bad'); }
+      return;
+    }
     const args = { kind: t.kind, heroes: this.heroes, troops: this.troops };
     if (t.player) args.playerId = t.player.id; else args.siteId = t.site.id;
     try {

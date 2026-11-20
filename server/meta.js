@@ -5,6 +5,7 @@ import {
   passReward, OFFERS, GEM_PACKS, MONTH_DAYS, MONTH_DAILY,
 } from '../shared/meta.js';
 import { HERO_DEFS } from '../shared/heroes.js';
+import { eventPts } from './events.js';
 
 export class MetaError extends Error {}
 const fail = (m) => { throw new MetaError(m); };
@@ -17,7 +18,7 @@ export function migrateMeta(s) {
 }
 export function tickMeta(s, now = Date.now()) {
   migrateMeta(s);
-  if (s.research && s.research.end <= now) { s.tech[s.research.id] = s.research.to; s.research = null; passXp(s, 'research', 1); }
+  if (s.research && s.research.end <= now) { s.tech[s.research.id] = s.research.to; s.research = null; passXp(s, 'research', 1); eventPts(s, 'research', 1); }
 }
 export function passXp(s, key, n = 1) {
   if (!PASS_XP[key]) return;

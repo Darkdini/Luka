@@ -39,6 +39,7 @@ export const api = {
   top: () => req('GET', '/api/top'),
   ally: () => req('GET', '/api/ally'),
   forts: () => req('GET', '/api/world/forts'),
+  event: () => req('GET', '/api/event'),
   allyList: (q) => req('GET', '/api/ally/list?q=' + encodeURIComponent(q || '')),
   allyOp: (op, args = {}) => req('POST', '/api/ally', { ...args, op }),
   battle: (id) => req('GET', '/api/battle/' + encodeURIComponent(id)),

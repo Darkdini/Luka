@@ -12,6 +12,7 @@ import { migrateHeroes, heroActions, heroView, HeroError, teamOf } from './heroe
 import { migrateTroops, tickTroops, troopActions, troopView, TroopError } from './troops.js';
 import { migrateMeta, tickMeta, metaActions, metaView, MetaError, passXp } from './meta.js';
 import { mods } from '../shared/meta.js';
+import { migrateEvent, eventPts, eventActions, eventView, EventError } from './events.js';
 import { CASTLE_POS, CAPTURED, STARTER, wallTiles, cityRect, fits, blockedBy, autoPlace, genRuins, inCity, RUIN_SIZE } from '../shared/city.js';
 import { stageEnemies, HERO } from '../shared/heroes.js';
 import { simulate } from '../shared/herobattle.js';
@@ -110,6 +111,7 @@ export function migrate(s) {
   migrateHeroes(s);
   migrateTroops(s);
   migrateMeta(s);
+  migrateEvent(s);
   s.stats = s.stats || {};
   for (const k of STAT_KEYS) s.stats[k] = s.stats[k] || 0;
   s.achievements = s.achievements || {};
@@ -135,6 +137,7 @@ export function bumpDaily(s, key, n = 1) {
   const d = ensureDaily(s);
   d.c[key] = (d.c[key] || 0) + n;
   passXp(s, key, n);
+  eventPts(s, key, n);
 }
 function questContext(s) {
   return questCtx({ buildings: s.buildings, stats: s.stats, story: s.story, achClaimed: Object.values(s.achievements).reduce((a, v) => a + v, 0), wallLevel: s.wallLevel, summon: s.summon, campaign: s.campaign });
@@ -576,6 +579,7 @@ export function view(p) {
     ...heroView(s),
     ...troopView(s),
     ...metaView(s),
+    ...eventView(s),
     daily: { ...ensureDaily(s), quests: dailyQuests(s.daily.day, castleLevelOf(s)) },
     reports: s.reports.slice(0, 20),
     stats: s.stats,
@@ -600,4 +604,9 @@ Object.assign(actions, Object.fromEntries(Object.entries(troopActions({ pay, pay
 // Академия, VIP, пропуск: действия и ошибки — игровые
 Object.assign(actions, Object.fromEntries(Object.entries(metaActions({ pay, payCost, grant })).map(([k, fn]) => [k, (s, a) => {
   try { return fn(s, a); } catch (e) { if (e instanceof MetaError) throw new GameError(e.message); throw e; }
+}])));
+
+// Событие недели
+Object.assign(actions, Object.fromEntries(Object.entries(eventActions({ grant })).map(([k, fn]) => [k, (s, a) => {
+  try { return fn(s, a); } catch (e) { if (e instanceof EventError) throw new GameError(e.message); throw e; }
 }])));

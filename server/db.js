@@ -84,7 +84,14 @@ export function getPlayerByName(name) {
   row.state = JSON.parse(row.state);
   return row;
 }
+let evUpsert = null;
 export function savePlayer(p, touch = true) {
   const castle = p.state.buildings.find((b) => b.type === 'castle');
   q.save.run(JSON.stringify(p.state), p.state.trophies, castle ? castle.level : 1, touch ? Date.now() : p.seen_at, p.id);
+  // очки события недели — в таблицу лидеров
+  const ev = p.state.event;
+  if (ev && ev.pts >= 1) {
+    evUpsert ||= db.prepare('INSERT INTO event_scores (week, player, pts) VALUES (?, ?, ?) ON CONFLICT(week, player) DO UPDATE SET pts = excluded.pts');
+    evUpsert.run(ev.week, p.id, Math.floor(ev.pts));
+  }
 }

@@ -333,3 +333,34 @@ test('битва союза за крепость: сбор, удар, влад�
   assert.ok(fortBonus(a.ally) > 0);
   assert.ok(gp(b.id).state.troops.infantry4 > 500, 'войска вернулись');
 });
+
+import { eventBoard } from '../server/events.js';
+import { week, themeOf, MILESTONES } from '../shared/events.js';
+
+test('событие недели: очки, рубеж, таблица, награда за место', () => {
+  const st = newPlayerState('orcs', 91);
+  const now = Date.now();
+  const r = db.prepare(`INSERT INTO players (username, pass, castle_name, race, realm, plot, wx, wy, state, created_at, seen_at) VALUES (?, 'x', 'Событие', 'orcs', 1, 0, 1, 1, ?, ?, ?)`)
+    .run('ev' + now + Math.random(), JSON.stringify(st), now, now);
+  const p = gp(Number(r.lastInsertRowid));
+  const s = p.state;
+  const th = themeOf(week());
+  const key = Object.keys(th.pts)[0];
+  s.event.pts = 0;
+  // набираем очки ключевым действием темы
+  while (s.event.pts < MILESTONES[0].pts) { s.daily ||= { c: {} }; actionsBump(s, key); }
+  actions.eventClaim(s, { i: 0 });
+  assert.throws(() => actions.eventClaim(s, { i: 0 }), /Уже/);
+  sp(p);
+  const b = eventBoard(p.id);
+  assert.ok(b.me && b.me.rank >= 1);
+  // неделя закончилась → награда за место
+  s.event.week -= 1;
+  migrateEventT(s, Date.now());
+  assert.ok(s.event.prev && !s.event.prev.rewarded);
+  const g = actions.eventRankClaim(s);
+  assert.ok(g.got.gems > 0);
+  assert.throws(() => actions.eventRankClaim(s), /нет/);
+});
+import { bumpDaily as actionsBump } from '../server/game.js';
+import { migrateEvent as migrateEventT } from '../server/events.js';

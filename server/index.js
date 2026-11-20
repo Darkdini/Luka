@@ -10,6 +10,7 @@ import { checkUsername, checkPassword as checkPasswordRule, checkCastleName, has
 import { hashPassword, checkPassword, makeToken, readToken, rateLimit } from './auth.js';
 import { newPlayerState, tick, actions, view, GameError, wallBuildings, grant } from './game.js';
 import { applyPurchase } from './meta.js';
+import { eventBoard } from './events.js';
 import { processMarches, marchView, battleLog } from './march.js';
 import { allyView, allyList, allyOp } from './alliance.js';
 import { processRallies, fortBonus, fortList, rallyView } from './forts.js';
@@ -193,6 +194,8 @@ app.post('/api/ally', wrap((req) => {
   Object.assign(p, { ally: fresh.ally, ally_rank: fresh.ally_rank });
   return { ...out, me: viewMe(p), view: allyView(p, isOnline) };
 }));
+
+app.get('/api/event', wrap((req) => { const p = auth(req); savePlayer(p); return eventBoard(p.id); }));
 
 app.get('/api/top', wrap((req) => { const p = auth(req); return leaderboard(p.id); }));
 

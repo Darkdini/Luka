@@ -10,6 +10,7 @@ import { checkUsername, checkPassword as checkPasswordRule, checkCastleName, has
 import { hashPassword, checkPassword, makeToken, readToken, rateLimit } from './auth.js';
 import { newPlayerState, tick, actions, view, GameError, wallBuildings } from './game.js';
 import { processMarches, marchView, battleLog } from './march.js';
+import { allyView, allyList, allyOp } from './alliance.js';
 import { findSpot, placeUnplaced, region, findPlayer, startAttack, finishAttack, leaderboard, profile } from './world.js';
 import { AVATARS, avatarUnlocked, titlesOf } from '../shared/achievements.js';
 
@@ -46,7 +47,7 @@ function auth(req) {
   processMarches(p);
   return p;
 }
-const viewMe = (p) => ({ ...view(p), ...marchView(p.state) });
+const viewMe = (p) => ({ ...view(p), ...marchView(p.state), allyId: p.ally || null, allyRank: p.ally_rank || 0 });
 
 // --- Регистрация и вход ---------------------------------------------------------
 app.get('/api/captcha', wrap((req) => {
@@ -173,6 +174,19 @@ app.get('/api/battle/:id', wrap((req) => {
   return battleLog(p.state, String(req.params.id)) || (() => { throw new GameError('Запись боя не найдена'); })();
 }));
 
+// --- Союзы -----------------------------------------------------------------------------
+app.get('/api/ally', wrap((req) => allyView(auth(req), isOnline)));
+app.get('/api/ally/list', wrap((req) => allyList(auth(req), req.query.q)));
+app.post('/api/ally', wrap((req) => {
+  const p = auth(req);
+  const out = allyOp(p, req.body || {}, { notify, allyBroadcast }) || {};
+  tick(p.state);
+  savePlayer(p);
+  const fresh = getPlayer(p.id);
+  Object.assign(p, { ally: fresh.ally, ally_rank: fresh.ally_rank });
+  return { ...out, me: viewMe(p), view: allyView(p, isOnline) };
+}));
+
 app.get('/api/top', wrap((req) => { const p = auth(req); return leaderboard(p.id); }));
 
 // --- Донат (витрина; платёжный шлюз подключается позже) ---------------------------
@@ -202,6 +216,10 @@ const isOnline = (id) => sockets.has(id);
 
 function notify(playerId, msg) {
   for (const ws of sockets.get(playerId) || []) ws.send(JSON.stringify(msg));
+}
+function allyBroadcast(allyId, msg) {
+  const data = JSON.stringify(msg);
+  for (const { id } of db.prepare('SELECT id FROM players WHERE ally = ?').all(allyId)) for (const ws of sockets.get(id) || []) ws.send(data);
 }
 function broadcast(msg) {
   const data = JSON.stringify(msg);

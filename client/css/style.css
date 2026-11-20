@@ -1394,3 +1394,44 @@ body[data-mode=battle] #marches, body[data-mode=visit] #marches { display: none 
 #w-q { background: rgba(22,18,13,.85); border: 1px solid #6b5636; color: #e9dcc0; border-radius: 8px; }
 .world-top .online { color: #d9ccb2; text-shadow: 0 1px 2px #000; font-size: 11px; }
 #mini { background: rgba(22,18,13,.8); border: 1px solid #8a6a33; border-radius: 8px; }
+
+/* =====================================================================
+   СОЮЗ
+   ===================================================================== */
+#ally { position: fixed; inset: 0; z-index: 38; display: none; flex-direction: column; background: #0d0b10 url(/assets/realm/arenas/main.jpg) center 40% / cover; color: var(--cream); }
+#ally::before { content: ''; position: absolute; inset: 0; background: rgba(10,8,12,.86); pointer-events: none; }
+#ally.show { display: flex; }
+#ally > * { position: relative; }
+#ally .hs-body { padding: 8px 10px 14px; display: flex; flex-direction: column; gap: 6px; }
+.al-head { display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-bottom: 1px solid #4b3c24; background: rgba(22,18,13,.6); }
+.al-crest { width: 64px; height: 72px; object-fit: contain; flex: none; }
+.al-head b { display: block; font-family: var(--serif); font-size: 17px; color: #f2e2bd; }
+.al-head span { display: flex; align-items: center; gap: 3px; font-size: 12px; color: #bfae8c; }
+.al-head i { display: block; font-size: 12px; color: #d9ccb2; margin-top: 2px; }
+.al-head img.ic, .ms-row img.ic { width: 18px; height: 18px; }
+.al-list { display: flex; flex-direction: column; gap: 4px; }
+.al-row { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 10px; background: rgba(22,18,13,.8); border: 1px solid #3c3020; }
+.al-row.me { border-color: #8a6a33; }
+.al-row > img { width: 40px; height: 40px; object-fit: contain; flex: none; }
+.al-row > div { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.al-row b { font-size: 13.5px; color: #f2e2bd; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.al-row span { font-size: 11.5px; color: #a99a7c; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 3px; }
+.al-row span img.ic { width: 16px; height: 16px; }
+.al-rank { width: 32px !important; height: 32px !important; }
+.al-search, .al-send { display: flex; gap: 6px; }
+.al-search input, .al-send input, .al-form input:not([type]) , .al-form input[name] { flex: 1; min-width: 0; height: 38px; border-radius: 9px; border: 1px solid #6b5636; background: rgba(0,0,0,.4); color: #f2e2bd; padding: 0 10px; font-size: 14px; }
+.al-form { display: flex; flex-direction: column; gap: 8px; }
+.al-form label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: #bfae8c; }
+.al-form label.al-chk { flex-direction: row; align-items: center; gap: 8px; font-size: 13px; color: #d9ccb2; }
+.al-form input[type=checkbox] { width: 18px; height: 18px; accent-color: #d9b26a; flex: none; }
+.al-crests { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
+.al-crests button { border: 1px solid transparent; border-radius: 8px; background: rgba(0,0,0,.25); padding: 2px; }
+.al-crests button.on { border-color: #ffd34d; box-shadow: 0 0 8px rgba(255,211,77,.5); }
+.al-crests img { width: 100%; aspect-ratio: 1; object-fit: contain; }
+.al-chat { flex: 1; min-height: 50vh; max-height: 58vh; overflow-y: auto; display: flex; flex-direction: column; gap: 5px; padding: 4px; }
+.al-msg { align-self: flex-start; max-width: 85%; background: rgba(22,18,13,.85); border: 1px solid #3c3020; border-radius: 10px; padding: 5px 9px; font-size: 13px; }
+.al-msg.mine { align-self: flex-end; border-color: #6b5636; background: rgba(60,45,22,.85); }
+.al-msg b { display: block; font-size: 11px; color: #e2bd72; }
+.al-msg span { color: #e9dcc0; word-break: break-word; }
+.al-msg i { display: block; font-style: normal; font-size: 9.5px; color: #8b7f6a; text-align: right; }
+.hd-btns .nbtn img.ic { width: 20px; height: 20px; }

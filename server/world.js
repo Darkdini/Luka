@@ -8,6 +8,7 @@ import { chapterById, chapterOpen } from '../shared/story.js';
 import { achievementStatus, leagueOf, titlesOf } from '../shared/achievements.js';
 import { runBattle } from '../shared/sim.js';
 import { db, getPlayer, savePlayer } from './db.js';
+import './alliance.js'; // таблица союзов нужна запросу карты
 import { rng, tick, lootableBase, GameError, bumpDaily } from './game.js';
 import { CASTLE_POS, wallTiles, autoPlace } from '../shared/city.js';
 
@@ -19,8 +20,8 @@ const fail = (m) => { throw new GameError(m); };
 const q = {
   count: db.prepare('SELECT COUNT(*) AS n FROM players WHERE wx IS NOT NULL'),
   near: db.prepare('SELECT 1 FROM players WHERE wx BETWEEN ? AND ? AND wy BETWEEN ? AND ? LIMIT 1'),
-  region: db.prepare(`SELECT id, username, castle_name, race, trophies, castle_level, wx, wy, seen_at, avatar, title
-    FROM players WHERE wx BETWEEN ? AND ? AND wy BETWEEN ? AND ? LIMIT 2000`),
+  region: db.prepare(`SELECT p.id, p.username, p.castle_name, p.race, p.trophies, p.castle_level, p.wx, p.wy, p.seen_at, p.avatar, p.title, p.ally, a.tag
+    FROM players p LEFT JOIN alliances a ON a.id = p.ally WHERE p.wx BETWEEN ? AND ? AND p.wy BETWEEN ? AND ? LIMIT 2000`),
   setPos: db.prepare('UPDATE players SET wx = ?, wy = ? WHERE id = ?'),
   unplaced: db.prepare('SELECT id FROM players WHERE wx IS NULL'),
 };
@@ -81,7 +82,7 @@ export function region(x0, y0, x1, y1, online) {
   if ((x1 - x0) * (y1 - y0) > 96 * 96) fail('Слишком большой участок');
   return q.region.all(x0, x1, y0, y1).map((p) => ({
     id: p.id, name: p.castle_name, owner: p.username, race: p.race, trophies: p.trophies,
-    level: p.castle_level, x: p.wx, y: p.wy, online: online(p.id), avatar: p.avatar, title: p.title,
+    level: p.castle_level, x: p.wx, y: p.wy, online: online(p.id), avatar: p.avatar, title: p.title, ally: p.ally || null, tag: p.tag || '',
   }));
 }
 

@@ -259,7 +259,7 @@ export class WorldMap {
     if (e.kind === 'player') {
       im = img(`realm/city/castle_${RACES[e.race] ? e.race : 'humans'}_${e.level >= 6 ? 2 : 1}`);
       w = TW * (1.12 + Math.min(10, e.level) * 0.03);
-      label = e.name;
+      label = (e.tag ? `[${e.tag}] ` : '') + e.name;
     } else {
       const st = SITE_TYPES[e.type];
       im = W(st.sprite);
@@ -268,9 +268,10 @@ export class WorldMap {
       const resp = me.npc?.[e.id];
       if (resp && resp > now) e.respawn = resp; else e.respawn = 0;
     }
-    if (sel || mine) {
+    const friend = e.kind === 'player' && !mine && e.ally && e.ally === me.allyId;
+    if (sel || mine || friend) {
       c.save();
-      c.strokeStyle = mine ? 'rgba(255,216,74,0.9)' : 'rgba(255,255,255,0.9)'; c.lineWidth = 2.5 / z;
+      c.strokeStyle = mine ? 'rgba(255,216,74,0.9)' : friend ? 'rgba(120,220,110,0.85)' : 'rgba(255,255,255,0.9)'; c.lineWidth = 2.5 / z;
       c.beginPath(); c.ellipse(px, py, w * 0.5, w * 0.25, 0, 0, Math.PI * 2); c.stroke();
       c.restore();
     }
@@ -380,7 +381,7 @@ export class WorldMap {
     if (e.kind === 'player') {
       const mine = e.id === me.id;
       this.panel(`<div class="wp-head"><img class="wp-ava" src="/assets/realm/city/castle_${RACES[e.race] ? e.race : 'humans'}_1.png" alt=""><div>
-        <b>${esc(e.name)}</b> ${e.online ? '<span class="dot-on"></span>' : ''}<div class="muted">${esc(e.owner)}${e.title ? ' · ' + esc(e.title) : ''}</div>
+        <b>${e.tag ? `[${esc(e.tag)}] ` : ''}${esc(e.name)}</b> ${e.online ? '<span class="dot-on"></span>' : ''}<div class="muted">${esc(e.owner)}${e.title ? ' · ' + esc(e.title) : ''}</div>
         <div class="muted">${RACES[e.race]?.name || ''} · Цитадель ${e.level} · ${e.x}:${e.y}</div></div></div>`,
       [
         { label: 'Профиль', cls: 'steel', fn: () => this.app.ui.openProfile(e.id) },

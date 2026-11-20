@@ -13,6 +13,7 @@ import { getPlayer, savePlayer } from './db.js';
 import { actions, GameError, grant, tick, bumpDaily } from './game.js';
 import { addWounded, migrateTroops } from './troops.js';
 import { gainExp } from './heroes.js';
+import { allyGift } from './alliance.js';
 
 const fail = (m) => { throw new GameError(m); };
 const busyHeroes = (s) => new Set((s.marches || []).flatMap((m) => m.heroes));
@@ -81,6 +82,7 @@ function arrive(p, m) {
     s.npc[m.siteId] = Date.now() + SITE_COOLDOWN_MIN * 60e3;
     s.stats.npcWins = (s.stats.npcWins || 0) + 1;
     bumpDaily(s, 'npc');
+    if (site.level >= 3) allyGift(p.id, s._name || p.castle_name, site.level);
   }
   m.result = { win, battle, enemies: stageEnemies(siteStage(site.level)), mine, enemy, wounded, reward, title: `${site.name} · ур. ${site.level}` };
   m.phase = 'back'; m.backStart = m.arrive; m.backAt = m.arrive + m.travel * 1000;

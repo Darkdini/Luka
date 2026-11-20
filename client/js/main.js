@@ -5,6 +5,7 @@ import { agreement, intro, chooseFaction, showAuthScreen, hideScreens, loadingPr
 import { Scene, iso } from './scene.js';
 import { CityUI } from './cityui.js';
 import { Troops } from './troops.js';
+import { Alliance } from './alliance.js';
 import { RES_GEN } from '/shared/config.js';
 import { Village } from './village.js';
 import { Battle } from './battle.js';
@@ -45,6 +46,8 @@ class App {
     this.heroes = new Heroes(this);
     this.cityUi = new CityUI(this);
     this.troops = new Troops(this);
+    this.ally = new Alliance(this);
+    $('#btn-ally').onclick = () => this.ally.open();
     $('#btn-army').onclick = () => this.troops.open();
     $('#btn-build').onclick = () => { this.village.cancelPlacing(); this.cityUi.openBuild(); };
     $('#btn-heroes').onclick = () => this.heroes.open('list');
@@ -317,6 +320,7 @@ class App {
       const m = JSON.parse(e.data);
       if (m.type === 'history') { $('#chat-log').innerHTML = ''; m.messages.forEach((x) => this.ui.chatMessage(x)); }
       if (m.type === 'chat') this.ui.chatMessage({ ...m, live: true });
+      if (m.type === 'achat' || m.type === 'ally') this.ally?.onEvent(m);
       if (m.online != null) $('#online').textContent = m.online;
       if (m.type === 'attacked') {
         this.ui.toast(`⚔ ${m.by} атаковал ваш замок: ${'★'.repeat(m.stars)} ${m.pct}%`, 'bad');

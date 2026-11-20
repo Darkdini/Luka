@@ -222,3 +222,43 @@ test('походы: атака лагеря, сбор ресурсов, отзы
   assert.equal(s.battleLogs.length, 1);
   assert.equal(s.battleLogs[0].win, true, 'стартовый отряд бьёт разбойников 1 ур.');
 });
+
+import { allyOp, allyView, allyGift } from '../server/alliance.js';
+import { getPlayer as gp, savePlayer as sp } from '../server/db.js';
+
+test('союзы: создание, вступление, помощь, подарки', () => {
+  const mk = (name) => {
+    const st = newPlayerState('humans', name.length * 7);
+    const now = Date.now();
+    const r = db.prepare(`INSERT INTO players (username, pass, castle_name, race, realm, plot, wx, wy, state, created_at, seen_at) VALUES (?, 'x', ?, 'humans', 1, 0, 10, 10, ?, ?, ?)`)
+      .run(name + now, name, JSON.stringify(st), now, now);
+    return gp(Number(r.lastInsertRowid));
+  };
+  const io = { notify() {}, allyBroadcast() {} };
+  const a = mk('Глава'), b = mk('Воин');
+  assert.throws(() => allyOp(a, { op: 'create', name: 'Ко', tag: 'K', crest: 'lion' }, io), /3 до 20/);
+  a.state.res.gems = 500;
+  allyOp(a, { op: 'create', name: 'Стражи Рассвета' + Date.now() % 1000, tag: 'S' + (Date.now() % 100), crest: 'lion', open: true }, io);
+  sp(a);
+  assert.equal(a.state.res.gems, 300);
+  allyOp(b, { op: 'join', id: a.ally }, io);
+  assert.equal(b.ally, a.ally);
+  // помощь в стройке
+  const farm = a.state.buildings.find((x) => x.type === 'farm');
+  farm.up = { to: 2, end: Date.now() + 3600e3, total: 3600 };
+  sp(a);
+  allyOp(a, { op: 'askHelp', id: farm.id }, io);
+  const r = allyOp(b, { op: 'helpAll' }, io);
+  assert.equal(r.helped, 1);
+  const a2 = gp(a.id);
+  assert.ok(a2.state.buildings.find((x) => x.id === farm.id).up.end < farm.up.end - 30e3);
+  // подарок союзу
+  allyGift(b.id, 'Воин', 6);
+  const v = allyView(b, () => false);
+  assert.equal(v.members.length, 2);
+  assert.equal(v.gifts.length, 1);
+  const g = allyOp(b, { op: 'claimGifts' }, io);
+  assert.ok(g.got.gems > 0);
+  allyOp(b, { op: 'leave' }, io);
+  assert.equal(b.ally, null);
+});

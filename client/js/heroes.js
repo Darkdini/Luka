@@ -436,7 +436,7 @@ class HeroBattle {
     this.speed = 1;
     this.skip = false;
     this.el.innerHTML = `<div class="hb-arena" style="background-image:url(${ARENA})"></div>
-      <div class="hb-top"><b>Этап ${stageName(res.stage)}</b><span class="hb-round">Раунд 1</span>
+      <div class="hb-top"><b>${res.title ? esc(res.title) : `Этап ${stageName(res.stage)}`}</b><span class="hb-round">Раунд 1</span>
         <button class="hb-speed"><img src="${A}kit/x1.png" alt="×1"></button><button class="hb-skip"><img src="${A}kit/skip.png" alt="Пропустить"></button></div>
       <div class="hb-field"></div><div class="hb-cards"></div><div class="hb-ult"></div>`;
     this.el.classList.add('show');
@@ -536,7 +536,7 @@ class HeroBattle {
       <div class="hb-end-in"><div class="hb-end-t">${win ? 'ПОБЕДА' : 'ПОРАЖЕНИЕ'}</div>
       ${win ? `<div class="hb-stars">${[0, 1, 2].map((i) => `<span class="${i < battle.stars ? 'on' : ''}">★</span>`).join('')}</div>` : ''}
       <div class="hb-mvp">MVP · <b>${esc(HERO[mvp.id].name)}</b> · ${fmt(mvp.v)} (${mvp.pct}%)</div>
-      ${win && reward ? `<div class="hb-rw"><span><img src="${ICON('book')}" alt="">×${reward.books}</span><span>${I('gems')} ${reward.gems}</span><span>${I('gold')} ${fmt(reward.gold)}</span><span>Опыт отряду +${fmt(reward.exp)}</span>${reward.frag ? `<span><img src="${P(reward.frag.hero)}" alt="">×${reward.frag.n}</span>` : ''}</div>` : `<p>Усильте героев: книги опыта, звёзды и найм в таверне. Танков ставьте вперёд.</p>`}
+      ${win && reward && res.rewardHtml ? `<div class="hb-rw">${res.rewardHtml}</div>` : win && reward ? `<div class="hb-rw"><span><img src="${ICON('book')}" alt="">×${reward.books}</span><span>${I('gems')} ${reward.gems}</span><span>${I('gold')} ${fmt(reward.gold)}</span><span>Опыт отряду +${fmt(reward.exp)}</span>${reward.frag ? `<span><img src="${P(reward.frag.hero)}" alt="">×${reward.frag.n}</span>` : ''}</div>` : `<p>Усильте героев: книги опыта, звёзды и найм в таверне. Танков ставьте вперёд.</p>`}
       <div class="muted">Нажмите, чтобы продолжить</div></div>`;
     this.el.appendChild(box);
     this.app.sfx(win ? 'win' : 'lose');

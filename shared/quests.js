@@ -4,49 +4,56 @@
 // ============================================================================
 
 // Контекст из состояния игрока (сервер) или из view (клиент)
-export function questCtx({ buildings, stats, story, achClaimed, wallLevel }) {
-  const lvl = (t) => Math.max(0, ...buildings.filter((b) => b.type === t).map((b) => b.level));
+export function questCtx({ buildings, stats, story, achClaimed, wallLevel, summon, campaign }) {
+  const lvl = (t) => Math.max(0, ...buildings.filter((b) => b.type === t && !b.captured).map((b) => b.level));
   return {
     castle: lvl('castle') || 1,
-    count: (t) => buildings.filter((b) => b.type === t && b.level > 0).length,
+    count: (t) => buildings.filter((b) => b.type === t && (b.level > 0 || b.up) && !b.captured).length,
     lvl,
+    freed: (t) => buildings.some((b) => b.type === t && !b.captured),
     st: stats || {},
     story: story || {},
     achClaimed: achClaimed || 0,
     wall: wallLevel || 0,
+    summons: summon?.total || 0,
+    stage: campaign?.stage || 1,
   };
 }
 
-// target: { building: тип [, bubble] } — указать на здание; { ui: селектор } — на кнопку
+// Главы: задания по одному, у каждой главы — своё имя.
+// target: { building: тип [, bubble] } — указать на здание; { ruin: true } — на руины; { ui: селектор } — на кнопку
+const CH1 = 'Глава 1 · Пепел и камень', CH2 = 'Глава 2 · Обретение формы', CH3 = 'Глава 3 · Сталь и слава';
 export const TUTORIAL = [
-  { id: 'gold', title: 'Казна ждёт', text: 'Рудник полон золота! Нажмите на монету над Золотым рудником.',
-    done: (c) => c.st.collectedGold > 0, target: { building: 'goldmine', bubble: true }, reward: { gold: 500, gems: 5 } },
-  { id: 'food', title: 'Хлеб для войска', text: 'Армия марширует на сытый желудок. Соберите зерно с Мельницы.',
-    done: (c) => c.st.collectedFood > 0, target: { building: 'farm', bubble: true }, reward: { food: 500 } },
-  { id: 'train', title: 'Новобранцы', text: 'Откройте «Армию» и обучите ещё 4 воинов — лагерь как раз вместит.',
-    done: (c) => c.st.trained >= 4, target: { ui: '#btn-army' }, reward: { food: 400, gems: 5 } },
-  { id: 'story1', title: 'Зарево на границе', text: 'Разбойники жгут наши хутора! Откройте «Сюжет» и пройдите первую главу.',
-    done: (c) => c.story[1]?.stars > 0, target: { ui: '#btn-story' }, reward: { gems: 10 } },
-  { id: 'mine2', title: 'Больше золота', text: 'Выберите Золотой рудник и нажмите «Улучшить».',
-    done: (c) => c.lvl('goldmine') >= 2 || c.st.upgrades >= 2, target: { building: 'goldmine' }, reward: { gold: 600 } },
-  { id: 'speed', title: 'Магия кристаллов', text: 'Не любите ждать? Выберите стройку и ускорьте её кристаллами — я возмещу расходы!',
-    done: (c) => c.st.speedups > 0, target: { building: '@upgrading' }, reward: { gems: 15 } },
-  { id: 'castle2', title: 'Сердце королевства', text: 'Улучшите Цитадель до 2 уровня — откроются стены, баллисты и Алтарь героев.',
-    done: (c) => c.castle >= 2, target: { building: 'castle' }, reward: { gold: 1500, gems: 20 } },
-  { id: 'walls', title: 'Каменный пояс', text: 'Деревянный частокол не удержит врага. Магазин → «Стена и ловушки»: укрепите стену камнем (2 ур.).',
-    done: (c) => c.wall >= 2, target: { ui: '#btn-shop' }, reward: { gold: 1000 } },
-  { id: 'ballista', title: 'Тяжёлые болты', text: 'Постройте Баллисту — она пробивает даже латников.',
-    done: (c) => c.count('ballista') >= 1, target: { ui: '#btn-shop' }, reward: { gems: 10 } },
-  { id: 'raid', title: 'Первый набег', text: 'Откройте «Карту мира» и разгромите лагерь разбойников рядом с замком.',
-    done: (c) => c.st.npcWins >= 1, target: { ui: '#btn-attack' }, reward: { gems: 10, food: 800 } },
-  { id: 'builder', title: 'Третьи руки', text: 'Два строителя — мало для великого королевства. Наймите третьего в Магазине.',
-    done: (c) => c.count('builderhut') >= 3, target: { ui: '#btn-shop' }, reward: { gold: 2000, food: 2000 } },
-  { id: 'ach', title: 'Первая слава', text: 'Ваши подвиги не остались незамеченными. Заберите награду за достижение.',
-    done: (c) => c.achClaimed >= 1, target: { ui: '#btn-ach' }, reward: { gems: 5 } },
-  { id: 'motto', title: 'Голос правителя', text: 'Нажмите на свой портрет и впишите девиз — пусть соседи знают, с кем имеют дело.',
-    done: (c) => c.st.mottoSet > 0, target: { ui: '#hud-player' }, reward: { gems: 5 } },
-  { id: 'castle3', title: 'Путь правителя', text: 'Последний урок: Цитадель 3 уровня. Дальше вы поведёте Валорию сами.',
-    done: (c) => c.castle >= 3, target: { building: 'castle' }, reward: { gems: 50, gold: 3000, food: 3000 } },
+  { ch: CH1, id: 'food', title: 'Хлеб для людей', text: 'Ферма полна еды! Нажмите на значок над Фермой, чтобы собрать урожай.',
+    done: (c) => c.st.collectedFood > 0, target: { building: 'farm', bubble: true }, reward: { wood: 500, gems: 5 } },
+  { ch: CH1, id: 'farm2', title: 'Вторая ферма', text: 'Еды мало для растущего города. Нажмите «Построить» и поставьте ещё одну Ферму.',
+    done: (c) => c.count('farm') >= 2, target: { ui: '#btn-build' }, reward: { food: 800, wood: 400 } },
+  { ch: CH1, id: 'ruins', title: 'Расчистка', text: 'Город лежит в руинах. Нажмите на завалы и расчистите 4 из них — получите дерево и камень.',
+    done: (c) => (c.st.ruinsCleared || 0) >= 4, target: { ruin: true }, reward: { stone: 600, gems: 5 } },
+  { ch: CH1, id: 'statue', title: 'Статуя-страж', text: 'Враги осквернили Статую-страж — источник силы нашей расы. Нажмите на неё и отвоюйте героями!',
+    done: (c) => c.freed('statue'), target: { building: 'statue' }, reward: { gems: 15, book: 3 } },
+  { ch: CH1, id: 'statue2', title: 'Починка Статуи', text: 'Статуя наша, но разбита. Нажмите на неё и почините.',
+    done: (c) => c.lvl('statue') >= 1, target: { building: 'statue' }, reward: { wood: 1000, stone: 800, ticket: 2 } },
+  { ch: CH2, id: 'saw', title: 'Звон пил', text: 'Без дерева нет стройки. Постройте Лесопилку.',
+    done: (c) => c.count('sawmill') >= 1, target: { ui: '#btn-build' }, reward: { food: 1000, gems: 5 } },
+  { ch: CH2, id: 'castle2', title: 'Сердце королевства', text: 'Улучшите Цитадель до 2 уровня: откроются Рудник, Рынок и новые уровни зданий.',
+    done: (c) => c.castle >= 2, target: { building: 'castle' }, reward: { wood: 1500, stone: 1500, gems: 10 } },
+  { ch: CH2, id: 'tavern', title: 'Таверна в осаде', text: 'Наёмники Морвейна засели в Таверне героев. Отвоюйте её!',
+    done: (c) => c.freed('tavern'), target: { building: 'tavern' }, reward: { gems: 20, ticket: 3 } },
+  { ch: CH2, id: 'tavern2', title: 'Двери открыты', text: 'Почините Таверну — сюда потянутся герои со всего края.',
+    done: (c) => c.lvl('tavern') >= 1, target: { building: 'tavern' }, reward: { gold: 1500, book: 3 } },
+  { ch: CH2, id: 'summon', title: 'Новый соратник', text: 'Откройте «Герои» → «Таверна» и наймите героя.',
+    done: (c) => c.summons >= 1, target: { ui: '#btn-heroes' }, reward: { gems: 10, book: 2 } },
+  { ch: CH3, id: 'camp', title: 'Поход', text: 'Отряд готов к походу. Откройте «Поход» и пройдите этап 1-3.',
+    done: (c) => c.stage >= 4, target: { ui: '#btn-campaign' }, reward: { food: 2000, gems: 10 } },
+  { ch: CH3, id: 'quarry', title: 'Камень для стен', text: 'Постройте Каменоломню.',
+    done: (c) => c.count('quarry') >= 1, target: { ui: '#btn-build' }, reward: { wood: 1500 } },
+  { ch: CH3, id: 'castle3', title: 'Новые земли', text: 'Цитадель 3 уровня расчистит новые земли за стеной.',
+    done: (c) => c.castle >= 3, target: { building: 'castle' }, reward: { wood: 3000, stone: 3000, gems: 20 } },
+  { ch: CH3, id: 'barracks', title: 'Казармы', text: 'Дезертиры заняли Казармы. Отвоюйте их — без них не собрать войско.',
+    done: (c) => c.freed('barracks'), target: { building: 'barracks' }, reward: { iron: 800, gems: 15 } },
+  { ch: CH3, id: 'barracks2', title: 'Под знамёна', text: 'Почините Казармы.',
+    done: (c) => c.lvl('barracks') >= 1, target: { building: 'barracks' }, reward: { gems: 50, food: 3000, gold: 2000 } },
 ];
 
 // --- Ежедневные задания --------------------------------------------------------
@@ -54,8 +61,8 @@ export const TUTORIAL = [
 export const DAILY_POOL = [
   { id: 'wins', text: 'Победите в {n} атаках', counter: 'wins', goal: (cl) => 2 + Math.floor(cl / 2) },
   { id: 'stars', text: 'Соберите {n} звёзд в атаках', counter: 'stars', goal: (cl) => 4 + cl },
-  { id: 'gold', text: 'Соберите {n} золота с рудников', counter: 'gold', goal: (cl) => 1500 * cl },
-  { id: 'food', text: 'Соберите {n} зерна с мельниц', counter: 'food', goal: (cl) => 1500 * cl },
+  { id: 'gold', text: 'Соберите {n} золота с рынков', counter: 'gold', goal: (cl) => 1000 * cl },
+  { id: 'food', text: 'Соберите {n} еды с ферм', counter: 'food', goal: (cl) => 1500 * cl },
   { id: 'trained', text: 'Обучите {n} воинов', counter: 'trained', goal: (cl) => 10 + cl * 5 },
   { id: 'upgrades', text: 'Начните {n} улучшения', counter: 'upgrades', goal: () => 2 },
   { id: 'npc', text: 'Разгромите {n} лагеря NPC', counter: 'npc', goal: () => 2 },
@@ -74,7 +81,7 @@ export function dailyQuests(day, castle) {
   }
   return picks.map((q) => ({
     id: q.id, counter: q.counter, goal: q.goal(castle), text: q.text.replace('{n}', q.goal(castle).toLocaleString('ru-RU')),
-    reward: { gems: 5, gold: 400 * castle, food: 400 * castle },
+    reward: { gems: 5, gold: 400 * castle, food: 400 * castle, wood: 400 * castle },
   }));
 }
 

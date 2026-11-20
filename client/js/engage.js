@@ -1,14 +1,17 @@
 // Вовлечение: советник с обучением, стрелка-подсказка, ежедневные награды,
 // анимированные счётчики, полёт монет, праздник улучшений, красные точки, музыка.
-import { BUILDINGS, HEROES, fmt, fmtTime, upgradeCost, armyUsed, TROOPS, castleLevelOf } from '/shared/config.js';
+import { BUILDINGS, HEROES, fmt, fmtTime, armyUsed, TROOPS, castleLevelOf, buildCost, canAfford, RES_LIST, RES_GEN } from '/shared/config.js';
+import { resIcon } from './cityui.js';
+import { inCity, RUIN_SIZE } from '/shared/city.js';
 import { TUTORIAL, STREAK, DAILY_BONUS_GEMS, questCtx, today } from '/shared/quests.js';
 import { url } from './assets.js';
 import { iso, TW, TH } from './scene.js';
 import { esc } from './world.js';
 
 const $ = (s) => document.querySelector(s);
-const ico = (r) => `<img class="ri" src="${url({ gold: 'ui/icon_gold', food: 'ui/icon_food', gems: 'ui/icon_gem' }[r])}" alt="">`;
-const rewardHtml = (r) => ['gems', 'gold', 'food'].filter((k) => r[k]).map((k) => `${ico(k)} ${fmt(r[k])}`).join(' &nbsp;');
+const ico = (r) => `<img class="ri" src="${r === 'book' ? '/assets/realm/kit/book.png' : r === 'ticket' ? '/assets/realm/kit/ticket.png' : resIcon(r)}" alt="">`;
+const REW = ['gems', ...RES_LIST, 'book', 'ticket'];
+const rewardHtml = (r) => REW.filter((k) => r[k]).map((k) => `${ico(k)} ${fmt(r[k])}`).join(' &nbsp;');
 
 export class Engage {
   constructor(app) {
@@ -22,7 +25,7 @@ export class Engage {
   }
 
   ctx(me) {
-    return questCtx({ buildings: me.buildings, stats: me.stats, story: me.story, achClaimed: (me.achievements || []).reduce((a, x) => a + x.claimed, 0), wallLevel: me.wallLevel });
+    return questCtx({ buildings: me.buildings, stats: me.stats, story: me.story, achClaimed: (me.achievements || []).reduce((a, x) => a + x.claimed, 0), wallLevel: me.wallLevel, summon: me.summon, campaign: me.campaign });
   }
 
   // --- Плавные счётчики ---------------------------------------------------------
@@ -59,7 +62,7 @@ export class Engage {
       const done = q.done(this.ctx(me));
       adv.classList.remove('hidden');
       adv.classList.toggle('done', done);
-      adv.querySelector('.adv-step').textContent = `${me.tutorial + 1}/${TUTORIAL.length}`;
+      adv.querySelector('.adv-step').textContent = `${q.ch || ''} · ${me.tutorial + 1}/${TUTORIAL.length}`;
       adv.querySelector('.adv-title').textContent = q.title;
       adv.querySelector('.adv-text').textContent = done ? 'Отлично, милорд! Заберите награду.' : q.text;
       adv.querySelector('.adv-reward').innerHTML = rewardHtml(q.reward);
@@ -74,7 +77,7 @@ export class Engage {
     // красные точки «здесь можно что-то сделать»
     const queued = me.training.reduce((a, x) => a + TROOPS[x.k].space, 0);
     dot('#btn-army', armyUsed(me.army) + queued < me.armyCap && !me.training.length);
-    dot('#btn-shop', this.canBuildSomething(me));
+    dot('#btn-build', this.canBuildSomething(me));
     const d = me.daily;
     const dailyClaim = me.dailyReady || d.quests.some((x, i) => !d.claimed[i] && (d.c[x.counter] || 0) >= x.goal) || (d.claimed.every(Boolean) && !d.bonus);
     dot('#btn-daily', dailyClaim);
@@ -85,10 +88,11 @@ export class Engage {
 
   canBuildSomething(me) {
     const cl = castleLevelOf(me);
+    if (me.builders.busy >= me.builders.total) return false;
     for (const [type, def] of Object.entries(BUILDINGS)) {
-      if (['castle', 'builderhut', 'wall'].includes(type) || def.cat === 'trap') continue;
+      if (type === 'castle' || def.cat === 'wall') continue;
       const n = me.buildings.filter((b) => b.type === type).length;
-      if (n < def.countByCastle[cl - 1] && upgradeCost(type, 1) <= me.res[def.res]) return true;
+      if (n < def.countByCastle[cl - 1] && canAfford(me.res, buildCost(type, 1))) return true;
     }
     return false;
   }
@@ -120,7 +124,18 @@ export class Engage {
       const r = el.getBoundingClientRect();
       x = r.left + r.width / 2; y = r.top;
     } else {
-      const b = t.building === '@upgrading' ? this.me.buildings.find((v) => v.up) : this.me.buildings.find((v) => v.type === t.building && v.level > 0);
+      if (t.ruin) {
+        // ближайшая к центру экрана руина открытой зоны
+        const h = (app.village?.hits || []).filter((v) => v.d).sort((a, b) => Math.abs(a.x - app.scene.cam.x) + Math.abs(a.y - app.scene.cam.y) - Math.abs(b.x - app.scene.cam.x) - Math.abs(b.y - app.scene.cam.y))[0];
+        if (!h) { p.classList.remove('show'); return; }
+        const s = app.scene.toScreen(h.x + h.w / 2, h.y + h.h * 0.3);
+        x = s.x; y = s.y;
+        if (x < 20 || x > innerWidth - 20 || y < 90 || y > innerHeight - 80) { p.classList.remove('show'); return; }
+        p.style.transform = `translate(${x}px, ${y}px)`;
+        p.classList.add('show');
+        return;
+      }
+      const b = t.building === '@upgrading' ? this.me.buildings.find((v) => v.up) : this.me.buildings.find((v) => v.type === t.building);
       if (!b) { p.classList.remove('show'); return; }
       // точные координаты берём из последнего кадра сцены
       const hits = app.village?.hits || [];
@@ -187,9 +202,9 @@ export class Engage {
   rewardFx(got, from) {
     if (!got) return;
     const start = from || { x: window.innerWidth / 2, y: window.innerHeight / 2 };
-    for (const k of ['gold', 'food', 'gems']) if (got[k] > 0) this.fly(start, k, Math.min(10, 3 + Math.round(Math.log10(got[k] + 1) * 2)));
+    for (const k of ['gems', ...RES_LIST]) if (got[k] > 0) this.fly(start, k, Math.min(10, 3 + Math.round(Math.log10(got[k] + 1) * 2)));
     this.app.sfx('coin');
-    const parts = ['gems', 'gold', 'food'].filter((k) => got[k] > 0).map((k) => `+${fmt(got[k])} ${k === 'gems' ? '💎' : k === 'gold' ? 'золота' : 'зерна'}`);
+    const parts = REW.filter((k) => got[k] > 0).map((k) => `+${fmt(got[k])} ${k === 'book' ? 'книг опыта' : k === 'ticket' ? 'билетов' : RES_GEN[k]}`);
     if (parts.length) this.app.ui.toast(parts.join(', '), 'good');
   }
 
@@ -199,7 +214,7 @@ export class Engage {
     const tr = target.getBoundingClientRect();
     for (let i = 0; i < n; i++) {
       const el = document.createElement('img');
-      el.src = url({ gold: 'ui/icon_gold', food: 'ui/icon_food', gems: 'ui/icon_gem' }[res]);
+      el.src = resIcon(res);
       el.className = 'fly';
       document.body.appendChild(el);
       const sx = from.x + (Math.random() - 0.5) * 60, sy = from.y + (Math.random() - 0.5) * 40;
@@ -240,7 +255,7 @@ export class Engage {
     const opened = Object.entries(BUILDINGS).filter(([, d]) => d.countByCastle[level - 1] > (d.countByCastle[level - 2] || 0)).map(([, d]) => d.name);
     const heroes = Object.values(HEROES).filter((h) => h.castle === level).map((h) => h.name);
     this.app.ui.modal(`Цитадель — уровень ${level}!`, `
-      <div class="castle-up"><div class="rays"></div><img class="fx-screen" src="${url('fx/fx_levelup')}" alt=""><img src="${url('buildings/castle_' + Math.min(6, level))}" alt="">
+      <div class="castle-up"><div class="rays"></div><img class="fx-screen" src="${url('fx/fx_levelup')}" alt=""><img src="/assets/realm/city/castle_${this.me.race}_${level >= 6 ? 2 : 1}.png" alt="">
       <p>Королевство растёт! Открыто:</p>
       <ul>${heroes.map((h) => `<li>⭐ Герой: <b>${h}</b></li>`).join('')}${opened.map((n) => `<li>${n}</li>`).join('')}<li>Новые уровни зданий и войск</li></ul></div>`,
     [{ label: 'Великолепно!', cls: 'green', onClick: () => this.app.ui.closeModal() }], 'result-modal');

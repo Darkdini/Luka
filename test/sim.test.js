@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { runBattle, createBattle, step } from '../shared/sim.js';
 import { npcBase } from '../server/world.js';
 import { newPlayerState, tick, actions, lootableBase } from '../server/game.js';
-import { PLOTS } from '../shared/city.js';
+import { CAPTURED } from '../shared/city.js';
 
 const attacker = { army: { swordsman: 20, crossbowman: 10, shieldbearer: 2, sapper: 2 }, spells: { fireball: 1 }, heroes: { knight: { level: 3 } }, troopLevels: {}, race: 'humans' };
 const log = [];
@@ -30,19 +30,53 @@ test('нельзя высадить войска внутри базы и бол
   assert.equal(S.units.length, 0);
 });
 
-test('экономика: стройка, сбор, обучение', () => {
+test('экономика: стройка по сетке, сбор, обучение', () => {
   const s = newPlayerState('humans', 42);
   tick(s, Date.now() + 3600e3);
-  const gm = s.buildings.find((b) => b.type === 'goldmine');
-  assert.ok(gm.store > 300);
+  const farm = s.buildings.find((b) => b.type === 'farm');
+  assert.ok(farm.store > 300);
+  const food = s.res.food;
   actions.collect(s, {});
-  assert.ok(s.res.gold > 3000);
-  actions.train(s, { k: 'swordsman', n: 2 });
-  assert.equal(s.training.length, 2);
-  assert.throws(() => actions.place(s, { type: 'builderhut', x: 30, y: 33 }), /Ячейка/);
-  actions.place(s, { type: 'builderhut', x: PLOTS[9].x, y: PLOTS[9].y });
-  assert.equal(s.res.gems, 50);
-  assert.ok(lootableBase(s).some((b) => b.loot.gold > 0));
+  assert.ok(s.res.food > food);
+  assert.throws(() => actions.train(s, { k: 'swordsman', n: 2 }), /Казармы/, 'казармы захвачены врагом');
+  assert.throws(() => actions.place(s, { type: 'farm', x: 2, y: 2 }), /не расчищена/);
+  assert.throws(() => actions.place(s, { type: 'farm', x: 20, y: 20 }), /занято/);
+  const r = actions.place(s, { type: 'farm', x: 14, y: 14 });
+  assert.ok(s.buildings.find((b) => b.id === r.id).up, 'стройка идёт');
+  assert.throws(() => actions.place(s, { type: 'mine', x: 26, y: 26 }), /Цитадели 2/);
+  actions.buyBuilder(s);
+  assert.equal(s.builders, 3);
+  assert.ok(lootableBase(s).some((b) => b.loot.gold > 0 || b.loot.food > 0));
+});
+
+test('город: руины, захваченные здания, перенос, стена', () => {
+  const s = newPlayerState('dwarves', 3);
+  assert.equal(s.buildings.filter((b) => b.captured).length, CAPTURED.length);
+  const statue = s.buildings.find((b) => b.type === 'statue');
+  assert.throws(() => actions.upgrade(s, { id: statue.id }), /захвачено/);
+  // руина первой зоны расчищается и даёт ресурс
+  const ruin = s.decor.find((d) => d.x >= 14 && d.y >= 14 && d.x + 2 <= 30 && d.y + 2 <= 30);
+  const before = s.res.wood + s.res.stone;
+  actions.removeDecor(s, { id: ruin.id });
+  assert.ok(s.res.wood + s.res.stone > before);
+  // бой за статую: стартовый отряд против врага 1 уровня
+  const res = actions.liberate(s, { id: statue.id });
+  assert.equal(res.battle.winner, 'a');
+  assert.equal(statue.captured, false);
+  actions.upgrade(s, { id: statue.id });
+  tick(s, Date.now() + 3600e3);
+  assert.equal(statue.level, 1);
+  const farm = s.buildings.find((b) => b.type === 'farm');
+  actions.move(s, { id: farm.id, x: 15, y: 15 });
+  assert.deepEqual([farm.x, farm.y], [15, 15]);
+  assert.throws(() => actions.move(s, { id: farm.id, x: 21, y: 21 }), /занято/);
+  assert.equal(s.wallLevel, 1, 'частокол с первого дня');
+  s.res.stone = 100000;
+  assert.throws(() => actions.wallUpgrade(s), /Цитадель/);
+  s.buildings.find((v) => v.type === 'castle').level = 2;
+  actions.wallUpgrade(s);
+  assert.equal(s.wallLevel, 2);
+  assert.ok(lootableBase(s).filter((v) => v.type === 'wall').length > 60);
 });
 
 import { findSpot, region, profile, startAttack, finishAttack } from '../server/world.js';
@@ -80,32 +114,17 @@ import { TUTORIAL } from '../shared/quests.js';
 test('обучение и ежедневные награды', () => {
   const s = newPlayerState('humans', 5);
   assert.throws(() => actions.claimQuest(s), /не выполнено/);
-  actions.collect(s, {});                      // стартовые рудники наполовину полны
-  assert.ok(s.stats.collectedGold > 0);
+  actions.collect(s, {});                      // стартовая ферма наполовину полна
+  assert.ok(s.stats.collectedFood > 0);
   const gems = s.res.gems;
   const r = actions.claimQuest(s);
   assert.equal(s.tutorial, 1);
   assert.equal(s.res.gems - gems, TUTORIAL[0].reward.gems);
-  assert.ok(r.got.gold > 0);
+  assert.ok(r.got.wood > 0);
   const d = actions.daily(s);                  // календарь: день 1
   assert.equal(d.day, 1);
   assert.throws(() => actions.daily(s), /уже получена/);
-  assert.ok(s.daily.c.gold > 0, 'сбор засчитан в задание дня');
-});
-
-test('город: ячейки, обмен местами, стена', () => {
-  const s = newPlayerState('dwarves', 3);
-  const a = s.buildings.find((b) => b.type === 'goldmine'), b = s.buildings.find((v) => v.type === 'farm');
-  const [ax, ay] = [a.x, a.y];
-  actions.move(s, { id: a.id, x: b.x, y: b.y });   // поменялись местами
-  assert.deepEqual([b.x, b.y], [ax, ay]);
-  assert.equal(s.wallLevel, 1, 'частокол с первого дня');
-  s.res.gold = 100000;
-  assert.throws(() => actions.wallUpgrade(s), /Цитадель/);
-  s.buildings.find((v) => v.type === 'castle').level = 2;
-  actions.wallUpgrade(s);
-  assert.equal(s.wallLevel, 2);
-  assert.ok(lootableBase(s).filter((v) => v.type === 'wall').length > 60);
+  assert.ok(s.daily.c.food > 0, 'сбор засчитан в задание дня');
 });
 
 import { checkUsername, hasProfanity, censor } from '../shared/names.js';

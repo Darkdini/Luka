@@ -1,51 +1,22 @@
-// Изометрическая сцена: камера, ввод, отрисовка базы, юнитов и эффектов.
-import { BUILDINGS, GRID, spriteFor } from '/shared/config.js';
-import { img } from './assets.js';
-import { PLOTS, PLOT, PLAZA, RING_UNLOCK, ringOpen, cityRect, isRoad, inPlot, maxRing, PANO, CASTLE_POS } from '/shared/city.js';
+// Изометрическая сцена: камера, ввод, отрисовка города, юнитов и эффектов.
+import { BUILDINGS, GRID } from '/shared/config.js';
+import { img, CITY, cityImg } from './assets.js';
 
 export const TW = 64, TH = 32;
-const isoFlat = (gx, gy) => ({ x: (gx - gy) * TW / 2, y: (gx + gy) * TH / 2 });
-
-// --- Панорама города: каждая ячейка сетки «переносится» на свою нарисованную
-// площадку. Внутри ячейки геометрия та же, поэтому весь код отрисовки работает как есть.
-export const PANO_K = 1.2;                       // масштаб картинки: площадка ≈ 3 клетки
-const PANO_ANCH = [];
-for (const p of PLOTS) {
-  const pad = PANO.pads[p.i];
-  if (pad) PANO_ANCH.push({ x0: p.x, y0: p.y, size: PLOT, cx: pad[0] * PANO_K, cy: pad[1] * PANO_K, w: pad[2] * PANO_K });
-}
-PANO_ANCH.push({ x0: CASTLE_POS.x, y0: CASTLE_POS.y, size: CASTLE_POS.size, cx: PANO.plaza[0] * PANO_K, cy: PANO.plaza[1] * PANO_K, w: PANO.plaza[2] * PANO_K });
-// Куда ставить здание на панораме: низ спрайта — у переднего угла площадки, ширина — по площадке
-export function panoSpot(b) {
-  if (!PANO_ON) return null;
-  const a = PANO_ANCH.find((q) => q.x0 === b.x && q.y0 === b.y);
-  if (!a) return null;
-  // спрайты уже с собственным основанием: вписываем чуть меньше верхней грани площадки
-  return { x: a.cx, y: a.cy + a.w * 0.24, w: a.w * 0.9 };
-}
-let PANO_ON = false;
-export function setPanorama(on) { PANO_ON = on; }
-export const panoramaOn = () => PANO_ON;
-function anchorOf(gx, gy) {
-  for (const a of PANO_ANCH) if (gx >= a.x0 - 0.6 && gx <= a.x0 + a.size + 0.6 && gy >= a.y0 - 0.6 && gy <= a.y0 + a.size + 0.6) return a;
-  return null;
-}
-export const iso = (gx, gy) => {
-  if (!PANO_ON) return isoFlat(gx, gy);
-  const a = anchorOf(gx, gy);
-  if (!a) return { x: -99999, y: -99999 };
-  const o = isoFlat(gx - a.x0 - a.size / 2, gy - a.y0 - a.size / 2);
-  return { x: a.cx + o.x, y: a.cy + o.y };
-};
-
-// Положение нарисованного плато на фоне base.jpg (в пикселях исходника)
-const BG = { cx: 793, cy: 527, halfW: 700 };
+export const iso = (gx, gy) => ({ x: (gx - gy) * TW / 2, y: (gx + gy) * TH / 2 });
+// совместимость со старым кодом (панорама убрана)
+export const setPanorama = () => {};
+export const panoramaOn = () => false;
+// старые виды декора (базы NPC) → природа нового набора
+const DECOR_MAP = { oak: 'oak', pine: 'pine', bush: 'bush', rock_big: 'rock', rocks: 'rock2', stump: 'logs', mushrooms: 'flowers', log: 'logs', flowers: 'flowers' };
+const RUINS = new Set(['rubble', 'ruin_hut', 'logs', 'fence', 'stones', 'deadtree']);
 
 export class Scene {
   constructor(canvas) {
     this.cv = canvas;
     this.ctx = canvas.getContext('2d');
     this.cam = { x: 0, y: GRID * TH / 2, z: 0.6 };
+    this.bounds = null; // { x0, y0, x1, y1 } в клетках — куда можно смотреть
     this.handlers = {};
     this.particles = [];
     this.pointers = new Map();
@@ -65,59 +36,33 @@ export class Scene {
   get portrait() { return this.h > this.w; }
 
   fitZoom() {
-    if (PANO_ON) {
-      // картинка всегда заполняет экран по высоте (на широком экране — по ширине)
-      this.minZ = Math.max(this.h / (PANO.h * PANO_K), this.w / (PANO.w * PANO_K));
-      this.maxZ = this.minZ * 2;
-      this.cam.z = Math.max(this.minZ, Math.min(this.maxZ, this.cam.z));
-      return;
-    }
-    // в портрете база шире экрана: разрешаем отдалить до ~3/4 ширины базы
-    const minZ = this.portrait ? this.w / (GRID * TW * 0.72) : Math.max(this.w / (GRID * TW * 1.15), this.h / (GRID * TH * 1.35));
-    this.minZ = Math.max(0.18, minZ);
-    this.maxZ = 1.6;
+    // в портрете на экран помещается ~13 клеток в ширину, отдалить можно до ~26
+    const minZ = this.portrait ? this.w / (TW * 26) : Math.max(this.w / (GRID * TW * 0.9), this.h / (GRID * TH * 1.1));
+    this.minZ = Math.max(0.16, minZ);
+    this.maxZ = 1.5;
     this.cam.z = Math.max(this.minZ, Math.min(this.maxZ, this.cam.z));
   }
 
-  // Удобный стартовый масштаб: на телефоне база видна целиком по ширине ядра
   defaultZoom(kind) {
-    if (PANO_ON && kind !== 'battle') return this.minZ * (this.portrait ? 1.1 : 1);
-    if (this.portrait) return Math.max(this.minZ, Math.min(0.7, this.w / (TW * (kind === 'battle' ? 15 : 16))));
-    return Math.max(this.minZ, kind === 'battle' ? 0.85 : 0.62);
+    if (this.portrait) return Math.max(this.minZ, Math.min(1, this.w / (TW * (kind === 'battle' ? 15 : 9))));
+    return Math.max(this.minZ, kind === 'battle' ? 0.85 : 0.75);
   }
 
   toScreen(wx, wy) { return { x: (wx - this.cam.x) * this.cam.z + this.w / 2, y: (wy - this.cam.y) * this.cam.z + this.h / 2 }; }
   toWorld(sx, sy) { return { x: (sx - this.w / 2) / this.cam.z + this.cam.x, y: (sy - this.h / 2) / this.cam.z + this.cam.y }; }
   toGrid(sx, sy) {
     const w = this.toWorld(sx, sy);
-    if (PANO_ON) {
-      // ближайшая площадка, в ромб которой попали
-      for (const a of PANO_ANCH) {
-        const dx = (w.x - a.cx) / (a.size * TW / 2), dy = (w.y - a.cy) / (a.size * TH / 2);
-        if (Math.abs(dx) + Math.abs(dy) <= 1.15) {
-          const ox = w.x - a.cx, oy = w.y - a.cy;
-          return { gx: a.x0 + a.size / 2 + oy / TH + ox / TW, gy: a.y0 + a.size / 2 + oy / TH - ox / TW };
-        }
-      }
-      return { gx: -100, gy: -100 };
-    }
     return { gx: w.y / TH + w.x / TW, gy: w.y / TH - w.x / TW };
   }
 
   clampCam() {
-    if (PANO_ON) {
-      const W = PANO.w * PANO_K, H = PANO.h * PANO_K;
-      const vw = this.w / 2 / this.cam.z, vh = this.h / 2 / this.cam.z;
-      this.cam.x = vw * 2 >= W ? W / 2 : Math.max(vw, Math.min(W - vw, this.cam.x));
-      this.cam.y = vh * 2 >= H ? H / 2 : Math.max(vh, Math.min(H - vh, this.cam.y));
-      return;
-    }
-    const halfW = GRID * TW / 2 * 1.05, top = -GRID * TH * 0.1, bot = GRID * TH * 1.1;
+    const B = this.bounds || { x0: 0, y0: 0, x1: GRID, y1: GRID };
+    // ромб области в мировых координатах
+    const left = iso(B.x0, B.y1).x, right = iso(B.x1, B.y0).x, top = iso(B.x0, B.y0).y - TH * 4, bot = iso(B.x1, B.y1).y + TH;
     const vw = this.w / 2 / this.cam.z, vh = this.h / 2 / this.cam.z;
-    this.cam.x = Math.max(-halfW + vw, Math.min(halfW - vw, this.cam.x));
-    if (vw > halfW) this.cam.x = 0;
-    this.cam.y = Math.max(top + vh, Math.min(bot - vh, this.cam.y));
-    if (vh * 2 > bot - top) this.cam.y = (top + bot) / 2;
+    const cx = (left + right) / 2, cy = (top + bot) / 2;
+    this.cam.x = vw * 2 >= right - left ? cx : Math.max(left + vw, Math.min(right - vw, this.cam.x));
+    this.cam.y = vh * 2 >= bot - top ? cy : Math.max(top + vh, Math.min(bot - vh, this.cam.y));
   }
 
   zoomAt(sx, sy, factor) {
@@ -201,7 +146,7 @@ export class Scene {
     } else this.shakeP = 0;
     c.setTransform(1, 0, 0, 1, 0, 0);
     const g = c.createLinearGradient(0, 0, 0, this.cv.height);
-    g.addColorStop(0, '#8fc3ea'); g.addColorStop(0.5, '#4f8f3a'); g.addColorStop(1, '#2a76b8');
+    g.addColorStop(0, '#3e5426'); g.addColorStop(1, '#2c3f1c');
     c.fillStyle = g;
     c.fillRect(0, 0, this.cv.width, this.cv.height);
     c.setTransform(this.dpr * this.cam.z, 0, 0, this.dpr * this.cam.z,
@@ -209,91 +154,54 @@ export class Scene {
     c.imageSmoothingQuality = 'high';
   }
 
+  // Земля: бесшовная трава, спроецированная в изометрию (1 текстура = 4×4 клетки)
   drawBackground() {
-    if (PANO_ON) {
-      const t = img(PANO.src);
-      if (t) this.ctx.drawImage(t, 0, 0, PANO.w * PANO_K, PANO.h * PANO_K);
-      return;
-    }
-    const c = this.ctx, bg = img('bg/base');
-    const half = GRID * TW / 2;
-    if (bg) {
-      const k = half / BG.halfW;
-      c.drawImage(bg, -BG.cx * k, GRID * TH / 2 - BG.cy * k, bg.width * k, bg.height * k);
-    }
+    const c = this.ctx, tex = cityImg('tex_grass');
+    if (!tex) { c.fillStyle = '#5d7d34'; c.fillRect(-1e4, -1e4, 2e4, 2e4); return; }
+    if (!this.grassPat) this.grassPat = c.createPattern(tex, 'repeat');
+    c.save();
+    c.transform(TW / 2, TH / 2, -TW / 2, TH / 2, 0, 0);
+    c.scale(4 / tex.width, 4 / tex.height);
+    c.fillStyle = this.grassPat;
+    const k = tex.width / 4;
+    c.fillRect(-24 * k, -24 * k, 92 * k, 92 * k);
+    c.restore();
   }
 
-  // --- Город: дороги, ячейки, площадь (рисуется один раз в кэш) ---------------
-  // occupied — Set "x,y" ячеек, где стоят здания (под ними — каменный фундамент)
-  drawCity(castleLevel, own = true, occupied = new Set()) {
-    const key = castleLevel + (own ? 'o' : 'e') + [...occupied].sort().join('|');
-    if (!this.cityCache || this.cityCache.key !== key) this.cityCache = { key, cv: this.renderCity(castleLevel, own, occupied) };
-    const cc = this.cityCache.cv;
-    this.ctx.drawImage(cc.cv, cc.left, cc.top);
+  // Спрайт города на плите: footprint sx×sy клеток от (gx, gy). Возвращает прямоугольник в мире
+  drawSlab(name, gx, gy, sx, sy, o = {}) {
+    const m = CITY[name], im = cityImg(name);
+    if (!m || !im || m.sa == null) return null;
+    const c = this.ctx, ctr = iso(gx + sx / 2, gy + sy / 2);
+    const k = ((sx + sy) * TW / 2) / (m.sa + m.sb) * (o.scale || 1);
+    const r = { x: ctr.x - m.ax * k, y: ctr.y - m.ay * k + (o.lift || 0), w: m.w * k, h: m.h * k };
+    if (o.alpha != null || o.filter) {
+      c.save();
+      if (o.alpha != null) c.globalAlpha = o.alpha;
+      if (o.filter) c.filter = o.filter;
+      c.drawImage(im, r.x, r.y, r.w, r.h);
+      c.restore();
+    } else c.drawImage(im, r.x, r.y, r.w, r.h);
+    return r;
   }
 
-  renderCity(cl, own, occupied) {
-    const left = -GRID * TW / 2 - TW, top = -TH * 2;
-    const cv = document.createElement('canvas');
-    cv.width = GRID * TW + TW * 2; cv.height = GRID * TH + TH * 4;
-    const c = cv.getContext('2d');
-    c.translate(-left, -top);
-    const R = cityRect(cl);
-    const rnd = (x, y, k) => { let h = (x * 374761393 + y * 668265263 + k * 97) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
-    const tile = (x, y, fill) => {
-      const a = iso(x, y), b = iso(x + 1, y), d = iso(x + 1, y + 1), e = iso(x, y + 1);
-      c.beginPath(); c.moveTo(a.x, a.y - 0.5); c.lineTo(b.x + 0.7, b.y); c.lineTo(d.x, d.y + 0.5); c.lineTo(e.x - 0.7, e.y); c.closePath();
-      c.fillStyle = fill; c.fill();
-    };
-    // мощёные дороги
-    for (let y = R.y0; y <= R.y1; y++) for (let x = R.x0; x <= R.x1; x++) {
-      if (!isRoad(x, y, cl)) continue;
-      const v = rnd(x, y, 1);
-      tile(x, y, v > 0.5 ? '#b9aa90' : '#b2a389');
-      const o = iso(x + 0.5, y + 0.5);
-      for (let k = 0; k < 6; k++) {
-        const dx = (rnd(x, y, k + 2) - 0.5) * TW * 0.62, dy = (rnd(x, y, k + 9) - 0.5) * TH * 0.62;
-        if (Math.abs(dx) / (TW / 2) + Math.abs(dy) / (TH / 2) > 0.8) continue;
-        c.fillStyle = rnd(x, y, k + 20) > 0.5 ? '#9a8b72' : '#c8bba2';
-        c.beginPath(); c.ellipse(o.x + dx, o.y + dy, 6 + rnd(x, y, k) * 4, 3 + rnd(x, y, k + 5) * 2, 0, 0, Math.PI * 2); c.fill();
-      }
-    }
-    // бордюр по краю дорог
-    c.strokeStyle = 'rgba(80,66,48,0.55)'; c.lineWidth = 2;
-    for (let y = R.y0 - 1; y <= R.y1 + 1; y++) for (let x = R.x0 - 1; x <= R.x1 + 1; x++) {
-      if (!isRoad(x, y, cl)) continue;
-      const edge = (nx, ny, p1, p2) => { if (!isRoad(nx, ny, cl)) { c.beginPath(); c.moveTo(p1.x, p1.y); c.lineTo(p2.x, p2.y); c.stroke(); } };
-      edge(x - 1, y, iso(x, y), iso(x, y + 1)); edge(x + 1, y, iso(x + 1, y), iso(x + 1, y + 1));
-      edge(x, y - 1, iso(x, y), iso(x + 1, y)); edge(x, y + 1, iso(x, y + 1), iso(x + 1, y + 1));
-    }
-    // площадь Цитадели
-    const plaza = img('city/plaza') || img('pads/pad_l');
-    const drawPad = (im, x, y, size, k = 1.1) => {
-      if (!im) return;
-      const t = iso(x, y), w = size * TW * k, h = im.height * w / im.width;
-      c.drawImage(im, t.x - w / 2, t.y + size * TH / 2 - h * 0.43, w, h);
-    };
-    drawPad(plaza, PLAZA.x, PLAZA.y, PLAZA.size, 1.12);
-    // ячейки: открытые — каменные площадки, закрытые — заросшие с замком
-    const pad = img('city/plot') || img('pads/pad_m');
-    const locked = img('city/plot_locked');
-    for (const p of PLOTS) {
-      if (ringOpen(p.ring, cl)) {
-        if (occupied.has(p.x + ',' + p.y)) drawPad(pad, p.x, p.y, PLOT, 1.1);
-        else {
-          // свободная ячейка — едва заметная утоптанная площадка, без столбиков
-          const a = iso(p.x, p.y), b2 = iso(p.x + PLOT, p.y), d = iso(p.x + PLOT, p.y + PLOT), e = iso(p.x, p.y + PLOT);
-          c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(b2.x, b2.y); c.lineTo(d.x, d.y); c.lineTo(e.x, e.y); c.closePath();
-          c.fillStyle = 'rgba(150,125,80,0.22)'; c.fill();
-          c.setLineDash([7, 6]); c.strokeStyle = 'rgba(255,245,210,0.45)'; c.lineWidth = 2; c.stroke(); c.setLineDash([]);
-        }
-      }
-      else if (own && p.ring === maxRing(cl) + 1) {
-        // замок только на следующем кольце — понятно, что откроется дальше
-        if (locked) { c.globalAlpha = 0.55; drawPad(locked, p.x, p.y, PLOT, 1.0); c.globalAlpha = 1; }
-      }
-    }
-    return { cv, left, top };
+  // Предмет «стоит ногами» в точке мира; width — ширина в мировых пикселях
+  drawFoot(name, wx, wy, width, o = {}) {
+    const m = CITY[name], im = cityImg(name);
+    if (!m || !im) return null;
+    const k = width / m.w;
+    const r = { x: wx - m.ax * k, y: wy - m.ay * k, w: m.w * k, h: m.h * k };
+    if (o.alpha != null) { this.ctx.save(); this.ctx.globalAlpha = o.alpha; this.ctx.drawImage(im, r.x, r.y, r.w, r.h); this.ctx.restore(); }
+    else this.ctx.drawImage(im, r.x, r.y, r.w, r.h);
+    return r;
+  }
+
+  // Спрайт здания по состоянию: захвачено / стройка / обычное
+  spriteName(b, race) {
+    if (b.captured) return 'captured';
+    if (b.type === 'castle') return `castle_${race || this.race || 'humans'}_${b.level >= 6 ? 2 : 1}`;
+    if (b.level === 0 && b.up) return 'scaffold';
+    return CITY[b.type] ? b.type : 'scaffold';
   }
 
   // Подсветка ячеек/дорог в режиме выбора места
@@ -327,73 +235,40 @@ export class Scene {
     if (stroke) { c.strokeStyle = stroke; c.lineWidth = 2 / this.cam.z; c.stroke(); }
   }
 
-  // Каменный фундамент под зданием
-  drawPad(b, size) {
-    if (size < 2 || b.type.startsWith('trap')) return;
-    const name = b.type === 'castle' ? (b.level >= 5 ? 'pads/pad_marble' : 'pads/pad_l')
-      : b.type === 'armycamp' || b.type === 'builderhut' ? 'pads/pad_wood'
-        : size >= 4 ? 'pads/pad_l' : size === 3 ? 'pads/pad_m' : 'pads/pad_s';
-    const im = img(name);
-    if (!im) { this.diamond(b.x, b.y, size, size, 'rgba(120,110,95,0.85)'); return; }
-    const top = iso(b.x, b.y), w = size * TW * 1.12, h = im.height * w / im.width;
-    this.ctx.drawImage(im, top.x - w / 2, top.y + size * TH / 2 - h * 0.43, w, h);
-  }
-
-  spriteFor(b, walls) {
-    const def = BUILDINGS[b.type];
-    if (def.cat === 'wall') {
-      const has = (x, y) => walls?.has(x * 100 + y);
-      const ax = has(b.x - 1, b.y) || has(b.x + 1, b.y);
-      const ay = has(b.x, b.y - 1) || has(b.x, b.y + 1);
-      const tier = spriteFor(b.type, Math.max(1, b.level));
-      return { name: `buildings/${tier}${ax && ay ? 'c' : ''}`, flip: ax && !ay };
-    }
-    return { name: `buildings/${spriteFor(b.type, Math.max(1, b.level))}`, flip: false };
-  }
-
   drawBuilding(b, o = {}) {
-    const c = this.ctx;
     const def = BUILDINGS[b.type];
     const size = def.size;
-    const at = o.dead ? null : panoSpot(b);
-    const bot = at || iso(b.x + size, b.y + size);
-    const midX = bot.x, botY = bot.y;
-    if (o.dead) {
-      const rn = size >= 4 ? 'rubble_3' : size >= 3 ? 'rubble_2' : 'rubble_1';
-      const im = img(`buildings/${def.cat === 'wall' ? 'rubble_1' : rn}`);
-      if (im) {
-        const w = size * TW * (def.cat === 'wall' ? 0.8 : 0.95), h = im.height * w / im.width;
-        c.drawImage(im, midX - w / 2, botY - h + size * TH * 0.08, w, h);
-      }
-      return;
-    }
-    if (!o.noPad) this.drawPad(b, size);
-    const sp = this.spriteFor(b, o.walls);
-    const im = img(sp.name);
-    const scale = (def.cat === 'wall' ? 1.25 : def.cat === 'trap' ? 0.9 : 1) * (o.scale || 1);
-    c.save();
-    if (o.alpha != null) c.globalAlpha = o.alpha;
-    if (o.flash) c.filter = 'brightness(1.6)';
-    if (o.frozen) c.filter = 'hue-rotate(160deg) saturate(1.6) brightness(1.15)';
-    if (im) {
-      const w = (at ? at.w : size * TW) * scale, h = im.height * w / im.width;
-      const y = botY - h + (at ? 0 : size * TH * (def.cat === 'wall' ? 0.22 : 0.1)) + (o.lift || 0);
-      if (sp.flip) { c.translate(midX, 0); c.scale(-1, 1); c.drawImage(im, -w / 2, y, w, h); }
-      else c.drawImage(im, midX - w / 2, y, w, h);
-    } else {
-      this.diamond(b.x, b.y, size, size, '#8a6d4a', '#3a2a18');
-    }
-    c.restore();
-    if (o.tint) { c.save(); c.globalAlpha = 0.35; this.diamond(b.x, b.y, size, size, o.tint); c.restore(); }
+    if (def.cat === 'wall') return this.drawWallTile(b, o);
+    if (o.dead) return this.drawSlab('rubble', b.x + 0.2, b.y + 0.2, size - 0.4, size - 0.4);
+    const name = this.spriteName(b, o.race);
+    // отвоёванное, но ещё не починенное здание — серое
+    const ruined = b.level === 0 && !b.up && !b.captured;
+    let filter = ruined ? 'grayscale(0.85) brightness(0.8)' : null;
+    if (o.flash) filter = 'brightness(1.5)';
+    if (o.frozen) filter = 'hue-rotate(160deg) saturate(1.6) brightness(1.15)';
+    const r = this.drawSlab(name, b.x, b.y, size, size, { alpha: o.alpha, filter, lift: o.lift, scale: o.scale });
+    if (!r) this.diamond(b.x, b.y, size, size, '#8a6d4a', '#3a2a18');
+    if (o.tint) { this.ctx.save(); this.ctx.globalAlpha = 0.35; this.diamond(b.x, b.y, size, size, o.tint); this.ctx.restore(); }
+    return r;
+  }
+
+  // Стена набега: сегмент на каждой третьей клетке, ориентация — по соседям
+  drawWallTile(b, o = {}) {
+    if (o.dead) return null;
+    const w = o.walls;
+    const has = (x, y) => w?.has(x * 100 + y);
+    const f = o.flash ? 'brightness(1.5)' : null;
+    if (has(b.x - 1, b.y) || has(b.x + 1, b.y)) return b.x % 3 ? null : this.drawSlab('wall_l', b.x, b.y, 3, 1, { filter: f });
+    return b.y % 3 ? null : this.drawSlab('wall_r', b.x, b.y, 1, 3, { filter: f });
   }
 
   drawDecor(d) {
-    const im = img(`decor/${d.kind}`);
-    if (!im) return;
-    const bot = iso(d.x + 1, d.y + 1);
-    const big = d.kind === 'oak' || d.kind === 'pine';
-    const w = TW * (big ? 1.6 : 1.2), h = im.height * w / im.width;
-    this.ctx.drawImage(im, bot.x - w / 2, bot.y - h + TH * 0.25, w, h);
+    if (RUINS.has(d.kind)) return this.drawSlab(d.kind, d.x, d.y, 2, 2);
+    const name = DECOR_MAP[d.kind];
+    if (!name) return null;
+    const p = iso(d.x + 0.5, d.y + 0.5);
+    const big = name === 'oak' || name === 'pine';
+    return this.drawFoot(name, p.x, p.y + TH * 0.4, TW * (big ? 1.6 : 1.1));
   }
 
   // Полоса над объектом: прогресс/здоровье

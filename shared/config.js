@@ -18,8 +18,13 @@ export const TIME_TABLE = [10, 60, 240, 900, 2400, 5400, 10800, 21600, 36000, 57
 // Базовая стоимость по уровню; умножается на коэффициент здания.
 export const COST_TABLE = [150, 500, 1400, 3200, 7000, 14000, 26000, 45000, 75000, 120000, 180000, 260000];
 
-export const START = { gold: 3000, food: 3000, gems: 300 };
-export const RES_NAMES = { gold: 'Золото', food: 'Зерно', gems: 'Кристаллы' };
+// Ресурсы города (самоцветы — премиум, без склада)
+export const RES_LIST = ['food', 'wood', 'stone', 'iron', 'mana', 'gold'];
+export const RES_NAMES = { food: 'Еда', wood: 'Дерево', stone: 'Камень', iron: 'Железо', mana: 'Мана', gold: 'Золото', gems: 'Самоцветы' };
+export const RES_GEN = { food: 'еды', wood: 'дерева', stone: 'камня', iron: 'железа', mana: 'маны', gold: 'золота', gems: 'самоцветов' };
+// редкие ресурсы копятся и добываются медленнее
+export const RES_K = { food: 1, wood: 1, stone: 0.8, iron: 0.5, mana: 0.3, gold: 0.8 };
+export const START = { food: 3000, wood: 3000, stone: 1500, iron: 600, mana: 200, gold: 2000, gems: 300 };
 
 // --- Кристаллы (премиум-валюта) ---------------------------------------------
 // Кусочно-логарифмическая интерполяция по опорным точкам.
@@ -84,117 +89,112 @@ for (const [old, now] of Object.entries({ hunters: 'humans', mages: 'elves', wer
 }
 
 // --- Здания -----------------------------------------------------------------
-// cat: castle | resource | storage | army | defense | wall | trap | other
-// sprite: префикс спрайта; tiers: сколько вариантов арта (уровни мапятся на них)
-// maxByCastle[castleLevel-1]: макс. уровень здания при данном уровне замка
-// countByCastle[castleLevel-1]: сколько штук можно построить
-const D = (o) => ({ size: 3, tiers: 3, hp: 600, costMul: 1, timeMul: 1, res: 'gold', ...o });
+// cat: castle | resource | storage | army | special | wall
+// cost: доли базовой цены уровня по ресурсам; countByCastle[ц-1]: сколько можно построить.
+// Уровень любого здания не выше уровня Цитадели. Цитадель — до CASTLE_MAX.
+export const CASTLE_MAX = 10;
+const C10 = (...a) => a.concat(Array(10 - a.length).fill(a[a.length - 1]));
+const D = (o) => ({ size: 3, hp: 600, timeMul: 1, pw: 12, ...o, countByCastle: C10(...o.count) });
+// добыча в час по уровню (умножается на RES_K ресурса)
+export const RATE = [200, 300, 420, 560, 720, 900, 1100, 1320, 1560, 1820];
+export const COLLECT_HOURS = 4; // сколько часов копится у здания добычи
 
 export const BUILDINGS = {
-  castle: D({ name: 'Цитадель', cat: 'castle', size: 5, tiers: 6, hp: 2000, costMul: 4, timeMul: 2,
-    maxByCastle: [1, 2, 3, 4, 5, 6], countByCastle: [1, 1, 1, 1, 1, 1], storage: [1500, 4000, 8000, 15000, 25000, 40000],
-    desc: 'Сердце королевства. Улучшение открывает новые здания и уровни.' }),
-  builderhut: D({ name: 'Хижина строителя', cat: 'other', size: 3, tiers: 1, hp: 250, sprite: 'builderhut',
-    maxByCastle: [1, 1, 1, 1, 1, 1], countByCastle: [5, 5, 5, 5, 5, 5],
-    desc: 'Каждая хижина — один строитель. Больше строителей — больше строек одновременно.' }),
-  goldmine: D({ name: 'Золотой рудник', cat: 'resource', res: 'food', costMul: 0.6, timeMul: 0.7, hp: 450,
-    produces: 'gold', rate: [300, 500, 750, 1050, 1400, 1800, 2250, 2750, 3300, 3900],
-    maxByCastle: [2, 4, 6, 7, 8, 10], countByCastle: [1, 2, 3, 4, 5, 6],
-    desc: 'Добывает золото. Собирайте вовремя — склад рудника ограничен.' }),
-  farm: D({ name: 'Мельница', cat: 'resource', res: 'gold', costMul: 0.6, timeMul: 0.7, hp: 450,
-    produces: 'food', rate: [300, 500, 750, 1050, 1400, 1800, 2250, 2750, 3300, 3900],
-    maxByCastle: [2, 4, 6, 7, 8, 10], countByCastle: [1, 2, 3, 4, 5, 6],
-    desc: 'Производит зерно — пищу для армии.' }),
-  treasury: D({ name: 'Казна', cat: 'storage', res: 'food', costMul: 0.8, timeMul: 0.8, hp: 800,
-    stores: 'gold', capacity: [3000, 6000, 12000, 25000, 50000, 90000, 150000, 250000, 400000, 600000],
-    maxByCastle: [2, 4, 6, 7, 8, 10], countByCastle: [1, 1, 2, 2, 3, 3],
-    desc: 'Хранит золото.' }),
-  granary: D({ name: 'Амбар', cat: 'storage', res: 'gold', costMul: 0.8, timeMul: 0.8, hp: 800,
-    stores: 'food', capacity: [3000, 6000, 12000, 25000, 50000, 90000, 150000, 250000, 400000, 600000],
-    maxByCastle: [2, 4, 6, 7, 8, 10], countByCastle: [1, 1, 2, 2, 3, 3],
-    desc: 'Хранит зерно.' }),
-  barracks: D({ name: 'Казармы', cat: 'army', res: 'gold', tiers: 1, hp: 700,
-    maxByCastle: [2, 4, 5, 6, 7, 8], countByCastle: [1, 1, 2, 2, 3, 3], queue: [10, 15, 20, 25, 30, 35, 40, 45],
-    desc: 'Обучают войска. Уровень открывает новые типы воинов.' }),
-  armycamp: D({ name: 'Военный лагерь', cat: 'army', res: 'gold', size: 3, tiers: 1, hp: 500, costMul: 0.9,
-    housing: [20, 30, 40, 50, 60, 70], maxByCastle: [1, 2, 3, 4, 5, 6], countByCastle: [1, 1, 2, 2, 3, 4],
-    desc: 'Вмещает армию. Больше лагерей — больше воинов в атаке.' }),
-  forge: D({ name: 'Кузница', cat: 'army', res: 'food', tiers: 1, hp: 650, costMul: 1.4,
-    maxByCastle: [0, 0, 1, 2, 3, 4], countByCastle: [0, 0, 1, 1, 1, 1],
+  castle: D({ name: 'Цитадель', cat: 'castle', size: 4, hp: 2000, timeMul: 2, pw: 60, count: [1],
+    cost: { wood: 1.6, stone: 1.6, iron: 0.4, gold: 0.8 },
+    storage: [6000, 12000, 25000, 45000, 80000, 130000, 200000, 300000, 450000, 650000],
+    desc: 'Сердце королевства. Уровень Цитадели — предел уровня всех зданий; открывает новые здания и земли.' }),
+  farm: D({ name: 'Ферма', cat: 'resource', produces: 'food', count: [2, 3, 4, 4, 5, 5, 6],
+    cost: { wood: 0.6, stone: 0.2 }, desc: 'Выращивает еду для войска и жителей.' }),
+  sawmill: D({ name: 'Лесопилка', cat: 'resource', produces: 'wood', count: [1, 2, 2, 3, 3, 4],
+    cost: { food: 0.4, stone: 0.3 }, desc: 'Даёт дерево — главный ресурс стройки.' }),
+  quarry: D({ name: 'Каменоломня', cat: 'resource', produces: 'stone', count: [1, 1, 2, 2, 3, 3],
+    cost: { wood: 0.6, food: 0.2 }, desc: 'Добывает камень для крепких стен и зданий.' }),
+  mine: D({ name: 'Рудник', cat: 'resource', produces: 'iron', count: [0, 1, 1, 2, 2, 3],
+    cost: { wood: 0.6, stone: 0.4 }, desc: 'Даёт железо для оружия, доспехов и Кузницы.' }),
+  manaspring: D({ name: 'Источник маны', cat: 'resource', produces: 'mana', count: [0, 0, 1, 1, 1, 2],
+    cost: { stone: 0.6, iron: 0.2 }, desc: 'Древний источник силы: мана нужна героям и исследованиям.' }),
+  market: D({ name: 'Рынок', cat: 'resource', produces: 'gold', count: [0, 1, 1, 1, 2, 2],
+    cost: { wood: 0.5, stone: 0.5 }, desc: 'Торговцы платят налог золотом.' }),
+  warehouse: D({ name: 'Склад', cat: 'storage', count: [1, 1, 1, 2, 2, 2, 3],
+    cost: { wood: 0.8, stone: 0.5 }, capacity: [8000, 16000, 30000, 50000, 80000, 120000, 180000, 260000, 360000, 500000],
+    desc: 'Увеличивает запас всех ресурсов.' }),
+  tavern: D({ name: 'Таверна героев', cat: 'special', count: [1], cost: { wood: 0.8, gold: 0.3 }, pw: 18,
+    desc: 'Здесь нанимают героев. Уровень таверны повышает силу отряда.' }),
+  statue: D({ name: 'Статуя-страж', cat: 'special', count: [1], cost: { stone: 1 }, pw: 25,
+    desc: 'Хранитель расы: усиливает бонус вашей расы и защищает город.' }),
+  altar: D({ name: 'Алтарь героев', cat: 'special', count: [0, 1], cost: { stone: 0.8, mana: 0.4 }, pw: 20,
+    desc: 'Восстанавливает и усиливает героев.' }),
+  advisor: D({ name: 'Кабинет советника', cat: 'special', count: [0, 0, 1], cost: { wood: 0.6, gold: 0.4 },
+    desc: 'Советник берёт поручения и приносит награды.' }),
+  embassy: D({ name: 'Посольство', cat: 'special', count: [0, 0, 0, 1], cost: { stone: 0.7, gold: 0.5 },
+    desc: 'Связь с союзом: помощь союзников и подкрепления.' }),
+  barracks: D({ name: 'Казармы', cat: 'army', count: [1, 1, 1, 2], cost: { wood: 0.7, iron: 0.3 }, hp: 700,
+    queue: [10, 15, 20, 25, 30, 35, 40, 45, 50, 55], desc: 'Готовят пехоту. Уровень открывает новые отряды.' }),
+  range: D({ name: 'Стрельбище', cat: 'army', count: [0, 1, 1, 1, 2], cost: { wood: 0.8, iron: 0.2 },
+    desc: 'Готовит стрелков.' }),
+  stables: D({ name: 'Конюшни', cat: 'army', count: [0, 0, 1, 1, 1, 2], cost: { wood: 0.6, food: 0.6, iron: 0.2 },
+    desc: 'Растит боевых коней для кавалерии.' }),
+  hospital: D({ name: 'Госпиталь', cat: 'army', count: [0, 1, 1, 2], cost: { wood: 0.5, stone: 0.5 },
+    desc: 'Лечит раненых воинов после боя.' }),
+  forge: D({ name: 'Кузница', cat: 'army', count: [0, 0, 1], cost: { stone: 0.6, iron: 0.6 }, hp: 650,
     desc: 'Улучшает оружие и доспехи войск.' }),
-  spelltower: D({ name: 'Башня алхимика', cat: 'army', res: 'gold', tiers: 1, hp: 600, costMul: 1.6,
-    maxByCastle: [0, 0, 2, 3, 4, 5], countByCastle: [0, 0, 1, 1, 1, 1],
-    desc: 'Варит боевые заклинания. Уровень = число зелий в запасе и новые заклинания.' }),
-  heroaltar: D({ name: 'Алтарь героев', cat: 'army', res: 'gold', tiers: 1, hp: 900, costMul: 2,
-    maxByCastle: [0, 1, 1, 1, 1, 1], countByCastle: [0, 1, 1, 1, 1, 1],
-    desc: 'Призывает героев и усиливает их.' }),
-  archertower: D({ name: 'Башня лучников', cat: 'defense', hp: 520,
-    maxByCastle: [2, 3, 4, 6, 8, 10], countByCastle: [1, 2, 3, 3, 4, 5],
-    def: { range: 7, interval: 0.9, dmg: 14, air: true, ground: true },
-    desc: 'Быстро стреляет по наземным и воздушным целям.' }),
-  ballista: D({ name: 'Баллиста', cat: 'defense', hp: 650, costMul: 1.1,
-    maxByCastle: [0, 3, 4, 6, 8, 10], countByCastle: [0, 1, 2, 2, 3, 4],
-    def: { range: 6.5, interval: 1.8, dmg: 58, ground: true },
-    desc: 'Тяжёлые болты пробивают даже латников. Только наземные цели.' }),
-  trebuchet: D({ name: 'Требушет', cat: 'defense', hp: 700, costMul: 1.8, timeMul: 1.3,
-    maxByCastle: [0, 0, 0, 3, 5, 8], countByCastle: [0, 0, 0, 1, 1, 2],
-    def: { range: 11, minRange: 3.5, interval: 4.5, dmg: 48, splash: 1.6, ground: true },
-    desc: 'Камни бьют по площади издалека, но вблизи требушет беспомощен.' }),
-  magetower: D({ name: 'Башня магов', cat: 'defense', hp: 600, costMul: 1.5, timeMul: 1.2,
-    maxByCastle: [0, 0, 2, 4, 6, 8], countByCastle: [0, 0, 1, 1, 2, 3],
-    def: { range: 5.5, interval: 1.6, dmg: 26, splash: 1.1, air: true, ground: true },
-    desc: 'Магические заряды поражают группы врагов — и на земле, и в небе.' }),
-  wall: D({ name: 'Крепостная стена', cat: 'wall', size: 1, tiers: 4, hp: 350, costMul: 0.35, timeMul: 0,
-    maxByCastle: [1, 2, 3, 4, 6, 8], countByCastle: [1, 1, 1, 1, 1, 1],
-    desc: 'Опоясывает город и растёт вместе с ним. Улучшается целиком и мгновенно.' }),
-  trap_spikes: D({ name: 'Шипы', cat: 'trap', size: 1, tiers: 1, hp: 1, costMul: 0.3, timeMul: 0.2, sprite: 'trap_spikes',
-    maxByCastle: [0, 1, 2, 2, 3, 3], countByCastle: [0, 2, 2, 3, 4, 4],
-    trap: { radius: 1.2, dmg: 60, ground: true },
-    desc: 'Скрытая ловушка: шипы ранят всех рядом.' }),
-  trap_bear: D({ name: 'Капкан', cat: 'trap', size: 1, tiers: 1, hp: 1, costMul: 0.4, timeMul: 0.2, sprite: 'trap_bear',
-    maxByCastle: [0, 0, 1, 2, 3, 3], countByCastle: [0, 0, 1, 2, 2, 3],
-    trap: { radius: 0.6, dmg: 260, stun: 3, ground: true },
-    desc: 'Захлопывается на одном воине: огромный урон и оглушение.' }),
-  trap_rune: D({ name: 'Руна неба', cat: 'trap', size: 1, tiers: 1, hp: 1, costMul: 0.6, timeMul: 0.3, sprite: 'trap_rune',
-    maxByCastle: [0, 0, 0, 1, 2, 3], countByCastle: [0, 0, 0, 1, 2, 2],
-    trap: { radius: 2, dmg: 400, air: true },
-    desc: 'Взрывается под пролетающими грифонами.' }),
-  trap_barrel: D({ name: 'Пороховая бочка', cat: 'trap', size: 1, tiers: 1, hp: 1, costMul: 0.35, timeMul: 0.2, sprite: 'trap_barrel',
-    maxByCastle: [0, 1, 2, 2, 3, 3], countByCastle: [0, 1, 2, 3, 3, 4],
-    trap: { radius: 1.6, dmg: 110, ground: true },
-    desc: 'Мощный взрыв по площади.' }),
+  academy: D({ name: 'Академия', cat: 'army', count: [0, 0, 1], cost: { stone: 0.7, mana: 0.5 },
+    desc: 'Исследования и боевые зелья.' }),
+  // стена: обводит открытую часть города, улучшается целиком (нужна набегам)
+  wall: D({ name: 'Крепостная стена', cat: 'wall', size: 1, hp: 350, count: [1], cost: { stone: 0.35 }, pw: 0,
+    desc: 'Опоясывает город и растёт вместе с ним.' }),
 };
+// Старые типы зданий → новые (миграция сохранений)
+export const LEGACY_TYPES = { goldmine: 'market', treasury: 'warehouse', granary: 'warehouse', armycamp: 'range',
+  spelltower: 'academy', heroaltar: 'altar' };
 
-export const DECOR = ['oak', 'pine', 'bush', 'rock_big', 'rocks', 'stump', 'mushrooms', 'log'];
-export const DECOR_REMOVE_COST = 200; // золото за расчистку
+export const DECOR = ['rubble', 'ruin_hut', 'logs', 'fence', 'stones', 'deadtree'];
+// Расчистка руин: награда ресурсом по виду завала
+export const RUIN_REWARD = { rubble: { stone: 300 }, ruin_hut: { wood: 250, stone: 150 }, logs: { wood: 400 },
+  fence: { wood: 250 }, stones: { stone: 400 }, deadtree: { wood: 300 } };
+export const DECOR_REMOVE_COST = 0;
 
+export const maxLevelOf = (type, castleLevel) => (type === 'castle' ? CASTLE_MAX : Math.min(CASTLE_MAX, castleLevel));
 export const buildingHp = (type, level, race) => {
   const b = BUILDINGS[type];
   const bonus = race && RACES[race]?.bonus.buildingHp || 0;
   return Math.round(b.hp * (1 + 0.24 * (level - 1)) * (1 + bonus));
 };
-export const upgradeCost = (type, toLevel) => {
+// Цена уровня: { ресурс: сколько }
+export const buildCost = (type, toLevel) => {
   const b = BUILDINGS[type];
-  if (b.cat === 'wall') return Math.round([50, 300, 1200, 4000, 10000, 22000, 45000, 80000][toLevel - 1] ?? 120000);
-  return Math.round(COST_TABLE[Math.min(toLevel - 1, COST_TABLE.length - 1)] * b.costMul);
+  const base = COST_TABLE[Math.min(toLevel - 1, COST_TABLE.length - 1)];
+  const out = {};
+  for (const [r, k] of Object.entries(b.cost)) out[r] = Math.round(base * k * (r === 'gold' ? 1 : 1));
+  return out;
 };
+export const upgradeCost = (type, toLevel) => Object.values(buildCost(type, toLevel)).reduce((a, v) => a + v, 0);
+export const canAfford = (res, cost) => Object.entries(cost).every(([r, v]) => (res[r] || 0) >= v);
+export const missingOf = (res, cost) => Object.fromEntries(Object.entries(cost).map(([r, v]) => [r, Math.max(0, v - (res[r] || 0))]).filter(([, v]) => v > 0));
 // Стена улучшается целиком: цена одной секции × коэффициент
 export const WALL_SEGMENTS_MUL = 30;
-export const wallCost = (toLevel) => upgradeCost('wall', toLevel) * WALL_SEGMENTS_MUL;
+export const wallCost = (toLevel) => Math.round([50, 300, 1200, 4000, 10000, 22000, 45000, 80000][toLevel - 1] ?? 120000) * WALL_SEGMENTS_MUL;
 
 export const upgradeTime = (type, toLevel) => {
   const b = BUILDINGS[type];
   if (b.cat === 'castle' && toLevel === 1) return 0;
   return Math.round(TIME_TABLE[Math.min(toLevel - 1, TIME_TABLE.length - 1)] * b.timeMul);
 };
-export const spriteFor = (type, level) => {
-  const b = BUILDINGS[type];
-  const base = b.sprite || type;
-  if (b.tiers <= 1) return base.startsWith('trap_') ? base : `${base}_1`;
-  if (b.cat === 'castle') return `castle_${Math.min(6, level)}`;
-  if (b.cat === 'wall') return `wall_${Math.min(4, Math.ceil(level / 2))}`;
-  return `${base}_${level <= 3 ? 1 : level <= 6 ? 2 : 3}`;
-};
+export const rateOf = (type, level) => (BUILDINGS[type].produces && level > 0 ? Math.round(RATE[Math.min(level, RATE.length) - 1] * RES_K[BUILDINGS[type].produces]) : 0);
+export const buildingPower = (type, level) => (level > 0 ? Math.round(BUILDINGS[type].pw * Math.pow(level, 1.35)) : 0);
+// Что даёт уровень — для окна здания: [название, значение]
+export function levelEffects(type, level) {
+  const d = BUILDINGS[type];
+  const out = [['Сила', buildingPower(type, level)]];
+  if (d.produces) out.push([`Добыча ${RES_GEN[d.produces]} в час`, rateOf(type, level)], ['Запас у здания', rateOf(type, level) * COLLECT_HOURS]);
+  if (d.storage) out.push(['Вместимость склада', d.storage[level - 1]]);
+  if (d.capacity) out.push(['Вместимость склада', d.capacity[level - 1]]);
+  if (d.queue) out.push(['Очередь обучения', d.queue[level - 1]]);
+  if (['barracks', 'range', 'stables'].includes(type)) out.push(['Места в лагере', 8 * level]);
+  return out;
+}
+export const spriteFor = (type) => type;
 
 // --- Войска -----------------------------------------------------------------
 // target: any | defense | resource | wall | castle | heal
@@ -278,17 +278,20 @@ export function countOf(state, type) {
   return state.buildings.filter((b) => b.type === type).length;
 }
 export function storageCap(state, res) {
+  if (res === 'gems') return Infinity;
   let cap = 0;
   for (const b of state.buildings) {
+    if (b.level < 1 || b.captured) continue;
     const def = BUILDINGS[b.type];
-    if (b.type === 'castle') cap += def.storage[b.level - 1];
-    if (def.stores === res && b.level > 0) cap += def.capacity[b.level - 1];
+    if (!def) continue;
+    if (def.storage) cap += def.storage[b.level - 1];
+    if (def.capacity) cap += def.capacity[b.level - 1];
   }
-  return cap;
+  return Math.round(cap * (RES_K[res] || 1));
 }
 export function armyCapacity(state) {
-  let cap = 0;
-  for (const b of state.buildings) if (b.type === 'armycamp' && b.level > 0) cap += BUILDINGS.armycamp.housing[b.level - 1];
+  let cap = 20;
+  for (const b of state.buildings) if (['barracks', 'range', 'stables'].includes(b.type) && b.level > 0) cap += 8 * b.level;
   return cap;
 }
 export function armyUsed(army) {
@@ -297,7 +300,7 @@ export function armyUsed(army) {
   return n;
 }
 export function spellCapacity(state) {
-  const t = state.buildings.find((b) => b.type === 'spelltower' && b.level > 0);
+  const t = state.buildings.find((b) => b.type === 'academy' && b.level > 0);
   return t ? t.level : 0;
 }
 export function barracksLevel(state) {
@@ -305,7 +308,7 @@ export function barracksLevel(state) {
   for (const b of state.buildings) if (b.type === 'barracks') m = Math.max(m, b.level);
   return m;
 }
-export const collectorCap = (b) => BUILDINGS[b.type].rate[b.level - 1] * 3;
+export const collectorCap = (b) => rateOf(b.type, b.level) * COLLECT_HOURS;
 export const fmt = (n) => Math.floor(n).toLocaleString('ru-RU');
 export function fmtTime(sec) {
   sec = Math.max(0, Math.ceil(sec));

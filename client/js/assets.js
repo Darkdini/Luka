@@ -22,14 +22,21 @@ const LIST = [
 ];
 
 export function img(name) { return imgs.get(name); }
+// Город «Пепла Короны»: спрайты и якоря ромбов (tools/slice_city.py)
+export const CITY = {};
+export const cityImg = (name) => imgs.get('realm/city/' + name);
 
 export function url(name) {
-  if (name.startsWith('bg/')) return `/assets/${name}`;
+  if (name.startsWith('bg/') || name.endsWith('.jpg')) return `/assets/${name}`;
   return `/assets/${name}.png`;
 }
 
 export async function loadAll(onProgress) {
-  const all = [...LIST, 'bg/town.jpg', 'bg/base.jpg', 'bg/world_map.jpg', 'bg/grass.jpg'];
+  try {
+    Object.assign(CITY, await (await fetch('/assets/realm/city/manifest.json')).json());
+  } catch { /* без города — запасные ромбы */ }
+  const city = Object.keys(CITY).map((n) => `realm/city/${n}${n.startsWith('tex_') ? '.jpg' : ''}`);
+  const all = [...LIST, ...city, 'bg/world_map.jpg', 'bg/grass.jpg'];
   let done = 0;
   await Promise.all(all.map((n) => new Promise((res) => {
     const im = new Image();

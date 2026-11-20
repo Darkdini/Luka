@@ -1140,3 +1140,81 @@ img.h-up { position: absolute; right: 3px; bottom: 20px; width: 24px; height: 24
 .cp-map { background-position: center 8%; }
 .hb-u { height: 19vh; }
 .hb-u::after { content: ''; position: absolute; left: 18%; right: 18%; bottom: -4px; height: 14px; border-radius: 50%; background: radial-gradient(rgba(0,0,0,.55), transparent 70%); z-index: -1; }
+
+/* =====================================================================
+   ГОРОД «Пепла Короны»
+   ===================================================================== */
+#hud-res { gap: 3px; }
+#hud-res .rbar { height: 26px; padding: 0 4px 0 1px; gap: 1px; border-radius: 13px; }
+#hud-res .rbar img { width: 22px; height: 22px; }
+#hud-res .rbar .v { font-size: 11px; }
+#hud-res .rbar.gems { flex: 1.25 1 0; }
+#hud-res .plus { width: 18px; height: 18px; font-size: 13px; line-height: 16px; padding: 0; }
+#builders, #power { display: flex; align-items: center; gap: 3px; cursor: pointer; }
+#builders img, #power img { width: 20px; height: 20px; }
+#power { padding: 3px 8px; border-radius: 12px; background: var(--panel); border: 2px solid #8a6a33; font-size: 12px; font-weight: 800; white-space: nowrap; color: #f2e2bd; }
+.dbtn .ba-img { width: 30px; height: 30px; object-fit: contain; filter: drop-shadow(0 1px 2px rgba(0,0,0,.6)); }
+.dbtn.build { background: radial-gradient(circle at 50% 25%, #8bc35a, #2e6a1e 75%); }
+
+/* меню-дуга */
+#arc { position: absolute; inset: 0; pointer-events: none; display: none; z-index: 6; }
+#arc.show { display: block; }
+.arc-b { position: absolute; left: 0; top: 0; width: 58px; pointer-events: auto; border: 0; background: none; padding: 0; display: flex; flex-direction: column; align-items: center; color: #fff; font-size: 10px; font-weight: 800; text-shadow: 0 1px 2px #000, 0 0 4px #000; animation: arcIn .18s ease-out both; }
+.arc-b img { width: 46px; height: 46px; filter: drop-shadow(0 3px 4px rgba(0,0,0,.6)); }
+.arc-b:active img { transform: scale(.9); }
+.arc-b.hot img { filter: drop-shadow(0 0 8px #7fe03c) drop-shadow(0 3px 4px rgba(0,0,0,.6)); animation: pulse 1.2s infinite; }
+.arc-b.gem img { filter: drop-shadow(0 0 8px #c08bff); }
+@keyframes arcIn { from { opacity: 0; scale: .5; } }
+.arc-title { position: absolute; left: 0; top: 0; text-align: center; background: rgba(20,16,12,.85); border: 1px solid #8a6a33; border-radius: 10px; padding: 3px 12px; white-space: nowrap; }
+.arc-title b { display: block; font-family: var(--serif); color: #f2e2bd; font-size: 14px; }
+.arc-title span { font-size: 11px; color: #bfae8c; }
+
+/* кнопки призрака */
+#ghostbar { position: absolute; left: 0; top: 0; display: none; gap: 18px; z-index: 6; pointer-events: auto; }
+#ghostbar.show { display: flex; }
+#ghostbar button { width: 48px; height: 48px; border: 0; background: none; padding: 0; }
+#ghostbar img { width: 100%; height: 100%; filter: drop-shadow(0 3px 4px rgba(0,0,0,.6)); }
+#ghostbar button:disabled { filter: grayscale(1) brightness(.6); }
+
+/* «Построить»: лента карточек снизу */
+.modal.build-sheet { align-self: flex-end; width: 100%; max-width: 640px; border-radius: 18px 18px 0 0; }
+.bt-tabs { display: flex; gap: 4px; margin-bottom: 8px; }
+.bt-tabs button { flex: 1; height: 38px; border: 0; background: url(/assets/realm/kit/tab_off.png) center / 100% 100%; color: #c9b896; font-weight: 800; font-size: 13px; text-shadow: 0 1px 2px #000; }
+.bt-tabs button.on { background-image: url(/assets/realm/kit/tab_on.png); color: #fff4d6; }
+.bc-row { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 8px; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; }
+.bc { flex: none; width: 128px; scroll-snap-align: start; border: 10px solid transparent; border-image: url(/assets/realm/kit/box.png) 40 fill / 10px stretch; background: none; color: #f2e2bd; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 0 0 4px; }
+.bc-img { width: 100%; height: 96px; display: flex; align-items: flex-end; justify-content: center; }
+.bc-img img { max-width: 100%; max-height: 100%; object-fit: contain; filter: drop-shadow(0 4px 4px rgba(0,0,0,.5)); }
+.bc b { font-size: 13px; text-align: center; line-height: 1.1; }
+.bc-n { font-size: 11px; color: #bfae8c; }
+.bc-cost { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 6px; font-size: 11px; font-weight: 800; }
+.bc-cost i { font-style: normal; display: flex; align-items: center; gap: 1px; } .bc-cost i.bad { color: #ff7a6a; }
+.bc-cost img.ic, .bc-lock img.ic { width: 16px; height: 16px; vertical-align: middle; }
+.bc-t { font-size: 10px; color: #bfae8c; }
+.bc-lock { font-size: 11px; color: #ff9a8a; display: flex; align-items: center; gap: 3px; }
+.bc.locked .bc-img img { filter: grayscale(.9) brightness(.6); }
+
+/* окно здания */
+.modal.bw .m-body { display: flex; flex-direction: column; gap: 8px; }
+.bw-head { display: flex; gap: 10px; align-items: center; }
+.bw-head > img { width: 120px; height: 110px; object-fit: contain; flex: none; filter: drop-shadow(0 6px 6px rgba(0,0,0,.5)); }
+.bw-head > img.ruined { filter: grayscale(.85) brightness(.8); }
+.bw-head p { margin: 4px 0; font-size: 13px; line-height: 1.35; color: #d9ccb2; }
+.bw-lv { font-size: 15px; font-weight: 800; color: #f2e2bd; } .bw-lv span { color: #9d8f76; margin: 0 4px; } .bw-lv b { color: #6fe26a; font-size: 18px; }
+.bw-box { border: 12px solid transparent; border-image: url(/assets/realm/kit/box.png) 40 fill / 12px stretch; padding: 0 2px; }
+.bw-box .hd-sub em { font-style: normal; margin-left: 6px; } .bw-box .hd-sub em.ok { color: #6fe26a; } .bw-box .hd-sub em.bad { color: #ff7a6a; }
+.bw-row { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; padding: 2px 0; }
+.bw-row span { flex: 1; color: #d9ccb2; } .bw-row b { color: #f2e2bd; } .bw-row em { color: #6fe26a; font-style: normal; font-weight: 800; min-width: 60px; text-align: right; }
+.bw-req { display: flex; justify-content: space-between; align-items: center; font-size: 13px; padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,.06); }
+.bw-req span { display: flex; align-items: center; gap: 5px; } .bw-req img.ic { width: 22px; height: 22px; object-fit: contain; }
+.bw-req i { font-style: normal; font-weight: 900; } .bw-req.ok i { color: #6fe26a; } .bw-req.no i { color: #ff6a5a; } .bw-req .bad { color: #ff7a6a; }
+.bw-unl { font-size: 13px; color: #d9ccb2; }
+.modal.bw .cp-enemies { margin-top: 4px; }
+.modal .btn img.ic { width: 20px; height: 20px; vertical-align: -4px; }
+#hud-res { gap: 2px; }
+#hud-res .rbar { padding: 0 2px 0 0; border-width: 1px; }
+#hud-res .rbar img { width: 19px; height: 19px; }
+#hud-res .rbar .v { font-size: 10.5px; overflow: visible; text-overflow: clip; letter-spacing: -.2px; }
+#hud-res .rbar.gems .plus { display: none; }
+#hud-res .rbar.gems { flex: 1 1 0; }
+.hb-top b { font-size: 13px; max-width: 42%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

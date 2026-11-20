@@ -3,7 +3,7 @@ import { BUILDINGS, TROOPS, HEROES, SPELLS, BATTLE, GRID, fmt } from '/shared/co
 import { createBattle, step, canDeployAt, percent } from '/shared/sim.js';
 import { iso, TW, TH } from './scene.js';
 import { img } from './assets.js';
-import { inPlot, ringOpen } from '/shared/city.js';
+import { inCity, RUIN_SIZE } from '/shared/city.js';
 
 const UNIT_H = { swordsman: 1.3, crossbowman: 1.3, thief: 1.25, shieldbearer: 1.75, sapper: 1.3, battlemage: 1.5, priest: 1.6, ram: 1.9, griffin: 2.3, knight: 2.1, huntress: 2.0, runesmith: 1.9, sorceress: 2.0 };
 const TICK = 1 / BATTLE.tickRate;
@@ -49,8 +49,7 @@ export class Battle {
   }
 
   lockedDecor(d) {
-    const p = inPlot(d.x, d.y);
-    return p && !ringOpen(p.ring, this.castleLevel);
+    return d.kind && ['rubble', 'ruin_hut', 'logs', 'fence', 'stones', 'deadtree'].includes(d.kind) && !inCity(d.x, d.y, RUIN_SIZE, this.castleLevel);
   }
 
   select(card) { this.sel = card; this.app.ui.battleCards(this); }
@@ -160,7 +159,6 @@ export class Battle {
     const alpha = this.started && !S.over ? Math.min(1, this.acc / TICK) : 1;
     s.begin();
     s.drawBackground();
-    s.drawCity(this.castleLevel, false, this.occupied);
     for (const d of this.data.base.decor || []) if (!this.lockedDecor(d)) s.drawDecor(d);
     // зона высадки: подсвечиваем запретные клетки
     if (this.sel && this.sel.kind !== 'spell' && this.sel.kind !== 'ability' || this.showZone > 0) {

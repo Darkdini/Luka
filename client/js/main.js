@@ -2,8 +2,9 @@ import { RACES, GAME_TITLE, fmt } from '/shared/config.js';
 import { api, token, setToken, store } from './api.js';
 import { loadAll } from './assets.js';
 import { agreement, intro, chooseFaction, showAuthScreen, hideScreens, loadingProgress, loadingTip } from './onboarding.js';
-import { Scene, setPanorama, PANO_K } from './scene.js';
-import { PANO } from '/shared/city.js';
+import { Scene, iso } from './scene.js';
+import { CityUI } from './cityui.js';
+import { RES_GEN } from '/shared/config.js';
 import { Village } from './village.js';
 import { Battle } from './battle.js';
 import { WorldMap } from './world.js';
@@ -41,6 +42,8 @@ class App {
     this.story = new Story(this);
     this.engage = new Engage(this);
     this.heroes = new Heroes(this);
+    this.cityUi = new CityUI(this);
+    $('#btn-build').onclick = () => { this.village.cancelPlacing(); this.cityUi.openBuild(); };
     $('#btn-heroes').onclick = () => this.heroes.open('list');
     $('#btn-campaign').onclick = () => this.heroes.open('campaign');
     if (token) {
@@ -204,27 +207,25 @@ class App {
     const b = this.me.buildings.find((v) => v.id === id);
     let from = null;
     if (b) {
-      const size = 3, w = this.scene.toScreen((b.x - b.y) * 32, (b.x + b.y + size) * 16 - 70);
+      const p = iso(b.x + 1.5, b.y + 1.5), w = this.scene.toScreen(p.x, p.y - 70);
       from = { x: w.x, y: w.y };
     }
     try {
       const r = await this.act('collect', { id });
-      const got = r.collected;
-      if (got.gold + got.food > 0) {
-        for (const k of ['gold', 'food']) if (got[k]) this.engage.fly(from, k, Math.min(9, 3 + Math.round(Math.log10(got[k] + 1) * 1.5)));
+      const got = Object.entries(r.collected || {}).filter(([, v]) => v > 0);
+      if (got.length) {
+        for (const [k, v] of got) this.engage.fly(from, k, Math.min(9, 3 + Math.round(Math.log10(v + 1) * 1.5)));
         this.sfx('coin');
-        if (b) { this.village.floatText(b, `+${fmt(got.gold || got.food)}`, got.gold ? '#ffd84a' : '#ffb36b'); this.village.coinBurst(b); }
-      } else this.ui.toast('Хранилище заполнено — улучшите Казну или Амбар');
+        if (b) { const [k, v] = got[0]; this.village.floatText(b, `+${fmt(v)} ${RES_GEN[k] || ''}`, k === 'gold' ? '#ffd84a' : '#ffe2a8'); this.village.coinBurst(b); }
+      } else this.ui.toast('Склад заполнен — улучшите Склад или Цитадель');
     } catch { /* тост показан */ }
   }
 
-  // Камера города: панорама на всю высоту, старт — у ворот и первых площадок
+  // Камера города: на Цитадель
   homeCamera() {
-    setPanorama(true);
-    this.scene.cam.z = 0;
     this.scene.fitZoom();
-    this.scene.cam = { x: 700 * PANO_K, y: PANO.h * PANO_K / 2, z: this.scene.defaultZoom('village') };
-    this.scene.clampCam();
+    this.village.setMe(this.me);
+    this.village.focusCastle();
   }
 
   wipe() {
@@ -237,7 +238,7 @@ class App {
   async daily() {
     try {
       const r = await this.act('daily');
-      this.ui.toast(`Ежедневная награда: +${r.gems} 💎, +${fmt(r.gold)} золота, +${fmt(r.food)} зерна`, 'good');
+      this.ui.toast(`Ежедневная награда: +${r.got?.gems || 0} самоцветов`, 'good');
       this.sfx('coin');
     } catch { /* */ }
   }
@@ -295,7 +296,7 @@ class App {
       document.body.dataset.mode = 'battle';
       this.ui.cardsKey = null;
       this.battle.start(data);
-      setPanorama(false); this.scene.fitZoom(); this.scene.cam = { x: 0, y: 22 * 32 - 20, z: this.scene.defaultZoom('battle') }; this.scene.clampCam();
+      this.scene.bounds = null; this.scene.fitZoom(); this.scene.cam = { x: 0, y: 22 * 32 - 20, z: this.scene.defaultZoom('battle') }; this.scene.clampCam();
       this.scene.clampCam();
       this.sfx('horn');
       this.engage.music('battle');

@@ -9,7 +9,7 @@ import { achievementStatus, leagueOf, titlesOf } from '../shared/achievements.js
 import { runBattle } from '../shared/sim.js';
 import { db, getPlayer, savePlayer } from './db.js';
 import { rng, tick, lootableBase, GameError, bumpDaily } from './game.js';
-import { PLOTS, CASTLE_POS, ringOpen, wallTiles, cityRect, isRoad } from '../shared/city.js';
+import { CASTLE_POS, wallTiles, autoPlace } from '../shared/city.js';
 
 const fail = (m) => { throw new GameError(m); };
 
@@ -96,38 +96,30 @@ export function findPlayer(name) {
 export function npcBase(level, seed) {
   const r = rng(seed);
   const cl = Math.max(1, Math.min(6, Math.ceil(level * 0.65)));
-  const lv = (type) => Math.max(1, Math.min(BUILDINGS[type].maxByCastle[cl - 1] || 1, Math.ceil(level * 0.9)));
+  const lv = () => Math.max(1, Math.min(cl, Math.ceil(level * 0.9)));
   const blds = [{ id: 1, type: 'castle', level: cl, x: CASTLE_POS.x, y: CASTLE_POS.y }];
   let id = 2;
-  const open = PLOTS.filter((p) => ringOpen(p.ring, cl));
-  // оборона — в первом кольце (ближе к площади), экономика — дальше
-  const order = [...open].sort((a, b) => a.ring - b.ring || r() - 0.5);
   const counts = (type) => BUILDINGS[type].countByCastle[cl - 1];
   const want = [];
-  for (const t of ['archertower', 'ballista', 'magetower', 'trebuchet']) for (let i = 0; i < counts(t); i++) want.push(t);
-  for (const t of ['treasury', 'granary']) for (let i = 0; i < counts(t); i++) want.push(t);
-  for (const t of ['goldmine', 'farm']) for (let i = 0; i < Math.min(3, counts(t)); i++) want.push(t);
-  want.push('barracks', 'armycamp', 'builderhut');
-  want.slice(0, order.length).forEach((t, i) => blds.push({ id: id++, type: t, level: lv(t), x: order[i].x, y: order[i].y }));
+  for (const t of ['warehouse', 'farm', 'sawmill', 'quarry', 'market', 'mine', 'barracks', 'range', 'hospital', 'tavern', 'statue'])
+    for (let i = 0; i < Math.min(2, counts(t)); i++) want.push(t);
+  const st = { buildings: blds, decor: [] };
+  for (const t of want) {
+    const near = { x: 22 + (r() - 0.5) * 10, y: 22 + (r() - 0.5) * 10 };
+    const at = autoPlace(st, BUILDINGS[t].size, cl, near);
+    if (at) blds.push({ id: id++, type: t, level: lv(), x: at.x, y: at.y });
+  }
   {
-    const wl = Math.max(1, Math.min(BUILDINGS.wall.maxByCastle[cl - 1], Math.ceil(level / 1.5)));
+    const wl = Math.max(1, Math.min(cl, Math.ceil(level / 1.5)));
     for (const [x, y] of wallTiles(cl)) blds.push({ id: id++, type: 'wall', level: wl, x, y });
   }
-  const rect = cityRect(cl);
-  const roads = [];
-  for (let y = rect.y0; y <= rect.y1; y++) for (let x = rect.x0; x <= rect.x1; x++) if (isRoad(x, y, cl)) roads.push([x, y]);
-  for (const t of ['trap_spikes', 'trap_barrel', 'trap_bear']) for (let i = 0; i < counts(t); i++) {
-    const [x, y] = roads[Math.floor(r() * roads.length)];
-    if (!blds.some((b) => b.x === x && b.y === y)) blds.push({ id: id++, type: t, level: 1, x, y });
-  }
   const lootTotal = Math.round(400 * Math.pow(level, 1.7));
-  const holders = blds.filter((b) => ['castle', 'treasury', 'granary', 'goldmine', 'farm'].includes(b.type));
+  const holders = blds.filter((b) => ['castle', 'warehouse', 'market', 'farm'].includes(b.type));
   for (const b of holders) {
-    const def = BUILDINGS[b.type];
     const share = 1 / holders.length;
     b.loot = { gold: 0, food: 0 };
-    if (b.type === 'castle') { b.loot.gold = Math.round(lootTotal * share); b.loot.food = Math.round(lootTotal * share); }
-    else b.loot[def.stores || def.produces] = Math.round(lootTotal * 2 * share);
+    if (b.type === 'castle' || b.type === 'warehouse') { b.loot.gold = Math.round(lootTotal * share); b.loot.food = Math.round(lootTotal * share); }
+    else b.loot[BUILDINGS[b.type].produces] = Math.round(lootTotal * 2 * share);
   }
   return blds;
 }

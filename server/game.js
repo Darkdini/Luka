@@ -1,15 +1,17 @@
 // Серверная игровая логика: состояние игрока, экономика, стройка, армия.
 // Сервер — единственный источник правды: клиент лишь присылает намерения.
 import {
-  BUILDINGS, TROOPS, SPELLS, HEROES, RACES, START, DECOR, DECOR_REMOVE_COST,
-  BUILD_MIN, BUILD_MAX, BUILDER_GEM_COST, MAX_BUILDERS, GEMS_FREE, BATTLE,
-  upgradeCost, upgradeTime, wallCost, gemsForTime, gemsForResources, castleLevelOf, countOf,
-  storageCap, armyCapacity, armyUsed, spellCapacity, barracksLevel, collectorCap,
+  BUILDINGS, TROOPS, SPELLS, HEROES, RACES, START, RES_LIST, RES_GEN, LEGACY_TYPES, RUIN_REWARD,
+  BUILDER_GEM_COST, MAX_BUILDERS, BATTLE,
+  buildCost, upgradeTime, wallCost, gemsForTime, gemsForResources, castleLevelOf, countOf, maxLevelOf,
+  storageCap, armyCapacity, armyUsed, spellCapacity, barracksLevel, collectorCap, rateOf, buildingPower,
   heroMaxLevel, heroUpgradeCost, heroUpgradeTime, forgeCost, forgeTime,
 } from '../shared/config.js';
 import { achievementStatus } from '../shared/achievements.js';
-import { migrateHeroes, heroActions, heroView, HeroError } from './heroes.js';
-import { PLOTS, PLOT, CASTLE_POS, ringOpen, isRoad, wallTiles, plotAt, inPlot, isPlotType, cityRect } from '../shared/city.js';
+import { migrateHeroes, heroActions, heroView, HeroError, teamOf } from './heroes.js';
+import { CASTLE_POS, CAPTURED, STARTER, wallTiles, cityRect, fits, blockedBy, autoPlace, genRuins, inCity, RUIN_SIZE } from '../shared/city.js';
+import { stageEnemies, HERO } from '../shared/heroes.js';
+import { simulate } from '../shared/herobattle.js';
 import { chapterById } from '../shared/story.js';
 import { TUTORIAL, STREAK, DAILY_BONUS_GEMS, questCtx, dailyQuests, today } from '../shared/quests.js';
 
@@ -34,7 +36,7 @@ export function newPlayerState(race, seed) {
   const s = {
     v: 1, race,
     res: { ...START },
-    buildings: [], decor: [], nextId: 1,
+    buildings: [], decor: [], nextId: 1, builders: 2,
     army: {}, training: [], spells: {}, brewing: [],
     troopLevels: {}, forge: null,
     heroes: {},
@@ -47,84 +49,60 @@ export function newPlayerState(race, seed) {
     stats: {},
     achievements: {},
     story: {},
+    city: 3, seed,
   };
-  migrate(s);
-  const add = (type, x, y, level = 1) => {
-    const b = { id: s.nextId++, type, level, x, y, up: null };
-    // стартовые рудники наполовину полны — первый сбор сразу радует
-    if (BUILDINGS[type].produces) { b.store = collectorCap(b) * 0.5; b.last = now; }
+  for (const st of STARTER) {
+    const b = { id: s.nextId++, type: st.type, level: 1, x: st.x, y: st.y, up: null };
+    // стартовые постройки наполовину полны — первый сбор сразу радует
+    if (BUILDINGS[st.type].produces) { b.store = collectorCap(b) * 0.5; b.last = now; }
     s.buildings.push(b);
-    return b;
-  };
-  add('castle', CASTLE_POS.x, CASTLE_POS.y);
-  // стартовые здания — по ячейкам первого кольца (ближние к площади — первыми)
-  const start = ['barracks', 'goldmine', 'farm', 'archertower', 'treasury', 'granary', 'armycamp', 'builderhut', 'builderhut'];
-  start.forEach((t, i) => add(t, PLOTS[i].x, PLOTS[i].y));
+  }
+  for (const c of CAPTURED) s.buildings.push({ id: s.nextId++, type: c.type, level: 0, x: c.x, y: c.y, up: null, captured: true, enemy: c.enemy });
   s.army = { swordsman: 10, crossbowman: 6 };
-  s.wallLevel = 1; // деревянный частокол с первого дня
-  s.city = 1;
-  s.decor = cityDecor(seed, s);
+  s.wallLevel = 1;
+  const g = genRuins(seed, s, s.nextId);
+  s.decor = g.decor; s.nextId = g.nextId;
+  migrate(s);
   return s;
 }
 
-// Декор: заросли на закрытых ячейках (расчистка = кристаллы) и лес за стеной
-const DECOR_KINDS = ['oak', 'pine', 'bush', 'rock_big', 'rocks', 'stump', 'mushrooms', 'log'];
-export function cityDecor(seed, s) {
-  const r = rng(seed);
-  const out = [];
-  const taken = new Set(s.buildings.map((b) => b.x * 100 + b.y));
-  for (const p of PLOTS) {
-    if (p.ring < 2 || taken.has(p.x * 100 + p.y)) continue;
-    const n = 1 + (r() < 0.5 ? 1 : 0);
-    for (let k = 0; k < n; k++) {
-      out.push({ id: s.nextId++, kind: DECOR_KINDS[Math.floor(r() * DECOR_KINDS.length)], x: p.x + (k ? 2 : Math.floor(r() * 2)), y: p.y + (k ? Math.floor(r() * 3) : 1 + Math.floor(r() * 2)) });
-    }
-  }
-  return out;
-}
-
-// Перевод старых сохранений на планировку с ячейками
+// Перевод старых сохранений (ячейки, оборона, хижины строителей) на свободную сетку
 export function migrateCity(s) {
-  if (s.city) return;
+  if (s.city >= 3) return;
+  const now = Date.now();
+  for (const r of RES_LIST) s.res[r] = Math.max(s.res[r] || 0, START[r] || 0);
+  s.builders = Math.max(2, Math.min(MAX_BUILDERS, s.buildings.filter((b) => b.type === 'builderhut').length));
+  const old = s.buildings;
+  const castle = old.find((b) => b.type === 'castle') || { id: s.nextId++, type: 'castle', level: 1 };
+  s.buildings = [{ ...castle, x: CASTLE_POS.x, y: CASTLE_POS.y, up: castle.up || null }];
+  s.decor = [];
   const cl = castleLevelOf(s);
-  const walls = s.buildings.filter((b) => b.type === 'wall');
-  s.wallLevel = walls.reduce((m, b) => Math.max(m, b.level), 0);
-  const traps = s.buildings.filter((b) => b.type.startsWith('trap_'));
-  const rest = s.buildings.filter((b) => isPlotType(b.type));
-  const castle = s.buildings.find((b) => b.type === 'castle');
-  if (castle) { castle.x = CASTLE_POS.x; castle.y = CASTLE_POS.y; }
-  let pi = 0;
-  for (const b of rest) {
-    const p = PLOTS[pi++];
-    if (!p) break;
-    b.x = p.x; b.y = p.y;
+  const counts = {};
+  for (const b0 of old) {
+    const type = LEGACY_TYPES[b0.type] || b0.type;
+    const def = BUILDINGS[type];
+    if (!def || type === 'castle' || def.cat === 'wall') continue;
+    counts[type] = (counts[type] || 0) + 1;
+    if (counts[type] > def.countByCastle[cl - 1]) continue;
+    const at = autoPlace(s, def.size, cl);
+    if (!at) continue;
+    const b = { id: b0.id, type, level: Math.min(b0.level, maxLevelOf(type, cl)), x: at.x, y: at.y, up: b0.up || null };
+    if (def.produces) { b.store = 0; b.last = now; }
+    s.buildings.push(b);
   }
-  const keep = new Set([castle, ...rest.slice(0, PLOTS.length)]);
-  // ловушки — на свободные клетки дорог
-  const roads = [];
-  const rect = cityRect(cl);
-  for (let y = rect.y0; y <= rect.y1; y++) for (let x = rect.x0; x <= rect.x1; x++) if (isRoad(x, y, cl)) roads.push([x, y]);
-  traps.forEach((t, i) => { const rd = roads[(i * 7) % Math.max(1, roads.length)]; if (rd) { t.x = rd[0]; t.y = rd[1]; keep.add(t); } });
-  s.buildings = s.buildings.filter((b) => keep.has(b));
-  s.city = 1;
-  s.decor = cityDecor(s.nextId * 31, s);
-}
-
-// Здания на ячейках без площадки (после смены планировки) переезжают на свободные
-export function fixPlots(s) {
-  const valid = new Set(PLOTS.map((p) => p.x * 100 + p.y));
-  const taken = new Set(s.buildings.filter((b) => isPlotType(b.type) && valid.has(b.x * 100 + b.y)).map((b) => b.x * 100 + b.y));
-  for (const b of s.buildings) {
-    if (!isPlotType(b.type) || valid.has(b.x * 100 + b.y)) continue;
-    const p = PLOTS.find((q) => !taken.has(q.x * 100 + q.y) && ringOpen(q.ring, castleLevelOf(s)));
-    if (!p) continue;
-    b.x = p.x; b.y = p.y; taken.add(p.x * 100 + p.y);
+  // недостающие сюжетные здания — захвачены врагом
+  for (const c of CAPTURED) {
+    if (s.buildings.some((b) => b.type === c.type)) continue;
+    const at = fits(s, c.x, c.y, 3, cl) ? c : autoPlace(s, 3, cl);
+    if (at) s.buildings.push({ id: s.nextId++, type: c.type, level: 0, x: at.x, y: at.y, up: null, captured: true, enemy: c.enemy });
   }
-  s.decor = s.decor.filter((d) => { const p = inPlot(d.x, d.y); return p && !taken.has(p.x * 100 + p.y); });
+  const g = genRuins(s.seed || s.nextId * 31, s, s.nextId);
+  s.decor = g.decor; s.nextId = g.nextId;
+  s.city = 3;
 }
 
 // Старые сохранения дополняются новыми полями
-const STAT_KEYS = ['attacks', 'wins', 'defenses', 'defWins', 'starsTotal', 'goldLooted', 'foodLooted', 'destroyed', 'npcWins', 'trained', 'cleared', 'trophiesMax', 'collectedGold', 'collectedFood', 'upgrades', 'speedups', 'mottoSet'];
+const STAT_KEYS = ['liberated', 'ruinsCleared', 'attacks', 'wins', 'defenses', 'defWins', 'starsTotal', 'goldLooted', 'foodLooted', 'destroyed', 'npcWins', 'trained', 'cleared', 'trophiesMax', 'collectedGold', 'collectedFood', 'upgrades', 'speedups', 'mottoSet'];
 export function migrate(s) {
   migrateHeroes(s);
   s.stats = s.stats || {};
@@ -135,7 +113,8 @@ export function migrate(s) {
   s.tutorial = s.tutorial || 0;
   s.wallLevel = Math.max(1, s.wallLevel || 0);
   migrateCity(s);
-  if (s.city < 2) { fixPlots(s); s.city = 2; }
+  s.builders = s.builders || 2;
+  for (const r of RES_LIST) s.res[r] = s.res[r] || 0;
   s.streak = s.streak || { count: 0, last: 0 };
   ensureDaily(s);
   return s;
@@ -152,25 +131,27 @@ export function bumpDaily(s, key, n = 1) {
   d.c[key] = (d.c[key] || 0) + n;
 }
 function questContext(s) {
-  return questCtx({ buildings: s.buildings, stats: s.stats, story: s.story, achClaimed: Object.values(s.achievements).reduce((a, v) => a + v, 0), wallLevel: s.wallLevel });
+  return questCtx({ buildings: s.buildings, stats: s.stats, story: s.story, achClaimed: Object.values(s.achievements).reduce((a, v) => a + v, 0), wallLevel: s.wallLevel, summon: s.summon, campaign: s.campaign });
 }
 function grant(s, r) {
   if (r.gems) s.res.gems += r.gems;
-  const got = { gems: r.gems || 0, gold: 0, food: 0 };
-  for (const k of ['gold', 'food']) if (r[k]) got[k] = addRes(s, k, r[k]);
+  const got = { gems: r.gems || 0 };
+  for (const k of RES_LIST) if (r[k]) got[k] = addRes(s, k, r[k]);
+  if (r.book) { s.items.book += r.book; got.book = r.book; }
+  if (r.ticket) { s.items.ticket += r.ticket; got.ticket = r.ticket; }
   return got;
 }
 
 // --- Течение времени ------------------------------------------------------------
 export function tick(s, now = Date.now()) {
   migrate(s);
-  const raceGold = RACES[s.race]?.bonus.goldRate || 0;
+  const raceBonus = RACES[s.race]?.bonus.goldRate || 0;
   for (const b of s.buildings) {
     const def = BUILDINGS[b.type];
     if (def.produces && b.level > 0) {
-      // во время улучшения рудник не работает (как и положено стройке)
+      // во время улучшения здание не работает (как и положено стройке)
       if (!b.up) {
-        const rate = def.rate[b.level - 1] * (def.produces === 'gold' ? 1 + raceGold : 1);
+        const rate = rateOf(b.type, b.level) * (1 + raceBonus);
         b.store = Math.min(collectorCap(b), (b.store || 0) + rate * Math.max(0, now - b.last) / 3600e3);
       }
       b.last = now;
@@ -200,17 +181,25 @@ export function tick(s, now = Date.now()) {
 }
 
 function clampRes(s) {
-  for (const r of ['gold', 'food']) s.res[r] = Math.max(0, Math.min(s.res[r], storageCap(s, r)));
+  for (const r of RES_LIST) s.res[r] = Math.max(0, Math.min(s.res[r] || 0, Math.max(storageCap(s, r), START[r] || 0)));
 }
 
-const builders = (s) => s.buildings.filter((b) => b.type === 'builderhut' && b.level > 0).length;
+const builders = (s) => s.builders || 2;
 const busy = (s) => s.buildings.filter((b) => b.up).length;
 const freeBuilder = (s) => busy(s) < builders(s);
 
 function pay(s, res, amount) {
   if (amount <= 0) return;
-  if ((s.res[res] || 0) < amount) fail(`Не хватает: ${res === 'gold' ? 'золота' : res === 'food' ? 'зерна' : 'кристаллов'}`);
+  if ((s.res[res] || 0) < amount) fail(`Не хватает ${RES_GEN[res] || res}`);
   s.res[res] -= amount;
+}
+function payCost(s, cost) {
+  for (const [r, v] of Object.entries(cost)) if ((s.res[r] || 0) < v) fail(`Не хватает ${RES_GEN[r] || r}: нужно ещё ${Math.ceil(v - (s.res[r] || 0)).toLocaleString('ru-RU')}`);
+  for (const [r, v] of Object.entries(cost)) s.res[r] -= v;
+}
+// Сила королевства: здания + герои отряда
+export function cityPower(s) {
+  return s.buildings.reduce((t, b) => t + (b.captured ? 0 : buildingPower(b.type, b.level)), 0);
 }
 function addRes(s, res, amount) {
   if (res === 'gems') { s.res.gems += amount; return amount; }
@@ -220,79 +209,72 @@ function addRes(s, res, amount) {
   return s.res[res] - before;
 }
 
-// Ячейка свободна: открыта, без здания и без зарослей
-export function plotFree(s, x, y, ignoreId = null) {
-  const p = plotAt(x, y);
-  if (!p || !ringOpen(p.ring, castleLevelOf(s))) return false;
-  if (s.buildings.some((b) => b.id !== ignoreId && isPlotType(b.type) && b.x === x && b.y === y)) return false;
-  return !s.decor.some((d) => d.x >= x && d.x < x + PLOT && d.y >= y && d.y < y + PLOT);
-}
-export function roadFree(s, x, y) {
-  if (!isRoad(x, y, castleLevelOf(s))) return false;
-  return !s.buildings.some((b) => b.type.startsWith('trap_') && b.x === x && b.y === y);
-}
-// совместимость (тесты, старый код)
-export function areaFree(s, x, y) { return plotFree(s, x, y); }
-
 // --- Действия игрока ------------------------------------------------------------
+const buildTime = (s, type, to) => Math.round(upgradeTime(type, to) * (1 - (RACES[s.race]?.bonus.buildSpeed || 0)));
+
 export const actions = {
+  // Новое здание в свободном месте сетки
   place(s, { type, x, y }) {
     const def = BUILDINGS[type];
-    if (!def || type === 'castle') fail('Нельзя построить');
+    if (!def || type === 'castle' || def.cat === 'wall') fail('Нельзя построить');
     x |= 0; y |= 0;
     const cl = castleLevelOf(s);
     const limit = def.countByCastle[cl - 1];
+    if (!limit) fail(`Откроется на Цитадели ${def.countByCastle.findIndex((v) => v > 0) + 1} ур.`);
     if (countOf(s, type) >= limit) fail('Достигнут лимит. Улучшите Цитадель');
-    if (type === 'wall') fail('Стену улучшают целиком');
-    if (def.cat === 'trap') {
-      if (!roadFree(s, x, y)) {
-        // ловушку без точных координат ставим на случайную свободную дорогу
-        const r = cityRect(cl), free = [];
-        for (let yy = r.y0; yy <= r.y1; yy++) for (let xx = r.x0; xx <= r.x1; xx++) if (roadFree(s, xx, yy)) free.push([xx, yy]);
-        if (!free.length) fail('Нет места для ловушки');
-        [x, y] = free[(s.nextId * 7919) % free.length];
-      }
+    if (!fits(s, x, y, def.size, cl)) {
+      const bl = inCity(x, y, def.size, cl) && blockedBy(s, x, y, def.size);
+      fail(bl?.ruin ? 'Сначала расчистите руины' : inCity(x, y, def.size, cl) ? 'Место занято' : 'Эта земля ещё не расчищена');
     }
-    else if (!plotFree(s, x, y)) fail(inPlot(x, y) && s.decor.some((d) => inPlot(d.x, d.y) === inPlot(x, y)) ? 'Сначала расчистите ячейку' : 'Ячейка занята или закрыта');
-    if (type === 'builderhut') {
-      const n = countOf(s, 'builderhut');
-      if (n >= MAX_BUILDERS) fail('Максимум строителей');
-      pay(s, 'gems', BUILDER_GEM_COST[n]);
-      s.buildings.push({ id: s.nextId++, type, level: 1, x, y, up: null });
-      return;
-    }
-    const time = Math.round(upgradeTime(type, 1) * (1 - (RACES[s.race]?.bonus.buildSpeed || 0)));
+    const time = buildTime(s, type, 1);
     if (time > 0 && !freeBuilder(s)) fail('Все строители заняты');
-    pay(s, def.res, upgradeCost(type, 1));
+    payCost(s, buildCost(type, 1));
     if (time > 0) { s.stats.upgrades++; bumpDaily(s, 'upgrades'); }
     const b = { id: s.nextId++, type, level: time > 0 ? 0 : 1, x, y, up: time > 0 ? { to: 1, end: Date.now() + time * 1000, total: time } : null };
     if (def.produces) { b.store = 0; b.last = Date.now(); }
     s.buildings.push(b);
+    return { id: b.id };
   },
 
   upgrade(s, { id }) {
     const b = s.buildings.find((v) => v.id === id) || fail('Здание не найдено');
+    if (b.captured) fail('Здание захвачено врагом — сначала отвоюйте его');
     if (b.up) fail('Уже улучшается');
-    const def = BUILDINGS[b.type];
     const cl = castleLevelOf(s);
-    const max = b.type === 'castle' ? 6 : def.maxByCastle[cl - 1];
-    if (b.level >= max) fail(b.type === 'castle' ? 'Максимальный уровень' : 'Сначала улучшите Цитадель');
+    if (b.level >= maxLevelOf(b.type, cl)) fail(b.type === 'castle' ? 'Максимальный уровень' : 'Сначала улучшите Цитадель');
     const to = b.level + 1;
-    const time = Math.round(upgradeTime(b.type, to) * (1 - (RACES[s.race]?.bonus.buildSpeed || 0)));
+    const time = buildTime(s, b.type, to);
     if (time > 0 && !freeBuilder(s)) fail('Все строители заняты');
-    pay(s, def.res, upgradeCost(b.type, to));
+    payCost(s, buildCost(b.type, to));
     if (time > 0) { s.stats.upgrades++; bumpDaily(s, 'upgrades'); }
     if (time <= 0) b.level = to;
     else b.up = { to, end: Date.now() + time * 1000, total: time };
   },
 
+  // «Сейчас»: самоцветы за недостающие ресурсы и за время — без строителя, мгновенно
+  upgradeNow(s, { id }) {
+    const b = s.buildings.find((v) => v.id === id) || fail('Здание не найдено');
+    if (b.captured) fail('Здание захвачено врагом — сначала отвоюйте его');
+    if (b.up) fail('Уже улучшается');
+    const cl = castleLevelOf(s);
+    if (b.level >= maxLevelOf(b.type, cl)) fail(b.type === 'castle' ? 'Максимальный уровень' : 'Сначала улучшите Цитадель');
+    const to = b.level + 1;
+    const cost = buildCost(b.type, to);
+    let missing = 0;
+    for (const [r, v] of Object.entries(cost)) missing += Math.max(0, v - (s.res[r] || 0));
+    pay(s, 'gems', gemsForTime(buildTime(s, b.type, to)) + gemsForResources(missing));
+    for (const [r, v] of Object.entries(cost)) s.res[r] = Math.max(0, (s.res[r] || 0) - v);
+    b.level = to;
+    if (BUILDINGS[b.type].produces) { b.last = Date.now(); b.store = b.store || 0; }
+    s.stats.upgrades++; s.stats.speedups++;
+    bumpDaily(s, 'upgrades');
+    return { level: b.level };
+  },
+
   // Крепостная стена: строится и улучшается целиком, мгновенно
   wallUpgrade(s) {
-    const cl = castleLevelOf(s);
-    const max = BUILDINGS.wall.maxByCastle[cl - 1];
-    if (!max) fail('Стена откроется на Цитадели 2 ур.');
-    if (s.wallLevel >= max) fail('Сначала улучшите Цитадель');
-    pay(s, 'gold', wallCost(s.wallLevel + 1));
+    if (s.wallLevel >= castleLevelOf(s)) fail('Сначала улучшите Цитадель');
+    payCost(s, { stone: wallCost(s.wallLevel + 1) });
     s.wallLevel++;
     s.stats.upgrades++;
     return { wallLevel: s.wallLevel };
@@ -307,49 +289,68 @@ export const actions = {
     tick(s);
   },
 
-  // Переставить здание в другую ячейку (если там здание — поменять местами)
+  // Переставить здание на свободное место
   move(s, { id, x, y }) {
     const b = s.buildings.find((v) => v.id === id) || fail('Здание не найдено');
+    if (b.captured) fail('Захваченное здание не переносится');
     x |= 0; y |= 0;
-    if (b.type.startsWith('trap_')) {
-      if (!roadFree(s, x, y)) fail('Нужна свободная дорога');
-      b.x = x; b.y = y; return;
-    }
-    if (!isPlotType(b.type)) fail('Это здание не переносится');
-    const p = plotAt(x, y);
-    if (!p || !ringOpen(p.ring, castleLevelOf(s))) fail('Ячейка закрыта');
-    if (s.decor.some((d) => d.x >= x && d.x < x + PLOT && d.y >= y && d.y < y + PLOT)) fail('Сначала расчистите ячейку');
-    const other = s.buildings.find((v) => v.id !== b.id && isPlotType(v.type) && v.x === x && v.y === y);
-    if (other) { other.x = b.x; other.y = b.y; }
+    const size = BUILDINGS[b.type].size;
+    if (!fits(s, x, y, size, castleLevelOf(s), b.id)) fail('Место занято или закрыто');
     b.x = x; b.y = y;
   },
 
   collect(s, { id }) {
     const list = id ? s.buildings.filter((b) => b.id === id) : s.buildings;
-    const got = { gold: 0, food: 0 };
+    const got = {};
     for (const b of list) {
       const def = BUILDINGS[b.type];
       if (!def.produces || !b.store) continue;
       const added = addRes(s, def.produces, Math.floor(b.store));
       b.store -= added;
-      got[def.produces] += added;
+      got[def.produces] = (got[def.produces] || 0) + added;
     }
     if (got.gold) { s.stats.collectedGold += got.gold; bumpDaily(s, 'gold', got.gold); }
     if (got.food) { s.stats.collectedFood += got.food; bumpDaily(s, 'food', got.food); }
     return { collected: got };
   },
 
+  // Расчистка руин: бесплатно и мгновенно, награда — ресурс
   removeDecor(s, { id }) {
     const i = s.decor.findIndex((d) => d.id === id);
     if (i < 0) fail('Не найдено');
-    pay(s, 'gold', DECOR_REMOVE_COST);
     const d = s.decor[i];
+    if (!inCity(d.x, d.y, RUIN_SIZE, castleLevelOf(s))) fail('Эта земля ещё не открыта');
     s.decor.splice(i, 1);
     s.stats.cleared++;
-    const r = rng(d.id * 7919 + d.x * 31 + d.y);
-    const gems = GEMS_FREE.obstacleMin + Math.floor(r() * (GEMS_FREE.obstacleMax - GEMS_FREE.obstacleMin + 1));
-    s.res.gems += gems;
-    return { gems };
+    s.stats.ruinsCleared++;
+    const got = grant(s, RUIN_REWARD[d.kind] || { wood: 200 });
+    return { got };
+  },
+
+  // Захваченное здание: бой героями (сервер считает, клиент проигрывает журнал)
+  liberate(s, { id }) {
+    const b = s.buildings.find((v) => v.id === id) || fail('Здание не найдено');
+    if (!b.captured) fail('Здание уже наше');
+    const team = teamOf(s);
+    if (!team.some(Boolean)) fail('Поставьте героев в отряд');
+    const enemies = stageEnemies(b.enemy || 1);
+    const battle = simulate(team, enemies);
+    let reward = null;
+    if (battle.winner === 'a') {
+      b.captured = false;
+      s.stats.liberated++;
+      reward = grant(s, { wood: 600 * (b.enemy || 1), stone: 300 * (b.enemy || 1), gems: 20, book: 2 });
+    }
+    return { battle, reward, enemies, stage: b.enemy || 1, building: b.type };
+  },
+
+  // Ещё один строитель за самоцветы
+  buyBuilder(s) {
+    const n = builders(s);
+    if (n >= MAX_BUILDERS) fail('Максимум строителей');
+    pay(s, 'gems', BUILDER_GEM_COST[n]);
+    s.builders = n + 1;
+    return { builders: s.builders };
   },
 
   train(s, { k, n = 1 }) {
@@ -390,8 +391,8 @@ export const actions = {
 
   brew(s, { k }) {
     const sp = SPELLS[k] || fail('Неизвестное заклинание');
-    const tower = s.buildings.find((b) => b.type === 'spelltower' && b.level > 0);
-    if (!tower || tower.level < sp.tower) fail(`Нужна Башня алхимика ${sp.tower} ур.`);
+    const tower = s.buildings.find((b) => b.type === 'academy' && b.level > 0);
+    if (!tower || tower.level < sp.tower) fail(`Нужна Академия ${sp.tower} ур.`);
     const have = Object.values(s.spells).reduce((a, v) => a + v, 0) + s.brewing.length;
     if (have >= spellCapacity(s)) fail('Запас зелий полон');
     pay(s, 'food', sp.cost);
@@ -421,7 +422,7 @@ export const actions = {
   heroUnlock(s, { k }) {
     const h = HEROES[k] || fail('Неизвестный герой');
     if (s.heroes[k]) fail('Уже призван');
-    if (!s.buildings.some((b) => b.type === 'heroaltar' && b.level > 0)) fail('Постройте Алтарь героев');
+    if (!s.buildings.some((b) => b.type === 'altar' && b.level > 0)) fail('Постройте Алтарь героев');
     if (castleLevelOf(s) < h.castle) fail(`Нужна Цитадель ${h.castle} ур.`);
     pay(s, h.res, h.unlock);
     s.heroes[k] = { level: 1, up: null };
@@ -446,7 +447,7 @@ export const actions = {
   },
 
   buyResources(s, { res, amount }) {
-    if (res !== 'gold' && res !== 'food') fail('Неверный ресурс');
+    if (!RES_LIST.includes(res)) fail('Неверный ресурс');
     const space = storageCap(s, res) - s.res[res];
     amount = Math.min(Math.max(0, amount | 0), space);
     if (amount <= 0) fail('Хранилище заполнено');
@@ -472,7 +473,7 @@ export const actions = {
     st.choice = option | 0;
     const r = opt.reward || {};
     s.res.gems += r.gems || 0;
-    for (const k of ['gold', 'food']) if (r[k]) addRes(s, k, r[k]);
+    for (const k of RES_LIST) if (r[k]) addRes(s, k, r[k]);
     return { reward: r };
   },
 
@@ -519,17 +520,17 @@ export function lootableBase(s) {
   const out = [];
   const caps = { gold: storageCap(s, 'gold'), food: storageCap(s, 'food') };
   for (const b of s.buildings) {
-    if (b.level < 1) continue;
+    if (b.level < 1 || b.captured) continue;
     const def = BUILDINGS[b.type];
     const loot = { gold: 0, food: 0 };
     for (const r of ['gold', 'food']) {
       let share = 0;
-      if (b.type === 'castle') share = def.storage[b.level - 1];
-      else if (def.stores === r) share = def.capacity[b.level - 1];
+      if (def.storage) share = def.storage[b.level - 1];
+      else if (def.capacity) share = def.capacity[b.level - 1];
       if (share && caps[r]) loot[r] += Math.floor(s.res[r] * BATTLE.lootStoragePct * share / caps[r]);
     }
     let collector = 0;
-    if (def.produces) {
+    if (def.produces === 'gold' || def.produces === 'food') {
       collector = Math.floor((b.store || 0) * BATTLE.lootCollectorPct);
       loot[def.produces] += collector;
     }
@@ -551,7 +552,8 @@ export function view(p) {
     id: p.id, name: p.castle_name, username: p.username, race: s.race,
     realm: p.realm, plot: p.plot,
     res: s.res,
-    caps: { gold: storageCap(s, 'gold'), food: storageCap(s, 'food') },
+    caps: Object.fromEntries(RES_LIST.map((r) => [r, storageCap(s, r)])),
+    power: cityPower(s),
     buildings: s.buildings, decor: s.decor, wallLevel: s.wallLevel,
     builders: { total: builders(s), busy: busy(s) },
     army: s.army, training: s.training, armyCap: armyCapacity(s),

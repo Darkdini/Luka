@@ -5,11 +5,13 @@ import {
   armyUsed, heroMaxLevel, heroUpgradeCost, heroUpgradeTime, heroLevelMul, troopLevelMul, forgeCost, forgeTime,
 } from '/shared/config.js';
 import { url } from './assets.js';
+import { short } from './cityui.js';
+import { RES_LIST, RES_NAMES } from '/shared/config.js';
 import { esc, avatarUrl } from './world.js';
 import { ACHIEVEMENTS, AVATARS, leagueOf, avatarUnlocked, titlesOf } from '/shared/achievements.js';
 
 const $ = (s) => document.querySelector(s);
-const RES_ICON = { gold: 'ui/icon_gold', food: 'ui/icon_food', gems: 'ui/icon_gem' };
+const RES_ICON = { gold: 'realm/kit/gold', food: 'realm/city/food', wood: 'realm/city/wood', stone: 'realm/city/stone', iron: 'realm/city/iron', mana: 'realm/city/mana', gems: 'realm/kit/gems' };
 const ico = (r, cls = 'ri') => `<img class="${cls}" src="${url(RES_ICON[r])}" alt="">`;
 const castleLevel = (me) => me.buildings.find((b) => b.type === 'castle')?.level || 1;
 const countOf = (me, t) => me.buildings.filter((b) => b.type === t).length;
@@ -27,7 +29,7 @@ export class UI {
     this.app = app;
     this.lastTick = 0;
     $('#modal-bg').addEventListener('click', (e) => { if (e.target.id === 'modal-bg') this.closeModal(); });
-    $('#btn-shop').onclick = () => this.openShop('eco');
+    $('#btn-shop').onclick = () => this.openShop('gems');
     $('#btn-army').onclick = () => this.openArmy('troops');
     $('#btn-attack').onclick = () => app.openWorld();
     $('#btn-top').onclick = () => this.openTop();
@@ -103,13 +105,15 @@ export class UI {
     $('#btn-story').classList.toggle('glow', !!nextCh);
     $('#p-race').textContent = RACES[me.race]?.name || '';
     $('#p-race').style.setProperty('--c', RACES[me.race]?.color || '#888');
-    for (const r of ['gold', 'food']) {
-      this.app.engage.count($(`#r-${r} .v`), Math.floor(me.res[r]));
-      $(`#r-${r}`).title = `${r === 'gold' ? 'Золото' : 'Зерно'}: ${fmt(me.res[r])} из ${fmt(me.caps[r])}`;
-      $(`#r-${r} .fill`).style.width = Math.min(100, me.res[r] / Math.max(1, me.caps[r]) * 100) + '%';
+    for (const r of RES_LIST) {
+      this.app.engage.count($(`#r-${r} .v`), Math.floor(me.res[r] || 0), short);
+      $(`#r-${r}`).title = `${RES_NAMES[r]}: ${fmt(me.res[r] || 0)} из ${fmt(me.caps[r] || 0)}`;
+      $(`#r-${r} .fill`).style.width = Math.min(100, (me.res[r] || 0) / Math.max(1, me.caps[r] || 1) * 100) + '%';
     }
-    this.app.engage.count($('#r-gems .v'), me.res.gems);
-    $('#builders').innerHTML = `🔨 ${me.builders.total - me.builders.busy}/${me.builders.total}`;
+    this.app.engage.count($('#r-gems .v'), me.res.gems, short);
+    $('#builders').innerHTML = `<img src="/assets/realm/city/builder.png" alt="">${me.builders.total - me.builders.busy}/${me.builders.total}`;
+    $('#builders').onclick = () => this.buyBuilder();
+    $('#power').innerHTML = `<img src="/assets/realm/kit/power_ic.png" alt="">${fmt((me.power || 0) + (me.teamPower || 0))}`;
     $('#army-count').textContent = `${armyUsed(me.army)}/${me.armyCap}`;
     const unread = (me.reports || []).filter((r) => r.type === 'defense' && r.ts > (this.app.seenReports || 0)).length;
     $('#btn-reports .badge').textContent = unread || '';
@@ -212,7 +216,7 @@ export class UI {
   }
 
   confirmGems(n, fn) {
-    if (n > this.app.me.res.gems) { this.toast('Не хватает кристаллов'); this.openShop('gems'); return; }
+    if (n > this.app.me.res.gems) { this.toast('Не хватает самоцветов'); this.openShop('gems'); return; }
     if (n < 10) return fn();
     this.modal('Потратить кристаллы?', `<p class="center big">${ico('gems', 'ri big')} ${n}</p>`, [
       { label: 'Подтвердить', cls: 'green', onClick: () => { this.closeModal(); fn(); } },
@@ -271,8 +275,18 @@ export class UI {
       </div>`, btns);
   }
 
+  // Строители: 2 бесплатно, дальше — за самоцветы
+  buyBuilder() {
+    const me = this.app.me, n = me.builders.total;
+    if (n >= 5) { this.toast('У вас максимум строителей'); return; }
+    const cost = BUILDER_GEM_COST[n];
+    this.modal('Новый строитель', `<div class="bw-head"><img src="/assets/realm/city/builder.png" alt=""><div><p>Строители ведут стройку. Сейчас: <b>${me.builders.busy}/${n}</b> заняты.</p><p>Ещё один строитель — ещё одна стройка одновременно.</p></div></div>`,
+      [{ label: `Нанять <img class="ic" src="/assets/realm/kit/gems.png" alt=""> ${cost}`, cls: 'gem', onClick: () => this.confirmGems(cost, () => this.app.act('buyBuilder').then(() => { this.closeModal(); this.toast('Новый строитель в деле!', 'good'); }).catch(() => {})) }], 'bw');
+  }
+
   // --- Магазин --------------------------------------------------------------------
   openShop(tab, plot) {
+    if (tab !== 'gems') { this.app.cityUi.openBuild(); return; }
     const me = this.app.me;
     this.shopPlot = plot || null;
     this.pendingKind = 'shop';
@@ -390,7 +404,7 @@ export class UI {
           </div>`;
         }).join('')}</div>`;
     } else if (tab === 'spells') {
-      const tower = me.buildings.find((b) => b.type === 'spelltower' && b.level > 0);
+      const tower = me.buildings.find((b) => b.type === 'academy' && b.level > 0);
       const have = Object.values(me.spells).reduce((a, v) => a + v, 0);
       const sp = Object.entries(me.spells).filter(([, n]) => n > 0).map(([k, n]) => `<div class="chip"><img src="${url(spellIcon(k))}" alt=""><b>×${n}</b></div>`).join('') || '<span class="muted">Зелий нет</span>';
       body = tower ? `<div class="army-top"><div>🧪 Зелья: <b>${have}</b>${me.brewing.length ? ` (+${me.brewing.length})` : ''} / ${me.spellCap}</div></div><div class="chips">${sp}</div>
@@ -434,7 +448,7 @@ export class UI {
     this.pendingKind = 'heroes';
     this.pendingRefresh = () => this.openHeroes();
     const cl = castleLevel(me);
-    const altar = me.buildings.some((b) => b.type === 'heroaltar' && b.level > 0);
+    const altar = me.buildings.some((b) => b.type === 'altar' && b.level > 0);
     const cards = Object.entries(HEROES).map(([k, h]) => {
       const st = me.heroes[k];
       let action;

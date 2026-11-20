@@ -441,6 +441,7 @@ class HeroBattle {
       <div class="hb-field"></div><div class="hb-cards"></div><div class="hb-ult"></div>`;
     this.el.classList.add('show');
     const field = this.el.querySelector('.hb-field');
+    this.field = field;
     this.units = {};
     for (const u of battle.units) {
       const p = this.pos(u.side, u.slot);
@@ -489,32 +490,156 @@ class HeroBattle {
       if (ev.k === 'round') { this.el.querySelector('.hb-round').textContent = 'Раунд ' + ev.r; continue; }
       const a = this.units[ev.a];
       if (ev.ult && !this.skip) await this.ult(a, ev.name);
-      // рывок к первой цели
-      const t = ev.hits[0] && this.units[ev.hits[0].to];
-      if (t && !ev.hits[0].heal && !this.skip) {
-        const dx = (parseFloat(t.el.style.left) - parseFloat(a.el.style.left)) * 0.35;
-        const dy = (parseFloat(t.el.style.top) - parseFloat(a.el.style.top)) * 0.35;
-        a.el.style.transform = `translate(calc(-50% + ${dx}vw), calc(-100% + ${dy}vh))`;
-        a.el.classList.add('acting');
-        await this.wait(ev.ult ? 260 : 200);
-      }
-      for (const h of ev.hits) {
-        const u = this.units[h.to];
-        if (h.heal) { u.hp = Math.min(u.max, u.hp + h.v); this.num(h.to, '+' + fmt(h.v), 'heal'); }
-        else {
-          u.hp = Math.max(0, u.hp - h.v);
-          this.num(h.to, '-' + fmt(h.v), u.side === 'a' ? 'hurt' : 'dmg');
-          if (!this.skip) { u.el.classList.remove('hit'); void u.el.offsetWidth; u.el.classList.add('hit'); }
-          if (h.kill) this.app.sfx('destroy');
-        }
-        this.setBars(h.to);
-      }
-      if (!this.skip) this.app.sfx(ev.ult ? 'boom' : 'tap');
+      await this.animateAct(ev, a);
       this.setBars(ev.a, ev.e);
-      a.el.style.transform = '';
-      a.el.classList.remove('acting');
-      await this.wait(ev.ult ? 520 : 380);
+      await this.wait(ev.ult ? 380 : 240);
     }
+  }
+
+  // --- Анимации ударов -------------------------------------------------------------
+  // Координаты в пикселях поля: ноги бойца и центр его тела
+  geo(u) {
+    const f = this.field.getBoundingClientRect();
+    const x = parseFloat(u.el.style.left) / 100 * f.width, y = parseFloat(u.el.style.top) / 100 * f.height;
+    const h = u.el.offsetHeight || f.height * 0.19;
+    return { x, y, cx: x, cy: y - h * 0.5, h };
+  }
+  kindOf(u) {
+    const d = HERO[u.id];
+    if (d.role === 'heal') return 'heal';
+    if (d.troop === 'archer') return 'arrow';
+    if (d.role === 'aoe' || d.role === 'support') return 'magic';
+    return 'melee';
+  }
+  fx(cls, x, y, extra = '') {
+    const e = document.createElement('div');
+    e.className = 'hb-fx ' + cls;
+    e.style.left = x + 'px'; e.style.top = y + 'px';
+    if (extra) e.innerHTML = extra;
+    this.field.appendChild(e);
+    return e;
+  }
+  ms(v) { return v / this.speed; }
+  anim(el, frames, dur, opts = {}) {
+    return el.animate(frames, { duration: this.ms(dur), easing: opts.easing || 'ease-out', fill: opts.fill || 'none', delay: this.ms(opts.delay || 0) }).finished.catch(() => {});
+  }
+  move(dx, dy) { return `translate(calc(-50% + ${dx}px), calc(-100% + ${dy}px))`; }
+
+  async animateAct(ev, a) {
+    const hits = ev.hits;
+    const apply = () => { for (const h of hits) this.applyHit(ev, a, h); };
+    if (this.skip || !hits.length) { apply(); return; }
+    const kind = this.kindOf(a);
+    const ga = this.geo(a);
+    const tgts = hits.map((h) => this.units[h.to]);
+    a.el.classList.add('acting');
+    if (kind === 'melee' && !hits[0].heal) {
+      // бег к цели, замах, удар со шлейфом, возврат
+      const t = tgts[0], gt = this.geo(t);
+      const dir = Math.sign(gt.x - ga.x) || (a.side === 'a' ? 1 : -1);
+      const dx = gt.x - ga.x - dir * gt.h * 0.32, dy = gt.y - ga.y + (a.side === 'a' ? gt.h * 0.18 : -gt.h * 0.12);
+      const run = HERO[a.id].troop === 'cavalry' ? 170 : 230;
+      await this.anim(a.el, [{ transform: this.move(0, 0) }, { transform: this.move(dx, dy) }], run, { easing: 'ease-in', fill: 'forwards' });
+      await this.anim(a.el, [{ transform: this.move(dx, dy) }, { transform: this.move(dx - dir * 10, dy - 6) }, { transform: this.move(dx + dir * 14, dy + 2) }], 150, { fill: 'forwards' });
+      for (const u of (ev.ult ? tgts : [t])) this.slash(this.geo(u), dir, ev.ult);
+      apply();
+      await this.wait(90);
+      await this.anim(a.el, [{ transform: this.move(dx, dy) }, { transform: this.move(0, 0) }], 220, { easing: 'ease-out' });
+      if (a.hp > 0) a.el.getAnimations().forEach((x) => x.cancel());
+      if (HERO[a.id].role === 'tank' && ev.ult) this.wave(ga, '#9fc6ff');
+    } else if (kind === 'arrow') {
+      const dir = a.side === 'a' ? 1 : -1;
+      await this.anim(a.el, [{ transform: this.move(0, 0) }, { transform: this.move(-dir * 6, 4) }, { transform: this.move(0, 0) }], 140);
+      await Promise.all(tgts.map((u, i) => this.arrow(ga, this.geo(u), i * 60)));
+      apply();
+    } else if (kind === 'magic') {
+      await this.anim(a.el, [{ transform: this.move(0, 0), filter: 'brightness(1)' }, { transform: this.move(0, -8), filter: 'brightness(1.6)' }, { transform: this.move(0, 0), filter: 'brightness(1)' }], 200);
+      const fire = HERO[a.id].role === 'aoe';
+      await Promise.all(tgts.map((u, i) => this.orb(ga, this.geo(u), fire, i * 50)));
+      apply();
+      if (ev.ult) this.shake();
+      if (ev.buff) for (const u of Object.values(this.units)) if (u.side === a.side && u.hp > 0) this.aura(this.geo(u), '#ffd34d');
+    } else {
+      // лекарь: свечение на себе и зелёные круги на целях (атака — посохом-лучом)
+      this.aura(ga, '#7fe03c');
+      await this.wait(160);
+      await Promise.all(tgts.map((u, i) => (hits[i].heal ? this.healFx(this.geo(u)) : this.orb(ga, this.geo(u), false, 0))));
+      apply();
+    }
+    if (ev.ult && kind === 'melee') this.shake();
+    a.el.classList.remove('acting');
+  }
+
+  applyHit(ev, a, h) {
+    const u = this.units[h.to];
+    if (h.heal) { u.hp = Math.min(u.max, u.hp + h.v); if (h.v > 0) this.num(h.to, '+' + fmt(h.v), 'heal'); this.setBars(h.to); return; }
+    u.hp = Math.max(0, u.hp - h.v);
+    this.num(h.to, '-' + fmt(h.v), (u.side === 'a' ? 'hurt' : 'dmg') + (ev.ult ? ' big' : ''));
+    if (!this.skip) {
+      const dir = Math.sign(this.geo(u).x - this.geo(a).x) || (u.side === 'a' ? -1 : 1);
+      if (u.hp <= 0) {
+        this.anim(u.el, [{ transform: this.move(0, 0), filter: 'brightness(2)' }, { transform: `${this.move(dir * 14, 6)} rotate(${dir * 70}deg)`, filter: 'grayscale(1) brightness(.5)', opacity: 0.35 }], 520, { easing: 'ease-in', fill: 'forwards' });
+        this.app.sfx('destroy');
+      } else {
+        this.anim(u.el, [{ transform: this.move(0, 0), filter: 'brightness(1)' }, { transform: this.move(dir * 12, -3), filter: 'brightness(1.7) sepia(.4) saturate(1.6) hue-rotate(-20deg)' }, { transform: this.move(-dir * 3, 0) }, { transform: this.move(0, 0), filter: 'brightness(1)' }], 260);
+      }
+      this.app.sfx(ev.ult ? 'boom' : 'tap');
+    }
+    this.setBars(h.to);
+  }
+
+  slash(g, dir, big) {
+    const e = this.fx('fx-slash' + (big ? ' big' : ''), g.cx, g.cy);
+    e.style.setProperty('--d', dir);
+    this.anim(e, [{ opacity: 0, transform: `translate(-50%,-50%) scaleX(${dir}) rotate(-70deg) scale(.6)` }, { opacity: 1, offset: 0.25 }, { opacity: 0, transform: `translate(-50%,-50%) scaleX(${dir}) rotate(40deg) scale(1.15)` }], 300).then(() => e.remove());
+    const sp = this.fx('fx-spark', g.cx, g.cy);
+    this.anim(sp, [{ opacity: 1, transform: 'translate(-50%,-50%) scale(.3)' }, { opacity: 0, transform: 'translate(-50%,-50%) scale(1.4)' }], 280).then(() => sp.remove());
+  }
+
+  arrow(from, to, delay) {
+    const e = this.fx('fx-arrow', from.cx, from.cy - from.h * 0.1);
+    const dx = to.cx - from.cx, dy = to.cy - (from.cy - from.h * 0.1);
+    const ang = Math.atan2(dy, dx) * 180 / Math.PI, lift = Math.min(60, Math.abs(dx) * 0.25 + 20);
+    return this.anim(e, [
+      { transform: `translate(0,0) rotate(${ang - 18}deg)`, opacity: 1 },
+      { transform: `translate(${dx * 0.5}px, ${dy * 0.5 - lift}px) rotate(${ang}deg)`, opacity: 1 },
+      { transform: `translate(${dx}px, ${dy}px) rotate(${ang + 18}deg)`, opacity: 1 },
+    ], 300, { easing: 'linear', delay }).then(() => {
+      e.remove();
+      const sp = this.fx('fx-spark', to.cx, to.cy);
+      this.anim(sp, [{ opacity: 1, transform: 'translate(-50%,-50%) scale(.3)' }, { opacity: 0, transform: 'translate(-50%,-50%) scale(1)' }], 220).then(() => sp.remove());
+    });
+  }
+
+  orb(from, to, fire, delay) {
+    const e = this.fx('fx-orb' + (fire ? ' fire' : ''), from.cx, from.cy - from.h * 0.15);
+    const dx = to.cx - from.cx, dy = to.cy - (from.cy - from.h * 0.15);
+    return this.anim(e, [{ transform: 'translate(-50%,-50%) scale(.5)' }, { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(1.1)` }], 320, { easing: 'ease-in', delay }).then(() => {
+      e.remove();
+      const b = this.fx('fx-burst' + (fire ? ' fire' : ''), to.cx, to.cy);
+      this.anim(b, [{ opacity: 1, transform: 'translate(-50%,-50%) scale(.2)' }, { opacity: 0, transform: 'translate(-50%,-50%) scale(1.5)' }], 360).then(() => b.remove());
+    });
+  }
+
+  healFx(g) {
+    const e = this.fx('fx-heal', g.cx, g.y - 6, '<i>+</i><i>+</i><i>+</i>');
+    return this.anim(e, [{ opacity: 0, transform: 'translate(-50%,-50%) scale(.6)' }, { opacity: 1, offset: 0.3 }, { opacity: 0, transform: 'translate(-50%,-80%) scale(1.2)' }], 520).then(() => e.remove());
+  }
+
+  aura(g, color) {
+    const e = this.fx('fx-aura', g.cx, g.y - 4);
+    e.style.setProperty('--c', color);
+    this.anim(e, [{ opacity: 0, transform: 'translate(-50%,-50%) scale(.5)' }, { opacity: 0.9, offset: 0.3 }, { opacity: 0, transform: 'translate(-50%,-50%) scale(1.3)' }], 600).then(() => e.remove());
+  }
+
+  wave(g, color) {
+    const e = this.fx('fx-wave', g.cx, g.y - 4);
+    e.style.setProperty('--c', color);
+    this.anim(e, [{ opacity: 0.9, transform: 'translate(-50%,-50%) scale(.3)' }, { opacity: 0, transform: 'translate(-50%,-50%) scale(2.6)' }], 520).then(() => e.remove());
+  }
+
+  shake() {
+    this.anim(this.field, [{ transform: 'translate(0,0)' }, { transform: 'translate(-6px,3px)' }, { transform: 'translate(5px,-4px)' }, { transform: 'translate(-3px,2px)' }, { transform: 'translate(0,0)' }], 320);
   }
 
   async ult(a, name) {

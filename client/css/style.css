@@ -1130,3 +1130,13 @@ img.h-up { position: absolute; right: 3px; bottom: 20px; width: 24px; height: 24
 .hd-bar span { color: #fff; text-shadow: 0 0 3px #000, 0 1px 2px #000, 0 0 6px #000; }
 .hv-tabs button { white-space: nowrap; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 2px; }
 .hv-tabs button img.ic { width: 16px; height: 16px; }
+
+/* единая арена: площадка начинается ~с 27% высоты */
+.hb-arena { background-position: center top; transform: none; }
+.hb-u { height: 17vh; }
+.hb-cards { padding-top: 2px; }
+.hb-c { max-width: 64px; }
+.team-board { background-position: center 62%; }
+.cp-map { background-position: center 8%; }
+.hb-u { height: 19vh; }
+.hb-u::after { content: ''; position: absolute; left: 18%; right: 18%; bottom: -4px; height: 14px; border-radius: 50%; background: radial-gradient(rgba(0,0,0,.55), transparent 70%); z-index: -1; }

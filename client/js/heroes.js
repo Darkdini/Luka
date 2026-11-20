@@ -16,9 +16,8 @@ const KIT = new Set(['atk', 'def', 'hp', 'spd', 'power_ic', 'gems', 'gold', 'boo
 const ICON = (n) => (KIT.has(n) ? `${A}kit/${n}.png` : `${A}icons/${n}.png`);
 const I = (n, c = 'ic') => `<img class="${c}" src="${ICON(n)}" alt="">`;
 const ROLE_ICON = { tank: 'tank', dmg: 'dmg', aoe: 'aoe', heal: 'heal', support: 'support' };
-// ровные площадки (без мостов и стен)
-const ARENAS = [3, 7, 2, 6, 4, 8];
-const arenaOf = (n) => ARENAS[(n - 1) % ARENAS.length];
+// единая арена для всех боёв (вертикальная, площадка по центру)
+const ARENA = `${A}arenas/main.jpg`;
 const TROOP_ICON = { infantry: 'infantry', archer: 'archer', cavalry: 'cavalry' };
 const RACE_ORDER = ['humans', 'elves', 'dwarves', 'orcs'];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -272,7 +271,7 @@ export class Heroes {
     body.innerHTML = `
       <div class="team-head"><div class="tp"><img src="${ICON('dmg')}" alt="">Сила отряда <b>${fmt(power)}</b></div>
         <div class="syn" title="Бонус за героев одной расы">${synRing}<span>${syn.bonus ? `${RACES[syn.race].name}: +${Math.round(syn.bonus * 100)}%` : 'Нет бонуса расы'}</span></div></div>
-      <div class="team-board" style="background-image:url(${A}arenas/3.jpg)">
+      <div class="team-board" style="background-image:url(${ARENA})">
         <div class="row-l">Передний ряд — к врагу</div><div class="row front">${slot(0)}${slot(1)}</div>
         <div class="row-l">Задний ряд</div><div class="row back">${slot(2)}${slot(3)}${slot(4)}</div>
       </div>
@@ -388,7 +387,7 @@ export class Heroes {
     const idle = c.idle;
     const body = this.root.querySelector('.hs-body');
     body.innerHTML = `
-      <div class="cp-map" style="background-image:url(${A}arenas/${arenaOf(ch + 1)}.jpg)">
+      <div class="cp-map" style="background-image:url(${ARENA})">
         <div class="cp-ch">Глава ${ch + 1}<b>${CHAPTER_NAMES[ch % CHAPTER_NAMES.length]}</b><span>Этап ${stageName(n)}</span></div>
         <div class="cp-path">${nodes}</div>
       </div>
@@ -428,16 +427,15 @@ class HeroBattle {
   pos(side, slot) {
     // наш отряд снизу, враг сверху; передний ряд ближе к центру
     const xs = { 0: 33, 1: 67, 2: 18, 3: 50, 4: 82 };
-    const y = side === 'a' ? (slot < 2 ? 60 : 80) : (slot < 2 ? 36 : 18);
+    const y = side === 'a' ? (slot < 2 ? 66 : 81) : (slot < 2 ? 50 : 36);
     return { x: xs[slot], y };
   }
 
   play(res, done) {
     const { battle } = res;
-    const arena = arenaOf(res.stage);
     this.speed = 1;
     this.skip = false;
-    this.el.innerHTML = `<div class="hb-arena" style="background-image:url(${A}arenas/${arena}.jpg)"></div>
+    this.el.innerHTML = `<div class="hb-arena" style="background-image:url(${ARENA})"></div>
       <div class="hb-top"><b>Этап ${stageName(res.stage)}</b><span class="hb-round">Раунд 1</span>
         <button class="hb-speed"><img src="${A}kit/x1.png" alt="×1"></button><button class="hb-skip"><img src="${A}kit/skip.png" alt="Пропустить"></button></div>
       <div class="hb-field"></div><div class="hb-cards"></div><div class="hb-ult"></div>`;

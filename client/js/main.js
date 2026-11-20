@@ -4,6 +4,7 @@ import { loadAll } from './assets.js';
 import { agreement, intro, chooseFaction, showAuthScreen, hideScreens, loadingProgress, loadingTip } from './onboarding.js';
 import { Scene, iso } from './scene.js';
 import { CityUI } from './cityui.js';
+import { Troops } from './troops.js';
 import { RES_GEN } from '/shared/config.js';
 import { Village } from './village.js';
 import { Battle } from './battle.js';
@@ -43,6 +44,8 @@ class App {
     this.engage = new Engage(this);
     this.heroes = new Heroes(this);
     this.cityUi = new CityUI(this);
+    this.troops = new Troops(this);
+    $('#btn-army').onclick = () => this.troops.open();
     $('#btn-build').onclick = () => { this.village.cancelPlacing(); this.cityUi.openBuild(); };
     $('#btn-heroes').onclick = () => this.heroes.open('list');
     $('#btn-campaign').onclick = () => this.heroes.open('campaign');
@@ -182,6 +185,7 @@ class App {
     this.ui?.updateHud(me);
     this.engage?.update(me, prev && prev.id === me.id ? prev : null);
     this.heroes?.badges();
+    this.troops?.refresh();
   }
 
   async refresh() {

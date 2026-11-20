@@ -9,6 +9,7 @@ import {
 } from '../shared/config.js';
 import { achievementStatus } from '../shared/achievements.js';
 import { migrateHeroes, heroActions, heroView, HeroError, teamOf } from './heroes.js';
+import { migrateTroops, tickTroops, troopActions, troopView, TroopError } from './troops.js';
 import { CASTLE_POS, CAPTURED, STARTER, wallTiles, cityRect, fits, blockedBy, autoPlace, genRuins, inCity, RUIN_SIZE } from '../shared/city.js';
 import { stageEnemies, HERO } from '../shared/heroes.js';
 import { simulate } from '../shared/herobattle.js';
@@ -105,6 +106,7 @@ export function migrateCity(s) {
 const STAT_KEYS = ['liberated', 'ruinsCleared', 'attacks', 'wins', 'defenses', 'defWins', 'starsTotal', 'goldLooted', 'foodLooted', 'destroyed', 'npcWins', 'trained', 'cleared', 'trophiesMax', 'collectedGold', 'collectedFood', 'upgrades', 'speedups', 'mottoSet'];
 export function migrate(s) {
   migrateHeroes(s);
+  migrateTroops(s);
   s.stats = s.stats || {};
   for (const k of STAT_KEYS) s.stats[k] = s.stats[k] || 0;
   s.achievements = s.achievements || {};
@@ -176,6 +178,7 @@ export function tick(s, now = Date.now()) {
     s.forge = null;
   }
   for (const h of Object.values(s.heroes)) if (h.up && h.up.end <= now) { h.level = h.up.to; h.up = null; }
+  tickTroops(s, now);
   clampRes(s);
   return s;
 }
@@ -565,6 +568,7 @@ export function view(p) {
     streak: s.streak,
     tutorial: s.tutorial,
     ...heroView(s),
+    ...troopView(s),
     daily: { ...ensureDaily(s), quests: dailyQuests(s.daily.day, castleLevelOf(s)) },
     reports: s.reports.slice(0, 20),
     stats: s.stats,
@@ -579,4 +583,9 @@ export function view(p) {
 // Герои: действия подключаются к общему списку; их ошибки — игровые
 Object.assign(actions, Object.fromEntries(Object.entries(heroActions({ pay, addRes })).map(([k, fn]) => [k, (s, a) => {
   try { return fn(s, a); } catch (e) { if (e instanceof HeroError) throw new GameError(e.message); throw e; }
+}])));
+
+// Войска: действия и ошибки — игровые
+Object.assign(actions, Object.fromEntries(Object.entries(troopActions({ pay, payCost, bumpDaily })).map(([k, fn]) => [k, (s, a) => {
+  try { return fn(s, a); } catch (e) { if (e instanceof TroopError) throw new GameError(e.message); throw e; }
 }])));

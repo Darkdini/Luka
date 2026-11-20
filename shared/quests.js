@@ -53,7 +53,9 @@ export const TUTORIAL = [
   { ch: CH3, id: 'barracks', title: 'Казармы', text: 'Дезертиры заняли Казармы. Отвоюйте их — без них не собрать войско.',
     done: (c) => c.freed('barracks'), target: { building: 'barracks' }, reward: { iron: 800, gems: 15 } },
   { ch: CH3, id: 'barracks2', title: 'Под знамёна', text: 'Почините Казармы.',
-    done: (c) => c.lvl('barracks') >= 1, target: { building: 'barracks' }, reward: { gems: 50, food: 3000, gold: 2000 } },
+    done: (c) => c.lvl('barracks') >= 1, target: { building: 'barracks' }, reward: { gems: 30, food: 3000, gold: 2000 } },
+  { ch: CH3, id: 'troops', title: 'Первые полки', text: 'Откройте «Армия» и обучите 50 воинов в Казармах.',
+    done: (c) => (c.st.trained || 0) >= 50, target: { ui: '#btn-army' }, reward: { gems: 30, food: 3000, wood: 2000 } },
 ];
 
 // --- Ежедневные задания --------------------------------------------------------

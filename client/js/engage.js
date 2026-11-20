@@ -76,7 +76,6 @@ export class Engage {
     }
     // красные точки «здесь можно что-то сделать»
     const queued = me.training.reduce((a, x) => a + TROOPS[x.k].space, 0);
-    dot('#btn-army', armyUsed(me.army) + queued < me.armyCap && !me.training.length);
     dot('#btn-build', this.canBuildSomething(me));
     const d = me.daily;
     const dailyClaim = me.dailyReady || d.quests.some((x, i) => !d.claimed[i] && (d.c[x.counter] || 0) >= x.goal) || (d.claimed.every(Boolean) && !d.bonus);

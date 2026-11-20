@@ -58,7 +58,7 @@ def background(rgb):
     return out
 
 
-def extract(path, expect=None, gap=90, dil=7, glow=True, split=0):
+def extract(path, expect=None, gap=90, dil=7, glow=True, split=0, holes=False):
     """Возвращает список RGBA-картинок элементов листа (построчно, слева направо)."""
     rgb = np.array(Image.open(path).convert("RGB")).astype(float)
     bg = background(rgb)
@@ -66,6 +66,14 @@ def extract(path, expect=None, gap=90, dil=7, glow=True, split=0):
     solid = ndimage.binary_fill_holes(ndimage.binary_opening(dist > 22, iterations=1))
     soft = np.clip((dist - 5) / 40, 0, 1)
     alpha = np.maximum(soft, ndimage.binary_erosion(solid, iterations=1))
+    if holes:  # крупные «окна» фона внутри силуэта (между рукой и телом, под конём) — прозрачные
+        inner = ndimage.binary_fill_holes(solid) & (dist <= 16)
+        lab, n = ndimage.label(inner)
+        if n:
+            sizes = ndimage.sum(inner, lab, range(1, n + 1))
+            big = np.isin(lab, [i + 1 for i, v in enumerate(sizes) if v >= 250])
+            big = ndimage.binary_dilation(big, iterations=1)
+            alpha = np.where(big, np.minimum(alpha, soft), alpha)
     # группы: сплошные части + ореол свечения
     grp, n = ndimage.label(ndimage.binary_dilation(solid | (soft > 0.25) if glow else solid, iterations=dil))
     if split:  # касающиеся элементы: ядра после эрозии, пиксели — ближайшему ядру

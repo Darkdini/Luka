@@ -113,7 +113,7 @@ export class UI {
     this.app.engage.count($('#r-gems .v'), me.res.gems, short);
     $('#builders').innerHTML = `<img src="/assets/realm/city/builder.png" alt="">${me.builders.total - me.builders.busy}/${me.builders.total}`;
     $('#builders').onclick = () => this.buyBuilder();
-    $('#power').innerHTML = `<img src="/assets/realm/kit/power_ic.png" alt="">${fmt((me.power || 0) + (me.teamPower || 0))}`;
+    $('#power').innerHTML = `<img src="/assets/realm/kit/power_ic.png" alt="">${fmt((me.power || 0) + (me.teamPower || 0) + (me.troopPower || 0))}`;
     $('#army-count').textContent = `${armyUsed(me.army)}/${me.armyCap}`;
     const unread = (me.reports || []).filter((r) => r.type === 'defense' && r.ts > (this.app.seenReports || 0)).length;
     $('#btn-reports .badge').textContent = unread || '';

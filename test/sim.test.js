@@ -162,3 +162,28 @@ test('герои: найм, сборка, прокачка, кампания', (
   actions.heroAssemble(s, { id: 'selene' });
   assert.ok(s.roster.selene);
 });
+
+import { troopCost, batchMax } from '../shared/troops.js';
+
+test('войска: обучение в лагерях, ступени, ускорение, госпиталь', () => {
+  const s = newPlayerState('orcs', 77);
+  assert.equal(s.troops.infantry1, 60);
+  assert.throws(() => actions.trainTroops(s, { kind: 'infantry', tier: 1, n: 10 }), /Казармы/);
+  const bar = s.buildings.find((b) => b.type === 'barracks');
+  bar.captured = false; bar.level = 2;
+  assert.throws(() => actions.trainTroops(s, { kind: 'infantry', tier: 3, n: 10 }), /Ступень 3/);
+  assert.throws(() => actions.trainTroops(s, { kind: 'infantry', tier: 2, n: batchMax(2) + 1 }), /не больше/);
+  const food = s.res.food;
+  actions.trainTroops(s, { kind: 'infantry', tier: 2, n: 20 });
+  assert.equal(food - s.res.food, troopCost('infantry', 2, 20).food);
+  assert.throws(() => actions.trainTroops(s, { kind: 'infantry', tier: 1, n: 5 }), /уже обучает/);
+  tick(s, Date.now() + 3600e3);
+  assert.equal(s.troops.infantry2, 20);
+  // госпиталь
+  s.wounded = { infantry1: 10 };
+  assert.throws(() => actions.healAll(s), /Госпиталь/);
+  s.buildings.push({ id: 999, type: 'hospital', level: 1, x: 14, y: 26 });
+  actions.healAll(s);
+  tick(s, Date.now() + 3600e3);
+  assert.equal(s.troops.infantry1, 70);
+});

@@ -220,7 +220,8 @@ export class Village {
     if (b.level > 0) {
       if (b.type === 'tavern') add('collect', 'Таверна', () => this.app.heroes.open('tavern'));
       if (b.type === 'altar') add('upgrade', 'Герои', () => this.app.heroes.open('list'));
-      if (['barracks', 'range', 'stables', 'hospital'].includes(b.type)) add('train', 'Войска', () => this.app.ui.openArmy('troops'));
+      const camp = { barracks: 'infantry', range: 'archer', stables: 'cavalry', hospital: 'hospital' }[b.type];
+      if (camp) add('train', camp === 'hospital' ? 'Лечение' : 'Обучить', () => this.app.troops.open(camp));
       if (b.type === 'forge') add('build', 'Кузница', () => this.app.ui.openArmy('forge'));
       if (b.type === 'academy') add('research', 'Зелья', () => this.app.ui.openArmy('spells'));
     }
